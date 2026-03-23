@@ -1,47 +1,34 @@
 /**
- * Threads Media Downloader & Upgrader — Background Service Worker
+ * Threads Media Downloader — Background Service Worker
  *
- * 1) CORS-free media fetching
- * 2) chrome.downloads API
+ * Handles CORS-bypassed media fetching and chrome.downloads API calls.
  */
 
-// Keep-alive
-chrome.runtime.onConnect.addListener(function (port) { });
-
-// ── Message Handler ─────────────────────────────────────
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-
-    // 미디어 fetch (CORS 우회)
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.action === 'fetchMedia') {
-        fetchMediaAsDataUrl(message.url)
+        fetchAsDataUrl(message.url)
             .then(dataUrl => sendResponse({ success: true, dataUrl }))
             .catch(err => sendResponse({ success: false, error: err.message }));
         return true;
     }
 
-    // 파일 다운로드
-    if (message.action === 'downloadFile') {
-        chrome.downloads.download({
-            url: message.url,
-            filename: message.filename,
-            saveAs: false
-        }, (downloadId) => {
-            if (chrome.runtime.lastError) {
-                sendResponse({ success: false, error: chrome.runtime.lastError.message });
-            } else {
-                sendResponse({ success: true, downloadId });
+    if (message.action === 'download') {
+        chrome.downloads.download(
+            { url: message.url, filename: message.filename, saveAs: false },
+            downloadId => {
+                const error = chrome.runtime.lastError;
+                sendResponse(error
+                    ? { success: false, error: error.message }
+                    : { success: true, downloadId });
             }
-        });
+        );
         return true;
     }
 });
 
-// ── Media Fetch ─────────────────────────────────────────
-
-async function fetchMediaAsDataUrl(url) {
+async function fetchAsDataUrl(url) {
     const response = await fetch(url, { mode: 'cors', credentials: 'omit' });
-    if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const blob = await response.blob();
     return new Promise((resolve, reject) => {
