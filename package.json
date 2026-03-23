@@ -1,0 +1,20 @@
+{
+  "name": "threads-media-downloader",
+  "version": "1.1.0",
+  "description": "Download and enhance images/videos from Threads posts",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "threads-dl": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node index.js --help"
+  },
+  "keywords": ["threads", "downloader", "media", "image-enhancement"],
+  "license": "ISC",
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "sharp": "^0.34.5"
+  }
+}
