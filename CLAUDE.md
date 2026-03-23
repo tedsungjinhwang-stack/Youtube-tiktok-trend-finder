@@ -1,40 +1,52 @@
-# Threads Media Downloader — Chrome Extension
+# Threads Media Downloader
 
-## Project Overview
-Threads(threads.net) 게시물의 이미지/영상을 다운로드하는 Chrome Extension (Manifest V3).
-다운로드 시 이미지에 미세한 색보정·리프레이밍을 적용하여 고유한 결과물을 생성한다.
+Threads(threads.net) 게시물에서 이미지/영상을 다운로드하고, 이미지에 미세 보정을 적용하는 CLI 도구.
+
+## Quick Start
+
+```bash
+npm install
+node index.js <threads-url>
+```
+
+## Usage
+
+```bash
+# 기본 (다운로드 + 이미지 보정)
+node index.js https://www.threads.net/@user/post/ABC123
+
+# 출력 디렉토리 지정
+node index.js https://www.threads.net/@user/post/ABC123 -o ./media
+
+# 보정 없이 원본 저장
+node index.js https://www.threads.net/@user/post/ABC123 --no-enhance
+```
 
 ## Architecture
 
 ```
-manifest.json      — Extension manifest (MV3)
-background.js      — Service worker: CORS 우회 fetch, chrome.downloads API
-content.js         — Content script: DOM 스캔, 버튼 주입, 이미지 보정 파이프라인
-content.css        — 다운로드 버튼 스타일
-icons/             — Extension 아이콘 (16, 48, 128px)
+index.js             — 진입점, CLI 실행 흐름
+lib/
+  cli.js             — 인자 파싱, 도움말 출력
+  scraper.js         — Threads 페이지 fetch → 미디어 URL 추출
+  enhance.js         — Sharp 기반 이미지 보정 (crop, 색보정, noise)
+  download.js        — 미디어 다운로드 + 파일 저장
 ```
 
-### Key Flows
-1. **DOM 감시**: `MutationObserver`로 Threads 피드의 `<img>`, `<video>` 감지 → 다운로드 버튼 주입
-2. **미디어 fetch**: content script에서 직접 fetch 시도 → 실패 시 background service worker로 CORS 우회
-3. **이미지 보정**: Canvas API로 crop/reframe → HSL 색보정 + gamma + warmth + noise → JPEG/PNG 출력
-4. **다운로드**: `chrome.downloads` API → 실패 시 `<a>` 태그 fallback
+### Flow
+1. **scraper**: Threads URL → HTML fetch → og:meta / JSON / CDN URL에서 미디어 추출
+2. **download**: 미디어 URL → `./downloads/` 에 파일 저장
+3. **enhance**: Sharp로 crop → saturation/brightness/hue/gamma 조정 → noise overlay → 덮어쓰기
 
-### Message Protocol (content ↔ background)
-- `{ action: 'fetchMedia', url }` → `{ success, dataUrl }`
-- `{ action: 'download', url, filename }` → `{ success, downloadId }`
+## Dependencies
+- `node-fetch` — HTTP 요청
+- `sharp` — 이미지 처리 (crop, color, resize, composite)
 
-## Tech Stack
-- Vanilla JavaScript (no build tools, no dependencies)
-- Chrome Extension Manifest V3
-- Canvas API for image processing
-
-## CSS Class Convention
-- 접두사: `tmd-` (Threads Media Downloader)
-- 상태 클래스: `tmd-loading`, `tmd-done`, `tmd-error`
-
-## Development Notes
-- 빌드 도구 없음. 파일 수정 후 `chrome://extensions`에서 리로드하면 됨
-- `content.js`는 IIFE로 감싸져 있어 전역 오염 없음
-- 이미지 보정 파라미터는 `content.js` 상단 `ENHANCE` 객체에서 조정
-- 테스트: `https://www.threads.net` 에서 수동 확인
+## Enhancement Parameters
+`lib/enhance.js` 상단 `ENHANCE` 객체에서 조정:
+- `cropMin/cropMax` — 리프레이밍 비율 (2~4%)
+- `hueShiftMax` — 색조 이동 범위 (±3°)
+- `saturationRange` — 채도 배율 (0.97~1.03)
+- `gammaRange` — 감마 보정 (0.97~1.03)
+- `noiseLevel` — 노이즈 강도 (0이면 비활성)
+- `jpegQuality` — JPEG 출력 품질 (93)
