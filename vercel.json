@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/reset-youtube-quotas",
+      "schedule": "5 8 * * *"
+    },
+    {
+      "path": "/api/cron/scrape-all",
+      "schedule": "0 18 * * *"
+    }
+  ]
+}

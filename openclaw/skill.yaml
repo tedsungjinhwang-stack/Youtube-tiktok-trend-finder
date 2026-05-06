@@ -1,0 +1,41 @@
+name: trend-finder
+version: 0.1.0
+description: TikTok / Instagram / YouTube 에셋 채널 트렌드 영상 검색·관리
+baseUrl: https://your-app.vercel.app/api/v1
+auth:
+  type: bearer
+  envVar: TREND_FINDER_API_KEY
+openapi: /openapi.json
+tools:
+  - name: list_videos
+    method: GET
+    path: /videos
+    description: 폴더/플랫폼/기간/정렬/임계치로 트렌드 영상 검색
+  - name: list_channels
+    method: GET
+    path: /channels
+    description: 폴더/플랫폼별 등록 채널 조회
+  - name: list_folders
+    method: GET
+    path: /folders
+    description: 전체 폴더(카테고리) 조회
+  - name: add_channel
+    method: POST
+    path: /channels
+    description: 새 채널 등록 (platform + handle + folderId)
+  - name: add_folder
+    method: POST
+    path: /folders
+    description: 새 폴더 추가
+  - name: scrape_channel
+    method: POST
+    path: /scrape/channel/{id}
+    description: 특정 채널 즉시 수집
+  - name: scrape_all
+    method: POST
+    path: /scrape/all
+    description: 모든 활성 채널 일괄 수집
+  - name: stats
+    method: GET
+    path: /stats
+    description: 폴더/채널/영상 카운트와 마지막 수집 시각

@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Platform {
+  YOUTUBE
+  TIKTOK
+  INSTAGRAM
+}
+
+model Folder {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  isSeeded  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  channels  Channel[]
+}
+
+model Channel {
+  id              String    @id @default(cuid())
+  platform        Platform
+  externalId      String
+  handle          String?
+  displayName     String?
+  thumbnailUrl    String?
+  subscriberCount Int?
+  totalViewCount  BigInt?
+  folderId        String
+  folder          Folder    @relation(fields: [folderId], references: [id])
+  videos          Video[]
+  isActive        Boolean   @default(true)
+  addedAt         DateTime  @default(now())
+  lastScrapedAt   DateTime?
+
+  @@unique([platform, externalId])
+  @@index([folderId])
+}
+
+model Video {
+  id              String   @id @default(cuid())
+  channelId       String
+  channel         Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  platform        Platform
+  externalId      String
+  url             String
+  caption         String?
+  thumbnailUrl    String?
+  viewCount       BigInt   @default(0)
+  likeCount       Int?
+  commentCount    Int?
+  shareCount      Int?
+  durationSeconds Int?
+  isShorts        Boolean?
+  publishedAt     DateTime
+  fetchedAt       DateTime @default(now())
+  viralScore      Float?
+
+  @@unique([platform, externalId])
+  @@index([channelId, publishedAt])
+  @@index([viralScore])
+  @@index([publishedAt])
+}
+
+model YoutubeApiKey {
+  id              String    @id @default(cuid())
+  label           String
+  apiKey          String    @unique
+  isActive        Boolean   @default(true)
+  dailyQuotaLimit Int       @default(10000)
+  usedToday       Int       @default(0)
+  lastUsedAt      DateTime?
+  exhaustedAt     DateTime?
+  resetAt         DateTime?
+  failCount       Int       @default(0)
+  lastError       String?
+  createdAt       DateTime  @default(now())
+}
+
+model ScrapeRun {
+  id         String    @id @default(cuid())
+  channelId  String?
+  platform   Platform
+  status     String
+  itemsCount Int       @default(0)
+  costUsd    Float?
+  quotaUsed  Int?
+  error      String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([channelId])
+  @@index([startedAt])
+}
