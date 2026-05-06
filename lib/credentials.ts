@@ -1,11 +1,13 @@
 /**
- * Credential resolver: DB → in-memory override → env.
+ * Credential resolver: DB → memory → env.
  *
- * Phase 1 (now): in-memory Map only. Survives until server restart.
- * Phase 2 (DB connected): swap memoryStore checks to prisma.credential.findUnique.
+ * - DB available  → write-through to prisma.credential, hydrated into memory on first read.
+ * - DB unavailable → memory-only (lost on restart) + env fallback.
  *
  * Used by lib/auth.ts (OPENCLAW_API_KEY, CRON_SECRET) and lib/scraper/* (APIFY_API_TOKEN).
  */
+
+import { prisma } from '@/lib/db';
 
 export type CredService =
   | 'APIFY_API_TOKEN'
@@ -15,7 +17,6 @@ export type CredService =
   | 'SUPABASE_SERVICE_ROLE_KEY'
   | 'DATABASE_URL';
 
-/** Which services are editable from the UI vs env-only (boot-time secrets). */
 export const CRED_META: Record<
   CredService,
   { label: string; description: string; editable: boolean; bootOnly?: boolean }
@@ -56,43 +57,78 @@ export const CRED_META: Record<
 };
 
 const memoryStore = new Map<CredService, string>();
+let hydrationDone = false;
+let dbAvailable: boolean | null = null;
 
-/**
- * Resolve a credential value. Returns null if not set anywhere.
- * Async because Phase 2 will call DB.
- */
+async function checkDb(): Promise<boolean> {
+  if (dbAvailable !== null) return dbAvailable;
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    dbAvailable = true;
+  } catch {
+    dbAvailable = false;
+  }
+  return dbAvailable;
+}
+
+async function hydrateOnce(): Promise<void> {
+  if (hydrationDone) return;
+  hydrationDone = true;
+  if (!(await checkDb())) return;
+  try {
+    const rows = await prisma.credential.findMany();
+    for (const r of rows) {
+      memoryStore.set(r.service as CredService, r.value);
+    }
+  } catch {
+    /* table not migrated yet */
+  }
+}
+
 export async function getCred(service: CredService): Promise<string | null> {
-  // Phase 2: try DB first
-  // const row = await prisma.credential.findUnique({ where: { service } });
-  // if (row) return row.value;
+  await hydrateOnce();
   return getCredSync(service);
 }
 
 /**
- * Sync resolver for hot-path auth checks (memory → env, no DB).
- * Phase 2: keep as cache, refreshed by background job that reads DB.
+ * Sync resolver — reads hydrated memory + env. Hot-path auth checks use this.
+ * If DB has a fresher value than memory, next async getCred() will refresh.
  */
 export function getCredSync(service: CredService): string | null {
   if (memoryStore.has(service)) return memoryStore.get(service)!;
   return process.env[service] ?? null;
 }
 
-/** Set or update a credential. Phase 2: prisma.credential.upsert. */
 export async function setCred(service: CredService, value: string): Promise<void> {
   if (!CRED_META[service].editable) {
     throw new Error(`${service} is env-only (boot-time secret).`);
   }
-  // Phase 2: await prisma.credential.upsert(...)
   memoryStore.set(service, value);
+  if (await checkDb()) {
+    try {
+      await prisma.credential.upsert({
+        where: { service },
+        create: { service, value },
+        update: { value },
+      });
+    } catch {
+      /* table not migrated yet — memory only */
+    }
+  }
 }
 
-/** Clear in-memory override; falls back to env again. */
 export async function clearCred(service: CredService): Promise<void> {
   if (!CRED_META[service].editable) {
     throw new Error(`${service} is env-only (boot-time secret).`);
   }
-  // Phase 2: await prisma.credential.delete({ where: { service } })
   memoryStore.delete(service);
+  if (await checkDb()) {
+    try {
+      await prisma.credential.delete({ where: { service } });
+    } catch {
+      /* not present or table missing */
+    }
+  }
 }
 
 export type CredStatus = {
@@ -102,31 +138,46 @@ export type CredStatus = {
   editable: boolean;
   bootOnly: boolean;
   isSet: boolean;
-  source: 'memory' | 'env' | 'none';
+  source: 'db' | 'memory' | 'env' | 'none';
   preview: string | null;
 };
 
 export async function listCredStatus(): Promise<CredStatus[]> {
+  await hydrateOnce();
+  const dbServices = new Set<string>();
+  if (await checkDb()) {
+    try {
+      const rows = await prisma.credential.findMany({ select: { service: true } });
+      for (const r of rows) dbServices.add(r.service);
+    } catch {
+      /* table not migrated */
+    }
+  }
+
   const services = Object.keys(CRED_META) as CredService[];
-  return Promise.all(
-    services.map(async (s) => {
-      const meta = CRED_META[s];
-      const memVal = memoryStore.get(s);
-      const envVal = process.env[s];
-      const value = memVal ?? envVal ?? null;
-      const source = memVal != null ? 'memory' : envVal != null ? 'env' : 'none';
-      return {
-        service: s,
-        label: meta.label,
-        description: meta.description,
-        editable: meta.editable,
-        bootOnly: meta.bootOnly ?? false,
-        isSet: value != null,
-        source,
-        preview: maskCred(value),
-      };
-    })
-  );
+  return services.map((s) => {
+    const meta = CRED_META[s];
+    const memVal = memoryStore.get(s);
+    const envVal = process.env[s];
+    const value = memVal ?? envVal ?? null;
+    const source: CredStatus['source'] = dbServices.has(s)
+      ? 'db'
+      : memVal != null
+        ? 'memory'
+        : envVal != null
+          ? 'env'
+          : 'none';
+    return {
+      service: s,
+      label: meta.label,
+      description: meta.description,
+      editable: meta.editable,
+      bootOnly: meta.bootOnly ?? false,
+      isSet: value != null,
+      source,
+      preview: maskCred(value),
+    };
+  });
 }
 
 export function maskCred(v: string | null | undefined): string | null {

@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server';
 import { checkApiKey } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-// Mock until DB connected. Real impl: prisma.channel.findMany() with folder.name join.
-const mock = [
+const MOCK = [
   { platform: 'YOUTUBE',   handle: '@gunbong_tv',  displayName: '건봉이티비',   folder: '영드짜',                 subscribers: 62_000 },
   { platform: 'YOUTUBE',   handle: '@yagjjaeng',   displayName: '야그쟁이',     folder: '영드짜',                 subscribers: 34_000 },
   { platform: 'YOUTUBE',   handle: '@variety_zip', displayName: 'variety_zip',  folder: '예능짜집기',             subscribers: 88_000 },
@@ -30,14 +30,34 @@ export async function GET(req: NextRequest) {
   const platform = req.nextUrl.searchParams.get('platform');
   const folder = req.nextUrl.searchParams.get('folder');
 
-  let rows = mock;
-  if (platform) rows = rows.filter((r) => r.platform === platform.toUpperCase());
-  if (folder) rows = rows.filter((r) => r.folder === folder);
+  let rows: { platform: string; handle: string | null; displayName: string | null; folder: string; subscribers: number | null }[];
+  try {
+    const channels = await prisma.channel.findMany({
+      where: {
+        isActive: true,
+        ...(platform ? { platform: platform.toUpperCase() as any } : {}),
+        ...(folder ? { folder: { name: folder } } : {}),
+      },
+      include: { folder: { select: { name: true } } },
+      orderBy: [{ folderId: 'asc' }, { addedAt: 'desc' }],
+    });
+    rows = channels.map((c) => ({
+      platform: c.platform,
+      handle: c.handle,
+      displayName: c.displayName,
+      folder: c.folder.name,
+      subscribers: c.subscriberCount,
+    }));
+  } catch {
+    rows = MOCK
+      .filter((r) => !platform || r.platform === platform.toUpperCase())
+      .filter((r) => !folder || r.folder === folder);
+  }
 
   const header = ['platform', 'handle', 'displayName', 'folder', 'subscribers'];
   const csv = [
     header,
-    ...rows.map((r) => [r.platform, r.handle, r.displayName, r.folder, String(r.subscribers)]),
+    ...rows.map((r) => [r.platform, r.handle ?? '', r.displayName ?? '', r.folder, String(r.subscribers ?? '')]),
   ]
     .map((row) => row.map(csvEscape).join(','))
     .join('\r\n');

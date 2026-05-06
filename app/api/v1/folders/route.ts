@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checkApiKey } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,18 +20,36 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Mock data — Phase 2 will read from prisma.folder.findMany().
-  return NextResponse.json({
-    success: true,
-    data: FOLDER_SEED.map((name, i) => ({
-      id: `seed-${i}`,
-      name,
-      sortOrder: i,
-      isSeeded: true,
-      channelCount: 0,
-    })),
-    meta: { total: FOLDER_SEED.length },
-  });
+  try {
+    const folders = await prisma.folder.findMany({
+      orderBy: { sortOrder: 'asc' },
+      include: { _count: { select: { channels: true } } },
+    });
+    return NextResponse.json({
+      success: true,
+      data: folders.map((f) => ({
+        id: f.id,
+        name: f.name,
+        sortOrder: f.sortOrder,
+        isSeeded: f.isSeeded,
+        channelCount: f._count.channels,
+      })),
+      meta: { total: folders.length },
+    });
+  } catch {
+    // DB not connected — return mock seed list
+    return NextResponse.json({
+      success: true,
+      data: FOLDER_SEED.map((name, i) => ({
+        id: `seed-${i}`,
+        name,
+        sortOrder: i,
+        isSeeded: true,
+        channelCount: 0,
+      })),
+      meta: { total: FOLDER_SEED.length, mock: true },
+    });
+  }
 }
 
 const CreateFolderSchema = z.object({
@@ -54,18 +73,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Mock create.
-  return NextResponse.json(
-    {
-      success: true,
-      data: {
-        id: `mock-${Date.now()}`,
-        name: parsed.data.name,
-        sortOrder: 99,
-        isSeeded: false,
-        channelCount: 0,
+  try {
+    const last = await prisma.folder.findFirst({ orderBy: { sortOrder: 'desc' } });
+    const folder = await prisma.folder.create({
+      data: { name: parsed.data.name, sortOrder: (last?.sortOrder ?? -1) + 1 },
+    });
+    return NextResponse.json(
+      {
+        success: true,
+        data: { ...folder, channelCount: 0 },
       },
-    },
-    { status: 201 }
-  );
+      { status: 201 }
+    );
+  } catch (e: any) {
+    if (e?.code === 'P2002') {
+      return NextResponse.json(
+        { success: false, error: { code: 'CONFLICT', message: '같은 이름의 폴더가 있습니다.' } },
+        { status: 409 }
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: { code: 'DB_ERROR', message: 'DB 연결 필요' } },
+      { status: 503 }
+    );
+  }
 }

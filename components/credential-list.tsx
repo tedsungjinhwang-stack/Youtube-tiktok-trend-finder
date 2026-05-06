@@ -10,7 +10,7 @@ type CredStatus = {
   editable: boolean;
   bootOnly: boolean;
   isSet: boolean;
-  source: 'memory' | 'env' | 'none';
+  source: 'db' | 'memory' | 'env' | 'none';
   preview: string | null;
 };
 
@@ -135,7 +135,7 @@ function Row({
             >
               수정
             </button>
-            {cred.source === 'memory' && (
+            {(cred.source === 'memory' || cred.source === 'db') && (
               <button
                 onClick={clear}
                 disabled={saving}
@@ -210,6 +210,7 @@ function StatusDot({ isSet }: { isSet: boolean }) {
 function SourceBadge({ source }: { source: CredStatus['source'] }) {
   if (source === 'none') return null;
   const map = {
+    db: { label: 'DB', cls: 'border-success/40 text-success' },
     memory: { label: '메모리', cls: 'border-warning/40 text-warning' },
     env: { label: '.env', cls: 'border-border/60 text-muted-foreground' },
   } as const;

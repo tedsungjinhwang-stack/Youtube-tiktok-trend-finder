@@ -20,7 +20,7 @@ export async function PATCH(
       { status: 400 }
     );
   }
-  const row = toggleHashtag(params.id, parsed.data.isActive);
+  const row = await toggleHashtag(params.id, parsed.data.isActive);
   if (!row) {
     return NextResponse.json(
       { success: false, error: { code: 'NOT_FOUND', message: 'Unknown hashtag' } },
@@ -34,7 +34,7 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const ok = removeHashtag(params.id);
+  const ok = await removeHashtag(params.id);
   if (!ok) {
     return NextResponse.json(
       { success: false, error: { code: 'NOT_FOUND', message: 'Unknown hashtag' } },

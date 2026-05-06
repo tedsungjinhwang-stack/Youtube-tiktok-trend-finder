@@ -5,7 +5,7 @@ import { addHashtag, listHashtags } from '@/lib/hashtags';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  return NextResponse.json({ success: true, data: listHashtags() });
+  return NextResponse.json({ success: true, data: await listHashtags() });
 }
 
 const PostSchema = z.object({
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     );
   }
   try {
-    const row = addHashtag({
+    const row = await addHashtag({
       platform: parsed.data.platform,
       tag: parsed.data.tag,
       folder: parsed.data.folder ?? null,

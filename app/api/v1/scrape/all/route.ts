@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey } from '@/lib/auth';
+import { scrapeAllActive } from '@/lib/scraper';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,8 +11,16 @@ export async function POST(req: NextRequest) {
       { status: 401 }
     );
   }
-  return NextResponse.json({
-    success: true,
-    data: { runId: `mock-batch-${Date.now()}`, channelsQueued: 0, status: 'QUEUED' },
-  });
+  try {
+    const result = await scrapeAllActive();
+    return NextResponse.json({ success: true, data: result });
+  } catch (e) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: { code: 'SCRAPE_FAILED', message: (e as Error).message },
+      },
+      { status: 500 }
+    );
+  }
 }
