@@ -1,0 +1,37 @@
+{
+  "source": "pint.kr",
+  "fetchedAt": "2026-05-06",
+  "note": "Pint(pint.kr)에서 사용하는 두 가지 분류 체계. (1) 제작 형식(formatCategories)은 /api/categories 응답 그대로. (2) 소재 템플릿(contentTemplates)은 홈페이지 HTML + /api/channels 응답에서 추출한 unique recommendedTemplatePrimaryName/Names. API 페이지네이션이 막혀있어 마스터 전체가 아닌 노출 채널 기준 모수임.",
+  "formatCategories": [
+    { "id": 24, "name_ko": "AI",           "name_en": "AI Generated",   "code": "AI_GENERATED",   "color_hex": "#FFC6FF", "description": "시각/음성 산출물이 AI 기반으로 생성된 콘텐츠" },
+    { "id": 17, "name_ko": "직촬",         "name_en": "Original",       "code": "ORIGINAL",       "color_hex": "#FFADAD", "description": "직접 촬영/브이로그/룩북/공방 등 원본 제작 콘텐츠" },
+    { "id": 18, "name_ko": "짜집기",       "name_en": "Montage",        "code": "MONTAGE",        "color_hex": "#FFD6A5", "description": "기존 영상을 재편집한 요약/컴필레이션 형태" },
+    { "id": 19, "name_ko": "클립모음",     "name_en": "Compilation",    "code": "COMPILATION",    "color_hex": "#FDFFB6", "description": "레전드/모음/ZIP 등 모음집 편집물" },
+    { "id": 20, "name_ko": "하이라이트",   "name_en": "Highlight",      "code": "HIGHLIGHT",      "color_hex": "#CAFFBF", "description": "경기·예능 등의 핵심 장면 요약" },
+    { "id": 21, "name_ko": "짤형",         "name_en": "Meme Template",  "code": "MEME_TEMPLATE",  "color_hex": "#9BF6FF", "description": "카드형 템플릿/밈 레이아웃 반복 콘텐츠" },
+    { "id": 22, "name_ko": "스토리형",     "name_en": "Story Format",   "code": "STORY",          "color_hex": "#A0C4FF", "description": "상단 제목 → 이미지 → 오버레이 텍스트의 스토리 템플릿" },
+    { "id": 23, "name_ko": "이미지슬라이드","name_en": "Image Slides",  "code": "IMAGE_SLIDE",    "color_hex": "#BDB2FF", "description": "정지 이미지/웹툰 컷 슬라이드 구성" },
+    { "id": 16, "name_ko": "미정",         "name_en": "Undefined",      "code": "UNDEFINED",      "color_hex": "#6B7280", "description": "카테고리 미지정" }
+  ],
+  "contentTemplates": [
+    "감동",
+    "게임 | 롤",
+    "고래",
+    "국뽕",
+    "대기업",
+    "블랙박스",
+    "스포츠 | 커뮤",
+    "아기",
+    "아이돌 팬튜브",
+    "애니 | 짤형",
+    "영드짜",
+    "예능짜집기",
+    "요리",
+    "인스타 틱톡 짜집기",
+    "잡학상식",
+    "커뮤형",
+    "해외 영드짜",
+    "해짜 (동물)",
+    "해짜 | 정보"
+  ]
+}
