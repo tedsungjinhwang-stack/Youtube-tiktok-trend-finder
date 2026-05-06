@@ -182,3 +182,110 @@ export const mockHotVideos: VideoCardData[] = [
 export const mockViralVideos: VideoCardData[] = mockHotVideos
   .filter((v) => (v.channelAvgMultiplier ?? 0) >= 7 && v.totalViews >= 300_000)
   .map((v, i) => ({ ...v, rank: i + 1 }));
+
+const hashtagThumb = (color: string) =>
+  `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 270 480"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="%23${color}"/><stop offset="1" stop-color="%23222"/></linearGradient></defs><rect fill="url(%23g)" width="270" height="480"/></svg>`;
+
+/**
+ * 해시태그 기반 발견(unknown channels). channelAvgMultiplier는 채널 평균을
+ * 모르므로 비워두고, 대신 좋아요/조회 비율과 절대 24h 조회량 위주로 표시.
+ */
+export const mockHashtagFeed: (VideoCardData & { hashtag: string })[] = [
+  {
+    id: 'h1',
+    rank: 1,
+    platform: 'TIKTOK',
+    thumbnailUrl: hashtagThumb('7a3a82'),
+    title: '국뽕 1분 컷 — 외국인 진심 반응',
+    channelName: 'unknown_42k',
+    folder: '국뽕',
+    hashtag: '#국뽕',
+    totalViews: 4_200_000,
+    recentGrowthPerHour: 92_000,
+    peakGrowthPerHour: 110_000,
+  },
+  {
+    id: 'h2',
+    rank: 2,
+    platform: 'INSTAGRAM',
+    thumbnailUrl: hashtagThumb('3a7a82'),
+    title: '강아지 첫 외출 모먼트',
+    channelName: 'pups_kr',
+    folder: '해짜 (동물)',
+    hashtag: '#강아지',
+    totalViews: 2_800_000,
+    recentGrowthPerHour: 48_000,
+  },
+  {
+    id: 'h3',
+    rank: 3,
+    platform: 'TIKTOK',
+    thumbnailUrl: hashtagThumb('826b3a'),
+    title: '영드짜 레전드 ZIP',
+    channelName: 'kdrama_zipclip',
+    folder: '영드짜',
+    hashtag: '#영드짜',
+    totalViews: 1_900_000,
+    recentGrowthPerHour: 31_000,
+  },
+  {
+    id: 'h4',
+    rank: 4,
+    platform: 'INSTAGRAM',
+    thumbnailUrl: hashtagThumb('3a826b'),
+    title: '오늘자 짤 모음',
+    channelName: 'meme_daily_kr',
+    folder: '예능짜집기',
+    hashtag: '#예능',
+    totalViews: 1_400_000,
+    recentGrowthPerHour: 22_000,
+  },
+  {
+    id: 'h5',
+    rank: 5,
+    platform: 'TIKTOK',
+    thumbnailUrl: hashtagThumb('6b3a82'),
+    title: '아기 잠투정 진정 영상',
+    channelName: 'baby_calm',
+    folder: '아기',
+    hashtag: '#육아',
+    totalViews: 1_100_000,
+    recentGrowthPerHour: 18_400,
+  },
+  {
+    id: 'h6',
+    rank: 6,
+    platform: 'TIKTOK',
+    thumbnailUrl: hashtagThumb('826b6b'),
+    title: '롤 클러치 — 0.1초 차이',
+    channelName: 'lol_moment',
+    folder: '게임 | 롤',
+    hashtag: '#롤',
+    totalViews: 980_000,
+    recentGrowthPerHour: 14_200,
+  },
+  {
+    id: 'h7',
+    rank: 7,
+    platform: 'INSTAGRAM',
+    thumbnailUrl: hashtagThumb('3a3a82'),
+    title: '백종원 신작 레시피 따라함',
+    channelName: 'cook_kr',
+    folder: '요리',
+    hashtag: '#요리',
+    totalViews: 720_000,
+    recentGrowthPerHour: 9_800,
+  },
+  {
+    id: 'h8',
+    rank: 8,
+    platform: 'TIKTOK',
+    thumbnailUrl: hashtagThumb('826b82'),
+    title: '아이돌 무대 직캠 — 4K 풀버전',
+    channelName: 'fancam_4k',
+    folder: '아이돌 팬튜브',
+    hashtag: '#아이돌',
+    totalViews: 540_000,
+    recentGrowthPerHour: 7_200,
+  },
+];

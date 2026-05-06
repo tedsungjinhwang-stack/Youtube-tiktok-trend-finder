@@ -2,8 +2,10 @@ import { CategoryTabs } from '@/components/category-tabs';
 import { VideoCard } from '@/components/video-card';
 import { mockHotVideos } from '@/lib/mock-data';
 
-export default function HomePage() {
-  const videos = mockHotVideos.map((v, i) => ({ ...v, rank: i + 1 }));
+export default function YoutubePage() {
+  const videos = mockHotVideos
+    .filter((v) => v.platform === 'YOUTUBE')
+    .map((v, i) => ({ ...v, rank: i + 1 }));
 
   return (
     <>
@@ -12,15 +14,15 @@ export default function HomePage() {
       <div className="px-4 py-4">
         <div className="mb-4 flex items-baseline justify-between">
           <div>
-            <h1 className="text-lg font-bold tracking-tight">통합</h1>
+            <h1 className="text-lg font-bold tracking-tight">YouTube</h1>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              YouTube · TikTok · Instagram 한 화면에서
+              에셋 채널 YT 영상 · 폴더·기간·임계치 필터링
             </p>
           </div>
           <div className="hidden gap-1.5 text-[12px] md:flex">
-            <Toggle label="YT" active />
-            <Toggle label="TT" active />
-            <Toggle label="IG" active />
+            <Toggle label="숏폼" />
+            <Toggle label="롱폼" />
+            <Toggle label="ALL" active />
           </div>
         </div>
 

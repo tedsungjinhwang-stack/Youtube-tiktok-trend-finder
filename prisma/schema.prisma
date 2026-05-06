@@ -15,13 +15,27 @@ enum Platform {
 }
 
 model Folder {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  sortOrder Int      @default(0)
-  isSeeded  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String    @id @default(cuid())
+  name      String    @unique
+  sortOrder Int       @default(0)
+  isSeeded  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   channels  Channel[]
+  hashtags  Hashtag[]
+}
+
+model Hashtag {
+  id        String    @id @default(cuid())
+  platform  Platform
+  tag       String                                            // 저장할 때 # 떼고 소문자
+  folderId  String?
+  folder    Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  @@unique([platform, tag])
+  @@index([folderId])
 }
 
 model Channel {
@@ -82,6 +96,15 @@ model YoutubeApiKey {
   failCount       Int       @default(0)
   lastError       String?
   createdAt       DateTime  @default(now())
+}
+
+model Credential {
+  id          String   @id @default(cuid())
+  service     String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
 }
 
 model ScrapeRun {

@@ -1,10 +1,11 @@
 import Link from 'next/link';
 
 const tabs = [
-  { href: '/hot-videos', label: 'HOT', sub: '터진' },
-  { href: '/viral-alerts', label: 'VIRAL', sub: '심정지' },
-  { href: '/channels', label: 'CHANNELS', sub: '채널' },
-  { href: '/folders', label: 'FOLDERS', sub: '폴더' },
+  { href: '/', label: '통합' },
+  { href: '/youtube', label: 'YouTube' },
+  { href: '/social', label: 'TikTok / Insta' },
+  { href: '/channels', label: '에셋 채널' },
+  { href: '/folders', label: '폴더' },
 ];
 
 export function TopBar() {
@@ -25,12 +26,9 @@ export function TopBar() {
           <Link
             key={t.href}
             href={t.href}
-            className="rounded-md px-3 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="rounded-md px-3 py-1.5 font-semibold text-muted-foreground hover:bg-accent hover:text-foreground"
           >
-            <span className="font-semibold tracking-wide">{t.label}</span>
-            <span className="ml-1.5 text-[11px] text-muted-foreground/70">
-              {t.sub}
-            </span>
+            {t.label}
           </Link>
         ))}
       </nav>
@@ -39,10 +37,10 @@ export function TopBar() {
 
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Link
-          href="/settings/youtube-keys"
+          href="/settings/api-keys"
           className="rounded-md px-2 py-1 hover:bg-accent hover:text-foreground"
         >
-          YT 키
+          API 키
         </Link>
         <Link
           href="/settings"
