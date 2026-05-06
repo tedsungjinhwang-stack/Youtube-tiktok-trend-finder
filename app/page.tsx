@@ -1,23 +1,72 @@
-export default function HomePage() {
-  return (
-    <div className="container py-8">
-      <h1 className="mb-2 text-2xl font-bold">홈</h1>
-      <p className="text-muted-foreground">
-        에셋 채널 트렌드 요약. 첫 PR에서는 더미 화면입니다.
-      </p>
+import { CategoryTabs } from '@/components/category-tabs';
+import { VideoCard } from '@/components/video-card';
+import { mockHotVideos, mockViralVideos } from '@/lib/mock-data';
 
-      <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
-        {[
-          { label: '등록 폴더', value: '–' },
-          { label: '등록 채널', value: '–' },
-          { label: '오늘 수집', value: '–' },
-        ].map((s) => (
-          <div key={s.label} className="rounded-lg border p-4">
-            <div className="text-sm text-muted-foreground">{s.label}</div>
-            <div className="mt-1 text-2xl font-semibold">{s.value}</div>
+export default function HomePage() {
+  const top = mockHotVideos.slice(0, 14);
+  const viral = mockViralVideos.slice(0, 7);
+
+  return (
+    <>
+      <CategoryTabs active="all" />
+
+      <div className="space-y-8 px-4 py-4">
+        <Section
+          title="HOT · 터진 영상"
+          subtitle="최근 7일 폴더별 인기"
+          href="/hot-videos"
+        >
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
+            {top.map((v) => (
+              <VideoCard key={v.id} data={v} />
+            ))}
           </div>
-        ))}
+        </Section>
+
+        {viral.length > 0 && (
+          <Section
+            title="VIRAL · 심정지"
+            subtitle="채널 평균 대비 7배 이상 터진 영상"
+            href="/viral-alerts"
+          >
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
+              {viral.map((v) => (
+                <VideoCard key={v.id} data={v} />
+              ))}
+            </div>
+          </Section>
+        )}
       </div>
-    </div>
+    </>
+  );
+}
+
+function Section({
+  title,
+  subtitle,
+  href,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <div className="mb-3 flex items-baseline justify-between">
+        <div>
+          <h2 className="text-lg font-bold tracking-tight">{title}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+        </div>
+        <a
+          href={href}
+          className="text-[12px] text-muted-foreground hover:text-foreground"
+        >
+          전체 보기 →
+        </a>
+      </div>
+      {children}
+    </section>
   );
 }

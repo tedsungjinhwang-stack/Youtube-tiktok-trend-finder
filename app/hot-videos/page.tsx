@@ -1,21 +1,40 @@
+import { CategoryTabs } from '@/components/category-tabs';
+import { VideoCard } from '@/components/video-card';
+import { mockHotVideos } from '@/lib/mock-data';
+
 export default function HotVideosPage() {
   return (
-    <div className="container py-8">
-      <h1 className="mb-2 text-2xl font-bold">터진 영상</h1>
-      <p className="mb-6 text-muted-foreground">
-        viralScore ≥ 3 AND views ≥ 50K (기본). 임계치 슬라이더로 조정 예정.
-      </p>
+    <>
+      <CategoryTabs active="all" />
 
-      <div className="mb-6 flex flex-wrap gap-2 text-sm">
-        <span className="rounded border px-3 py-1.5">폴더: 전체</span>
-        <span className="rounded border px-3 py-1.5">플랫폼: ALL</span>
-        <span className="rounded border px-3 py-1.5">기간: 7d</span>
-        <span className="rounded border px-3 py-1.5">정렬: viralScore</span>
-      </div>
+      <div className="px-4 py-4">
+        <div className="mb-4 flex items-baseline justify-between">
+          <div>
+            <h1 className="text-lg font-bold tracking-tight">HOT · 터진 영상</h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              viralScore ≥ 3 · 조회 ≥ 5만 · 최근 7일
+            </p>
+          </div>
+          <div className="hidden gap-1 text-[11px] text-muted-foreground md:flex">
+            <Pill>최근 24h 갱신</Pill>
+            <Pill>실시간 추적 14개</Pill>
+          </div>
+        </div>
 
-      <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-        영상 그리드가 여기에 렌더링됩니다 (실데이터 연결 후).
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
+          {mockHotVideos.map((v) => (
+            <VideoCard key={v.id} data={v} />
+          ))}
+        </div>
       </div>
-    </div>
+    </>
+  );
+}
+
+function Pill({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-full border border-border/60 bg-background/40 px-2 py-0.5">
+      {children}
+    </span>
   );
 }

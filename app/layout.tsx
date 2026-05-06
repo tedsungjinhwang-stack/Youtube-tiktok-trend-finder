@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { Sidebar } from '@/components/sidebar';
+import { TopBar } from '@/components/top-bar';
 
 export const metadata: Metadata = {
   title: 'Trend Finder',
@@ -11,12 +11,10 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ko">
+    <html lang="ko" className="dark">
       <body className="min-h-screen antialiased">
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <main className="flex-1 overflow-x-hidden">{children}</main>
-        </div>
+        <TopBar />
+        <main className="min-h-[calc(100vh-3.5rem)]">{children}</main>
       </body>
     </html>
   );
