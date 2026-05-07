@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { CategoryTabs } from '@/components/category-tabs';
 import { PageFilters } from '@/components/page-filters';
-import { VideoCard } from '@/components/video-card';
+import { SelectableVideoGrid } from '@/components/selectable-video-grid';
 import { queryVideos } from '@/lib/queries/videos';
 import { prisma } from '@/lib/db';
 import {
@@ -65,31 +65,23 @@ export default async function SocialPage({
           <PageFilters platforms={ALLOWED} defaults={defaults} />
         </div>
 
-        {result.rows.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
-            {result.rows.map((v, i) => (
-              <VideoCard
-                key={v.id}
-                data={{
-                  id: v.id,
-                  externalId: v.externalId,
-                  url: v.url,
-                  rank: i + 1,
-                  platform: v.platform,
-                  thumbnailUrl: v.thumbnailUrl ?? '',
-                  title: v.title ?? '(제목 없음)',
-                  channelName: v.channelName ?? '?',
-                  folder: v.folder,
-                  totalViews: Number(v.viewCount),
-                  publishedAt: v.publishedAt,
-                  channelAvgMultiplier: v.viralScore ?? undefined,
-                }}
-              />
-            ))}
-          </div>
-        )}
+        <SelectableVideoGrid
+          emptyState={<EmptyState />}
+          videos={result.rows.map((v, i) => ({
+            id: v.id,
+            externalId: v.externalId,
+            url: v.url,
+            rank: i + 1,
+            platform: v.platform,
+            thumbnailUrl: v.thumbnailUrl ?? '',
+            title: v.title ?? '(제목 없음)',
+            channelName: v.channelName ?? '?',
+            folder: v.folder,
+            totalViews: Number(v.viewCount),
+            publishedAt: v.publishedAt,
+            channelAvgMultiplier: v.viralScore ?? undefined,
+          }))}
+        />
       </div>
     </>
   );

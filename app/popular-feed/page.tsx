@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { listHashtags } from '@/lib/hashtags';
 import { PopularFeedClient } from './popular-feed-client';
 import { PageFilters } from '@/components/page-filters';
-import { VideoCard } from '@/components/video-card';
+import { SelectableVideoGrid } from '@/components/selectable-video-grid';
 import {
   BUILTIN_DEFAULTS,
   COOKIE_KEY_MIN_VIEWS,
@@ -69,35 +69,29 @@ export default async function PopularFeedPage({
       <PopularFeedClient hashtags={hashtags} activeTag={activeTag} />
 
       <div className="mt-6">
-        {videos.length === 0 ? (
-          <div className="rounded-xl border border-dashed py-12 text-center text-[13.5px] text-muted-foreground">
-            {activeTag
-              ? `#${activeTag} 결과 없음 — "검색" 버튼으로 가져와 보세요.`
-              : '해시태그 등록 → 🔍 검색 클릭하면 결과가 여기에 표시됩니다.'}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
-            {videos.map((v, i) => (
-              <VideoCard
-                key={v.id}
-                data={{
-                  id: v.id,
-                  externalId: v.externalId,
-                  url: v.url,
-                  rank: i + 1,
-                  platform: v.platform as 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM',
-                  thumbnailUrl: v.thumbnailUrl ?? '',
-                  title: v.caption ?? '(제목 없음)',
-                  channelName: v.channelHandle ?? '?',
-                  folder: v.sourceHashtag ? `#${v.sourceHashtag}` : '발견',
-                  totalViews: Number(v.viewCount),
-                  publishedAt: v.publishedAt,
-                  hideRankBadge: true,
-                }}
-              />
-            ))}
-          </div>
-        )}
+        <SelectableVideoGrid
+          emptyState={
+            <div className="rounded-xl border border-dashed py-12 text-center text-[13.5px] text-muted-foreground">
+              {activeTag
+                ? `#${activeTag} 결과 없음 — "검색" 버튼으로 가져와 보세요.`
+                : '해시태그 등록 → 🔍 검색 클릭하면 결과가 여기에 표시됩니다.'}
+            </div>
+          }
+          videos={videos.map((v, i) => ({
+            id: v.id,
+            externalId: v.externalId,
+            url: v.url,
+            rank: i + 1,
+            platform: v.platform as 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM',
+            thumbnailUrl: v.thumbnailUrl ?? '',
+            title: v.caption ?? '(제목 없음)',
+            channelName: v.channelHandle ?? '?',
+            folder: v.sourceHashtag ? `#${v.sourceHashtag}` : '발견',
+            totalViews: Number(v.viewCount),
+            publishedAt: v.publishedAt,
+            hideRankBadge: true,
+          }))}
+        />
       </div>
     </div>
   );
