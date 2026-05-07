@@ -15,7 +15,7 @@ export default function FoldersPage() {
         </p>
       </div>
 
-      <div className="mb-4 flex gap-1.5 text-[12.5px]">
+      <div className="mb-4 flex gap-1.5 text-[13.5px]">
         <button className="rounded-lg bg-brand px-3 py-1.5 font-semibold text-brand-foreground hover:bg-brand/90">
           + 새 폴더
         </button>
@@ -31,18 +31,18 @@ export default function FoldersPage() {
               key={name}
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-accent/40"
             >
-              <span className="num w-6 text-[11.5px] tabular-nums text-muted-foreground">
+              <span className="num w-6 text-[12.5px] tabular-nums text-muted-foreground">
                 {String(i + 1).padStart(2, '0')}
               </span>
               <span className="text-muted-foreground/40">⋮⋮</span>
-              <span className="flex-1 text-[13.5px] font-medium">{name}</span>
-              <span className="num text-[11.5px] text-muted-foreground">
+              <span className="flex-1 text-[14.5px] font-medium">{name}</span>
+              <span className="num text-[12.5px] text-muted-foreground">
                 ({Math.floor(Math.random() * 15)})
               </span>
-              <button className="rounded px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground">
+              <button className="rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground">
                 이름 변경
               </button>
-              <button className="rounded px-2 py-1 text-[11px] text-muted-foreground hover:bg-destructive/20 hover:text-destructive">
+              <button className="rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-destructive/20 hover:text-destructive">
                 삭제
               </button>
             </li>

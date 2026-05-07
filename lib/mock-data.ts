@@ -17,7 +17,6 @@ export const mockHotVideos: VideoCardData[] = [
     peakGrowthPerHour: 41_000,
     channelAvgMultiplier: 12.4,
     starred: true,
-    isViral: true,
   },
   {
     id: 'v2',
@@ -30,7 +29,6 @@ export const mockHotVideos: VideoCardData[] = [
     totalViews: 2_100_000,
     recentGrowthPerHour: 24_500,
     channelAvgMultiplier: 8.8,
-    isViral: true,
   },
   {
     id: 'v3',
@@ -43,7 +41,6 @@ export const mockHotVideos: VideoCardData[] = [
     totalViews: 1_800_000,
     recentGrowthPerHour: 18_200,
     channelAvgMultiplier: 9.4,
-    isViral: true,
   },
   {
     id: 'v4',
@@ -178,10 +175,6 @@ export const mockHotVideos: VideoCardData[] = [
     channelAvgMultiplier: 2.3,
   },
 ];
-
-export const mockViralVideos: VideoCardData[] = mockHotVideos
-  .filter((v) => (v.channelAvgMultiplier ?? 0) >= 7 && v.totalViews >= 300_000)
-  .map((v, i) => ({ ...v, rank: i + 1 }));
 
 const hashtagThumb = (color: string) =>
   `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 270 480"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="%23${color}"/><stop offset="1" stop-color="%23222"/></linearGradient></defs><rect fill="url(%23g)" width="270" height="480"/></svg>`;

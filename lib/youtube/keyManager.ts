@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { getCredSync } from '@/lib/credentials';
 
 export class NoActiveKeyError extends Error {
   constructor() {
@@ -9,37 +10,71 @@ export class NoActiveKeyError extends Error {
 
 /**
  * Pick least-used active key. PT midnight (KST 17:00) cron resets quotas separately.
+ * Falls back to env YOUTUBE_API_KEY when DB unavailable (single-key mode for dev).
  */
 export async function getActiveKey() {
-  return prisma.youtubeApiKey.findFirst({
-    where: {
+  try {
+    const dbKey = await prisma.youtubeApiKey.findFirst({
+      where: {
+        isActive: true,
+        OR: [{ exhaustedAt: null }, { resetAt: { lt: new Date() } }],
+      },
+      orderBy: { usedToday: 'asc' },
+    });
+    if (dbKey) return dbKey;
+  } catch {
+    /* DB not connected — try env fallback */
+  }
+  const fallbackKey = getCredSync('YOUTUBE_API_KEY');
+  if (fallbackKey) {
+    return {
+      id: 'env',
+      label: 'env',
+      apiKey: fallbackKey,
       isActive: true,
-      OR: [{ exhaustedAt: null }, { resetAt: { lt: new Date() } }],
-    },
-    orderBy: { usedToday: 'asc' },
-  });
+      dailyQuotaLimit: 10000,
+      usedToday: 0,
+      lastUsedAt: null,
+      exhaustedAt: null,
+      resetAt: null,
+      failCount: 0,
+      lastError: null,
+      createdAt: new Date(),
+    };
+  }
+  return null;
 }
 
 export async function markUsed(keyId: string, units: number) {
-  return prisma.youtubeApiKey.update({
-    where: { id: keyId },
-    data: {
-      usedToday: { increment: units },
-      lastUsedAt: new Date(),
-    },
-  });
+  if (keyId === 'env') return null;
+  try {
+    return await prisma.youtubeApiKey.update({
+      where: { id: keyId },
+      data: {
+        usedToday: { increment: units },
+        lastUsedAt: new Date(),
+      },
+    });
+  } catch {
+    return null;
+  }
 }
 
 export async function markExhausted(keyId: string, error?: string) {
-  return prisma.youtubeApiKey.update({
-    where: { id: keyId },
-    data: {
-      exhaustedAt: new Date(),
-      resetAt: nextPTMidnight(),
-      lastError: error,
-      failCount: { increment: 1 },
-    },
-  });
+  if (keyId === 'env') return null;
+  try {
+    return await prisma.youtubeApiKey.update({
+      where: { id: keyId },
+      data: {
+        exhaustedAt: new Date(),
+        resetAt: nextPTMidnight(),
+        lastError: error,
+        failCount: { increment: 1 },
+      },
+    });
+  } catch {
+    return null;
+  }
 }
 
 export async function resetAllQuotas() {

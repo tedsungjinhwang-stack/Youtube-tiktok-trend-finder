@@ -12,7 +12,6 @@ const filterGroups: ChipGroup[] = [
     active: 'hot',
     options: [
       { value: 'hot', label: 'HOT 터진' },
-      { value: 'viral', label: 'VIRAL 심정지' },
       { value: 'new', label: 'NEW 최신' },
     ],
   },
@@ -87,7 +86,7 @@ export function FilterSidebar() {
           {folderSeed.map((name) => (
             <span
               key={name}
-              className="cursor-pointer rounded-md border border-border/60 bg-background/40 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+              className="cursor-pointer rounded-md border border-border/60 bg-background/40 px-1.5 py-0.5 text-[12px] text-muted-foreground hover:border-foreground/40 hover:text-foreground"
             >
               {name}
             </span>
@@ -110,7 +109,7 @@ function ChipBlock({ group }: { group: ChipGroup }) {
           <span
             key={o.value}
             className={cn(
-              'cursor-pointer rounded-md px-2 py-1 text-[12px]',
+              'cursor-pointer rounded-md px-2 py-1 text-[13px]',
               o.value === group.active
                 ? 'bg-foreground text-background'
                 : 'border border-border/60 bg-background/40 text-muted-foreground hover:text-foreground'
@@ -127,7 +126,7 @@ function ChipBlock({ group }: { group: ChipGroup }) {
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-5">
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
         {title}
       </div>
       {children}

@@ -1,9 +1,11 @@
 import Link from 'next/link';
 
 const tabs = [
+  { href: '/popular-feed', label: '인기피드검색' },
   { href: '/', label: '통합' },
   { href: '/youtube', label: 'YouTube' },
   { href: '/social', label: 'TikTok / Insta' },
+  { href: '/trending', label: '실시간 인기' },
   { href: '/channels', label: '에셋 채널' },
   { href: '/folders', label: '폴더' },
 ];
@@ -13,9 +15,9 @@ export function TopBar() {
     <header className="sticky top-0 z-30 flex h-14 items-center gap-6 border-b bg-background/80 px-4 backdrop-blur">
       <Link
         href="/"
-        className="flex items-center gap-2 text-[15px] font-bold tracking-tight"
+        className="flex items-center gap-2 text-[16px] font-bold tracking-tight"
       >
-        <span className="grid h-6 w-6 place-items-center rounded bg-foreground text-[11px] font-black text-background">
+        <span className="grid h-6 w-6 place-items-center rounded bg-foreground text-[12px] font-black text-background">
           T
         </span>
         Trend Finder

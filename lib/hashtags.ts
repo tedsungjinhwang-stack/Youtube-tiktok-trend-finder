@@ -4,7 +4,7 @@
 
 import { prisma } from '@/lib/db';
 
-export type Platform = 'TIKTOK' | 'INSTAGRAM';
+export type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM';
 
 export type Hashtag = {
   id: string;

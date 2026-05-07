@@ -10,10 +10,12 @@
 import { prisma } from '@/lib/db';
 
 export type CredService =
+  | 'YOUTUBE_API_KEY'
   | 'APIFY_API_TOKEN'
   | 'OPENCLAW_API_KEY'
   | 'CRON_SECRET'
   | 'NEXT_PUBLIC_SUPABASE_URL'
+  | 'NEXT_PUBLIC_SUPABASE_ANON_KEY'
   | 'SUPABASE_SERVICE_ROLE_KEY'
   | 'DATABASE_URL';
 
@@ -21,6 +23,11 @@ export const CRED_META: Record<
   CredService,
   { label: string; description: string; editable: boolean; bootOnly?: boolean }
 > = {
+  YOUTUBE_API_KEY: {
+    label: 'YouTube Data API',
+    description: '실시간 인기 + 채널 영상 수집 (DB 다중 키 등록 시 자동 로테이션, 단일 키만 있어도 동작)',
+    editable: true,
+  },
   APIFY_API_TOKEN: {
     label: 'Apify',
     description: 'TikTok / Instagram 스크래핑',
@@ -39,6 +46,12 @@ export const CRED_META: Record<
   NEXT_PUBLIC_SUPABASE_URL: {
     label: 'Supabase URL',
     description: '클라이언트 번들에 포함되어야 해서 env 전용',
+    editable: false,
+    bootOnly: true,
+  },
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: {
+    label: 'Supabase Anon Key',
+    description: '브라우저에서 Supabase 직접 호출 시 사용 (publishable key) — env 전용',
     editable: false,
     bootOnly: true,
   },
@@ -145,6 +158,7 @@ export type CredStatus = {
 export async function listCredStatus(): Promise<CredStatus[]> {
   await hydrateOnce();
   const dbServices = new Set<string>();
+  let ytDbKeyCount = 0;
   if (await checkDb()) {
     try {
       const rows = await prisma.credential.findMany({ select: { service: true } });
@@ -152,9 +166,18 @@ export async function listCredStatus(): Promise<CredStatus[]> {
     } catch {
       /* table not migrated */
     }
+    try {
+      ytDbKeyCount = await prisma.youtubeApiKey.count({ where: { isActive: true } });
+    } catch {
+      /* table not migrated */
+    }
   }
 
-  const services = Object.keys(CRED_META) as CredService[];
+  const services = (Object.keys(CRED_META) as CredService[]).filter((s) => {
+    // YOUTUBE_API_KEY 단일 폴백 — DB에 키가 1개 이상 있으면 숨김 (위 YT 키 섹션과 중복)
+    if (s === 'YOUTUBE_API_KEY' && ytDbKeyCount > 0) return false;
+    return true;
+  });
   return services.map((s) => {
     const meta = CRED_META[s];
     const memVal = memoryStore.get(s);

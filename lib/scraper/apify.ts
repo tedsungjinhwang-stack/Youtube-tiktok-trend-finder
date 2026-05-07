@@ -24,6 +24,12 @@ export type ScrapedVideo = {
   durationSeconds?: number | null;
   isShorts?: boolean | null;
   publishedAt: Date;
+  /** 해시태그 검색 시 작성자 채널 자동 등록용 — 핸들 (TT/IG 위주) */
+  authorHandle?: string | null;
+  /** YouTube 채널 ID (UC...) — 가능하면 핸들보다 우선 사용 */
+  authorChannelId?: string | null;
+  /** 채널 표시명 — DB에 저장해서 카드/상세에 노출 */
+  authorDisplayName?: string | null;
 };
 
 export type ScrapeResult = {
@@ -83,7 +89,7 @@ export async function scrapeApifyInstagram(
 
 export async function scrapeApifyTiktokByHashtag(
   hashtags: string[],
-  resultsPerPage = 30
+  resultsPerPage = 100
 ): Promise<ScrapeResult> {
   if (hashtags.length === 0) return { videos: [], quotaUsed: 0 };
   const client = await getClient();
@@ -105,15 +111,14 @@ export async function scrapeApifyTiktokByHashtag(
 
 export async function scrapeApifyInstagramByHashtag(
   hashtag: string,
-  resultsLimit = 30
+  resultsLimit = 100
 ): Promise<ScrapeResult> {
   const client = await getClient();
+  const tag = stripHash(hashtag);
 
-  const run = await client.actor('apify/instagram-scraper').call({
-    search: stripHash(hashtag),
-    searchType: 'hashtag',
-    searchLimit: 1,
-    resultsType: 'posts',
+  // instaprism/instagram-hashtag-scraper — pay-per-result ($3.80/1k), 페이지 하드 제한 없음.
+  const run = await client.actor('instaprism/instagram-hashtag-scraper').call({
+    hashtags: [tag],
     resultsLimit,
   });
 
@@ -125,6 +130,11 @@ export async function scrapeApifyInstagramByHashtag(
 
 function mapTiktok(it: any): ScrapedVideo {
   // clockworks/tiktok-scraper item fields
+  const authorHandle = it.authorMeta?.name
+    ? '@' + String(it.authorMeta.name).toLowerCase()
+    : it.authorMeta?.uniqueId
+      ? '@' + String(it.authorMeta.uniqueId).toLowerCase()
+      : null;
   return {
     externalId: it.id ?? it.aweme_id ?? String(it.videoUrl ?? ''),
     url: it.webVideoUrl ?? it.videoUrl ?? '',
@@ -137,22 +147,27 @@ function mapTiktok(it: any): ScrapedVideo {
     durationSeconds: it.videoMeta?.duration ?? null,
     isShorts: true,
     publishedAt: new Date((it.createTimeISO ?? it.createTime * 1000) ?? Date.now()),
+    authorHandle,
   };
 }
 
 function mapInstagram(it: any): ScrapedVideo {
-  // apify/instagram-scraper item fields
+  // apify/instagram-scraper or instagram-hashtag-scraper 둘 다 처리
+  const authorHandle = it.ownerUsername
+    ? '@' + String(it.ownerUsername).toLowerCase()
+    : null;
   return {
     externalId: it.id ?? it.shortCode ?? '',
     url: it.url ?? `https://www.instagram.com/p/${it.shortCode}/`,
     caption: it.caption ?? null,
     thumbnailUrl: it.displayUrl ?? it.thumbnailUrl ?? null,
-    viewCount: BigInt(it.videoViewCount ?? it.videoPlayCount ?? 0),
+    viewCount: BigInt(it.videoViewCount ?? it.videoPlayCount ?? it.viewsCount ?? 0),
     likeCount: it.likesCount ?? null,
     commentCount: it.commentsCount ?? null,
     durationSeconds: it.videoDuration ?? null,
-    isShorts: it.type === 'Video',
-    publishedAt: new Date(it.timestamp ?? Date.now()),
+    isShorts: it.type === 'Video' || it.productType === 'clips',
+    publishedAt: new Date(it.timestamp ?? it.takenAtTimestamp ?? Date.now()),
+    authorHandle,
   };
 }
 

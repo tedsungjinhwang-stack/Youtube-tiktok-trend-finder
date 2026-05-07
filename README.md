@@ -2,7 +2,7 @@
 
 본인 전용 TikTok / Instagram / YouTube 트렌드 영상 파인더.
 에셋 채널을 폴더로 묶어 등록 → Apify(TT/IG)와 YouTube API로 수집 →
-폴더·플랫폼·기간·임계치로 "터진 영상 / 심정지 영상" 식별.
+폴더·플랫폼·기간·임계치로 "터진 영상" 식별.
 
 전체 설계는 [SPEC.md](./SPEC.md) 참고.
 
@@ -78,7 +78,7 @@ npm run dev
 
 ## API
 
-- Web (사용자): `/`, `/hot-videos`, `/viral-alerts`, `/channels`, `/folders`, `/settings/*`
+- Web (사용자): `/`, `/youtube`, `/social`, `/channels`, `/folders`, `/settings/*`
 - REST: `/api/v1/*` (Bearer `OPENCLAW_API_KEY`)
 - OpenAPI: `GET /api/v1/openapi.json`
 - OpenClaw 스킬: `openclaw/skill.yaml`
@@ -96,7 +96,7 @@ curl -H "Authorization: Bearer $OPENCLAW_API_KEY" \
 
 ```
 app/
-  (pages)/        홈, hot-videos, viral-alerts, channels, folders, settings, login
+  (pages)/        통합(/), youtube, social, channels, folders, settings/api-keys, login
   api/v1/         REST API (Bearer auth)
   api/cron/       Vercel Cron 핸들러
 components/

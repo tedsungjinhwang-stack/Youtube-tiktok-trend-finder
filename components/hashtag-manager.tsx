@@ -87,12 +87,12 @@ export function HashtagManager({
     <div className="mb-4 rounded-xl border bg-card p-3">
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <div>
-          <div className="text-[12.5px] font-semibold">해시태그 관리</div>
-          <div className="mt-0.5 text-[10.5px] text-muted-foreground">
+          <div className="text-[13.5px] font-semibold">해시태그 관리</div>
+          <div className="mt-0.5 text-[11.5px] text-muted-foreground">
             태그를 클릭해서 켜고/끄기. 전체 끄면 모든 인기피드 표시.
           </div>
         </div>
-        <span className="num text-[10.5px] text-muted-foreground">
+        <span className="num text-[11.5px] text-muted-foreground">
           {items.length}개 등록 · {selectedIds.length}개 필터 중
         </span>
       </div>
@@ -101,7 +101,7 @@ export function HashtagManager({
         <select
           value={platform}
           onChange={(e) => setPlatform(e.target.value as Platform)}
-          className="rounded-md border bg-background/40 px-2 py-2 text-[12.5px] outline-none focus:border-foreground/40"
+          className="rounded-md border bg-background/40 px-2 py-2 text-[13.5px] outline-none focus:border-foreground/40"
         >
           <option value="TIKTOK">TikTok</option>
           <option value="INSTAGRAM">Instagram</option>
@@ -114,12 +114,12 @@ export function HashtagManager({
             if (e.key === 'Enter') add();
           }}
           placeholder="해시태그 입력 (예: #영드짜 또는 영드짜)"
-          className="rounded-md border bg-background/40 px-3 py-2 text-[12.5px] outline-none placeholder:text-muted-foreground/60 focus:border-foreground/40"
+          className="rounded-md border bg-background/40 px-3 py-2 text-[13.5px] outline-none placeholder:text-muted-foreground/60 focus:border-foreground/40"
         />
         <select
           value={folder}
           onChange={(e) => setFolder(e.target.value)}
-          className="rounded-md border bg-background/40 px-2 py-2 text-[12.5px] outline-none focus:border-foreground/40"
+          className="rounded-md border bg-background/40 px-2 py-2 text-[13.5px] outline-none focus:border-foreground/40"
         >
           <option value="">폴더 없음</option>
           {FOLDER_SEED.map((f) => (
@@ -132,7 +132,7 @@ export function HashtagManager({
           onClick={add}
           disabled={!tag.trim()}
           className={cn(
-            'rounded-md px-3 py-2 text-[12.5px] font-semibold',
+            'rounded-md px-3 py-2 text-[13.5px] font-semibold',
             tag.trim()
               ? 'bg-brand text-brand-foreground hover:bg-brand/90'
               : 'bg-secondary text-muted-foreground'
@@ -143,13 +143,13 @@ export function HashtagManager({
       </div>
 
       {error && (
-        <div className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[11.5px] text-destructive">
+        <div className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="mt-3 text-center text-[11.5px] text-muted-foreground">
+        <div className="mt-3 text-center text-[12.5px] text-muted-foreground">
           불러오는 중…
         </div>
       ) : (
@@ -158,7 +158,7 @@ export function HashtagManager({
             const list = grouped[p] ?? [];
             return (
               <div key={p}>
-                <div className="mb-1 flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                <div className="mb-1 flex items-center gap-1.5 text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                   <PlatformDot p={p} />
                   {p === 'TIKTOK' ? 'TikTok' : 'Instagram'}
                   <span className="num text-muted-foreground/60">
@@ -166,7 +166,7 @@ export function HashtagManager({
                   </span>
                 </div>
                 {list.length === 0 ? (
-                  <div className="rounded border border-dashed border-border/60 px-2 py-1.5 text-[11px] text-muted-foreground/70">
+                  <div className="rounded border border-dashed border-border/60 px-2 py-1.5 text-[12px] text-muted-foreground/70">
                     등록된 해시태그 없음
                   </div>
                 ) : (
@@ -177,7 +177,7 @@ export function HashtagManager({
                         <span
                           key={h.id}
                           className={cn(
-                            'group inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11.5px] transition',
+                            'group inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[12.5px] transition',
                             selected
                               ? 'border-brand bg-brand/15 text-brand'
                               : 'border-border/60 bg-background/40 text-muted-foreground hover:border-foreground/40 hover:text-foreground'
@@ -186,7 +186,7 @@ export function HashtagManager({
                           <button onClick={() => toggle(h.id)}>
                             #{h.tag}
                             {h.folder && (
-                              <span className="ml-1 text-[9.5px] opacity-70">
+                              <span className="ml-1 text-[10.5px] opacity-70">
                                 · {h.folder}
                               </span>
                             )}

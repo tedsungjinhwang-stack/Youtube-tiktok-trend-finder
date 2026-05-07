@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const folders = await prisma.folder.findMany({
+      where: { NOT: { name: { startsWith: '__' } } },
       orderBy: { sortOrder: 'asc' },
       include: { _count: { select: { channels: true } } },
     });

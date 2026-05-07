@@ -14,6 +14,18 @@ enum Platform {
   INSTAGRAM
 }
 
+enum VideoFormat {
+  AI_GENERATED
+  ORIGINAL
+  MONTAGE
+  COMPILATION
+  HIGHLIGHT
+  MEME_TEMPLATE
+  STORY
+  IMAGE_SLIDE
+  UNDEFINED
+}
+
 model Folder {
   id        String    @id @default(cuid())
   name      String    @unique
@@ -76,8 +88,12 @@ model Video {
   publishedAt     DateTime
   fetchedAt       DateTime @default(now())
   viralScore      Float?
+  format          VideoFormat?
+  formatLockedBy  String?         // 'auto' | 'user' — user 락이면 자동 추론이 덮어쓰지 않음
+  sourceHashtag   String?         // null이면 일반(채널) 수집, 값 있으면 그 해시태그로 발견
 
   @@unique([platform, externalId])
+  @@index([sourceHashtag])
   @@index([channelId, publishedAt])
   @@index([viralScore])
   @@index([publishedAt])
