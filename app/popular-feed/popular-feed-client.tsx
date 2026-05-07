@@ -203,7 +203,7 @@ function HashtagRow({
   );
 }
 
-function AddForm({ platform }: { platform: 'TIKTOK' | 'INSTAGRAM' }) {
+function AddForm({ platform }: { platform: Platform }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 

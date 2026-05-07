@@ -184,11 +184,16 @@ export async function toggleHashtag(
 
 /** Active hashtags grouped by platform — for scraper input building. */
 export async function getActiveHashtagsByPlatform(): Promise<{
+  YOUTUBE: string[];
   TIKTOK: string[];
   INSTAGRAM: string[];
 }> {
   const all = await listHashtags();
-  const out = { TIKTOK: [] as string[], INSTAGRAM: [] as string[] };
+  const out = {
+    YOUTUBE: [] as string[],
+    TIKTOK: [] as string[],
+    INSTAGRAM: [] as string[],
+  };
   for (const h of all) {
     if (h.isActive) out[h.platform].push(h.tag);
   }
