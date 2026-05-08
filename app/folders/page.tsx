@@ -1,10 +1,39 @@
-export default function FoldersPage() {
-  const folders = [
-    '영드짜', '해외 영드짜', '예능짜집기', '인스타 틱톡 짜집기', '잡학상식',
-    '국뽕', '블랙박스', '해짜 (동물)', '해짜 | 정보', '게임 | 롤',
-    '고래', '아이돌 팬튜브', '감동', '대기업', '스포츠 | 커뮤',
-    '아기', '애니 | 짤형', '요리', '커뮤형',
-  ];
+import { prisma } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
+
+const FOLDER_SEED = [
+  '영드짜', '해외 영드짜', '예능짜집기', '인스타 틱톡 짜집기', '잡학상식',
+  '국뽕', '블랙박스', '해짜 (동물)', '해짜 | 정보', '게임 | 롤',
+  '고래', '아이돌 팬튜브', '감동', '대기업', '스포츠 | 커뮤',
+  '아기', '애니 | 짤형', '요리', '커뮤형',
+];
+
+type FolderRow = { id: string; name: string; channelCount: number };
+
+async function loadFolders(): Promise<FolderRow[]> {
+  try {
+    const rows = await prisma.folder.findMany({
+      where: { NOT: { name: { startsWith: '__' } } },
+      orderBy: { sortOrder: 'asc' },
+      include: { _count: { select: { channels: true } } },
+    });
+    return rows.map((f) => ({
+      id: f.id,
+      name: f.name,
+      channelCount: f._count.channels,
+    }));
+  } catch {
+    return FOLDER_SEED.map((name, i) => ({
+      id: `seed-${i}`,
+      name,
+      channelCount: 0,
+    }));
+  }
+}
+
+export default async function FoldersPage() {
+  const folders = await loadFolders();
 
   return (
     <div className="px-4 py-5">
@@ -25,29 +54,35 @@ export default function FoldersPage() {
       </div>
 
       <div className="overflow-hidden rounded-xl border bg-card">
-        <ul className="divide-y divide-border/60">
-          {folders.map((name, i) => (
-            <li
-              key={name}
-              className="flex items-center gap-3 px-4 py-2.5 hover:bg-accent/40"
-            >
-              <span className="num w-6 text-[12.5px] tabular-nums text-muted-foreground">
-                {String(i + 1).padStart(2, '0')}
-              </span>
-              <span className="text-muted-foreground/40">⋮⋮</span>
-              <span className="flex-1 text-[14.5px] font-medium">{name}</span>
-              <span className="num text-[12.5px] text-muted-foreground">
-                ({Math.floor(Math.random() * 15)})
-              </span>
-              <button className="rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground">
-                이름 변경
-              </button>
-              <button className="rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-destructive/20 hover:text-destructive">
-                삭제
-              </button>
-            </li>
-          ))}
-        </ul>
+        {folders.length === 0 ? (
+          <div className="py-8 text-center text-[13px] text-muted-foreground">
+            폴더가 없습니다. 시드 다시 불러오기로 19개를 생성하세요.
+          </div>
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {folders.map((f, i) => (
+              <li
+                key={f.id}
+                className="flex items-center gap-3 px-4 py-2.5 hover:bg-accent/40"
+              >
+                <span className="num w-6 text-[12.5px] tabular-nums text-muted-foreground">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span className="text-muted-foreground/40">⋮⋮</span>
+                <span className="flex-1 text-[14.5px] font-medium">{f.name}</span>
+                <span className="num text-[12.5px] text-muted-foreground">
+                  ({f.channelCount})
+                </span>
+                <button className="rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground">
+                  이름 변경
+                </button>
+                <button className="rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-destructive/20 hover:text-destructive">
+                  삭제
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
