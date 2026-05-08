@@ -1,12 +1,18 @@
 import { prisma } from '@/lib/db';
 import { FOLDER_SEED } from './seed-list';
 import { FoldersToolbar } from './folders-toolbar';
+import { FolderRow } from './folder-row';
 
 export const dynamic = 'force-dynamic';
 
-type FolderRow = { id: string; name: string; channelCount: number };
+type FolderRowData = {
+  id: string;
+  name: string;
+  channelCount: number;
+  isSeed: boolean;
+};
 
-async function loadFolders(): Promise<FolderRow[]> {
+async function loadFolders(): Promise<FolderRowData[]> {
   try {
     const rows = await prisma.folder.findMany({
       where: { NOT: { name: { startsWith: '__' } } },
@@ -17,12 +23,14 @@ async function loadFolders(): Promise<FolderRow[]> {
       id: f.id,
       name: f.name,
       channelCount: f._count.channels,
+      isSeed: false,
     }));
   } catch {
     return FOLDER_SEED.map((name, i) => ({
       id: `seed-${i}`,
       name,
       channelCount: 0,
+      isSeed: true,
     }));
   }
 }
@@ -49,25 +57,14 @@ export default async function FoldersPage() {
         ) : (
           <ul className="divide-y divide-border/60">
             {folders.map((f, i) => (
-              <li
+              <FolderRow
                 key={f.id}
-                className="flex items-center gap-3 px-4 py-2.5 hover:bg-accent/40"
-              >
-                <span className="num w-6 text-[12.5px] tabular-nums text-muted-foreground">
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <span className="text-muted-foreground/40">⋮⋮</span>
-                <span className="flex-1 text-[14.5px] font-medium">{f.name}</span>
-                <span className="num text-[12.5px] text-muted-foreground">
-                  ({f.channelCount})
-                </span>
-                <button className="rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground">
-                  이름 변경
-                </button>
-                <button className="rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-destructive/20 hover:text-destructive">
-                  삭제
-                </button>
-              </li>
+                id={f.id}
+                name={f.name}
+                channelCount={f.channelCount}
+                index={i}
+                isSeed={f.isSeed}
+              />
             ))}
           </ul>
         )}
