@@ -42,7 +42,7 @@ export default async function PopularFeedPage({
 
   const minViews = numOpt(searchParams.minViews) ?? defaults.minViews;
   const platforms = parsePlatforms(searchParams.platforms) ?? ALL_PLATFORMS;
-  const since = sinceFromPeriod(searchParams.period ?? 'all');
+  const since = sinceFromPeriod(searchParams.period ?? '7d');
   const sortBy = searchParams.sortBy ?? 'views';
 
   const videos = await safeFetchVideos({
