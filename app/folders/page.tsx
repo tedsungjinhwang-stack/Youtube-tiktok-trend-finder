@@ -1,13 +1,8 @@
 import { prisma } from '@/lib/db';
+import { FOLDER_SEED } from './seed-list';
+import { FoldersToolbar } from './folders-toolbar';
 
 export const dynamic = 'force-dynamic';
-
-const FOLDER_SEED = [
-  '영드짜', '해외 영드짜', '예능짜집기', '인스타 틱톡 짜집기', '잡학상식',
-  '국뽕', '블랙박스', '해짜 (동물)', '해짜 | 정보', '게임 | 롤',
-  '고래', '아이돌 팬튜브', '감동', '대기업', '스포츠 | 커뮤',
-  '아기', '애니 | 짤형', '요리', '커뮤형',
-];
 
 type FolderRow = { id: string; name: string; channelCount: number };
 
@@ -44,14 +39,7 @@ export default async function FoldersPage() {
         </p>
       </div>
 
-      <div className="mb-4 flex gap-1.5 text-[13.5px]">
-        <button className="rounded-lg bg-brand px-3 py-1.5 font-semibold text-brand-foreground hover:bg-brand/90">
-          + 새 폴더
-        </button>
-        <button className="rounded-lg border bg-card px-3 py-1.5 hover:border-foreground/40">
-          시드 다시 불러오기
-        </button>
-      </div>
+      <FoldersToolbar />
 
       <div className="overflow-hidden rounded-xl border bg-card">
         {folders.length === 0 ? (
