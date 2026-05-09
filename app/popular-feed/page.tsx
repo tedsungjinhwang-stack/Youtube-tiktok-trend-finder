@@ -30,6 +30,7 @@ export default async function PopularFeedPage({
   searchParams: SearchParams;
 }) {
   const hashtags = await listHashtags();
+  const hashtagsWithCounts = await attachVideoCounts(hashtags);
   const activeTag = searchParams.hashtag ?? null;
 
   const c = cookies();
@@ -73,7 +74,7 @@ export default async function PopularFeedPage({
         />
       </div>
 
-      <PopularFeedClient hashtags={hashtags} activeTag={activeTag} />
+      <PopularFeedClient hashtags={hashtagsWithCounts} activeTag={activeTag} />
 
       <div className="mt-6">
         <SelectableVideoGrid
@@ -131,6 +132,29 @@ function numOpt(s?: string): number | undefined {
   if (!s) return undefined;
   const n = Number(s);
   return Number.isFinite(n) ? n : undefined;
+}
+
+async function attachVideoCounts<T extends { platform: Platform; tag: string }>(
+  hashtags: T[]
+): Promise<(T & { videoCount: number })[]> {
+  try {
+    const groups = await prisma.video.groupBy({
+      by: ['platform', 'sourceHashtag'],
+      where: { sourceHashtag: { not: null } },
+      _count: { _all: true },
+    });
+    const map = new Map<string, number>();
+    for (const g of groups) {
+      if (!g.sourceHashtag) continue;
+      map.set(`${g.platform}:${g.sourceHashtag}`, g._count._all);
+    }
+    return hashtags.map((h) => ({
+      ...h,
+      videoCount: map.get(`${h.platform}:${h.tag}`) ?? 0,
+    }));
+  } catch {
+    return hashtags.map((h) => ({ ...h, videoCount: 0 }));
+  }
 }
 
 async function safeFetchVideos(opts: {

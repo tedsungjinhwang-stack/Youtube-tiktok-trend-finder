@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { prisma } from '@/lib/db';
 import {
   addHashtag,
   removeHashtag,
@@ -33,6 +34,16 @@ export async function addHashtagAction(
 
 export async function removeHashtagAction(id: string): Promise<ActionResult> {
   try {
+    // 해시태그를 지우면 그 태그로 발견된 영상도 함께 삭제 — 카운트와 결과가 일관됨.
+    // 채널 자체는 유지(다른 데서 참조될 수 있음).
+    const h = await prisma.hashtag
+      .findUnique({ where: { id }, select: { platform: true, tag: true } })
+      .catch(() => null);
+    if (h) {
+      await prisma.video
+        .deleteMany({ where: { platform: h.platform, sourceHashtag: h.tag } })
+        .catch(() => null);
+    }
     await removeHashtag(id);
     revalidatePath('/popular-feed');
     return { ok: true };

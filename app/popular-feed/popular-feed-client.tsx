@@ -16,6 +16,7 @@ type Hashtag = {
   platform: Platform;
   tag: string;
   isActive: boolean;
+  videoCount: number;
 };
 
 export function PopularFeedClient({
@@ -164,6 +165,9 @@ function HashtagRow({
         )}
       >
         {isActiveFilter && '▶ '}#{h.tag}
+        <span className="num ml-1.5 text-[12px] font-normal text-muted-foreground">
+          ({h.videoCount.toLocaleString()})
+        </span>
       </button>
       {info && <span className="text-[11.5px] text-success">{info}</span>}
       {error && <span className="text-[11.5px] text-warning">{error}</span>}
