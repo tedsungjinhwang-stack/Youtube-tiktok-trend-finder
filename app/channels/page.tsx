@@ -48,12 +48,12 @@ async function safeChannels() {
 
 async function safeFolders() {
   try {
+    // Prisma startsWith가 LIKE '__%'로 풀려 모든 행을 매치하므로 JS 필터 사용
     const folders = await prisma.folder.findMany({
-      where: { NOT: { name: { startsWith: '__' } } },
       orderBy: { sortOrder: 'asc' },
       select: { id: true, name: true },
     });
-    return folders;
+    return folders.filter((f) => !f.name.startsWith('__'));
   } catch {
     return [];
   }

@@ -21,11 +21,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const folders = await prisma.folder.findMany({
-      where: { NOT: { name: { startsWith: '__' } } },
+    // Prisma startsWith가 LIKE '__%'로 풀려 모든 행을 매치하므로 JS 필터 사용
+    const all = await prisma.folder.findMany({
       orderBy: { sortOrder: 'asc' },
       include: { _count: { select: { channels: true } } },
     });
+    const folders = all.filter((f) => !f.name.startsWith('__'));
     return NextResponse.json({
       success: true,
       data: folders.map((f) => ({

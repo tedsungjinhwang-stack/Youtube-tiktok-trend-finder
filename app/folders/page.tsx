@@ -14,17 +14,20 @@ type FolderRowData = {
 
 async function loadFolders(): Promise<FolderRowData[]> {
   try {
+    // Prisma의 startsWith는 LIKE 와일드카드를 이스케이프하지 않아 '__'가
+    // 'any 2 chars'로 해석돼 모든 행이 매치됨 → JS 단계에서 필터.
     const rows = await prisma.folder.findMany({
-      where: { NOT: { name: { startsWith: '__' } } },
       orderBy: { sortOrder: 'asc' },
       include: { _count: { select: { channels: true } } },
     });
-    return rows.map((f) => ({
-      id: f.id,
-      name: f.name,
-      channelCount: f._count.channels,
-      isSeed: false,
-    }));
+    return rows
+      .filter((f) => !f.name.startsWith('__'))
+      .map((f) => ({
+        id: f.id,
+        name: f.name,
+        channelCount: f._count.channels,
+        isSeed: false,
+      }));
   } catch {
     return FOLDER_SEED.map((name, i) => ({
       id: `seed-${i}`,
