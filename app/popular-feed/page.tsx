@@ -63,7 +63,11 @@ export default async function PopularFeedPage({
       </div>
 
       <div className="mb-4">
-        <PageFilters platforms={ALL_PLATFORMS} defaults={defaults} />
+        <PageFilters
+          platforms={ALL_PLATFORMS}
+          showPlatformToggle={false}
+          defaults={defaults}
+        />
       </div>
 
       <PopularFeedClient hashtags={hashtags} activeTag={activeTag} />
