@@ -40,9 +40,12 @@ export default async function PopularFeedPage({
     ),
   };
 
-  const minViews = numOpt(searchParams.minViews) ?? defaults.minViews;
+  // popular-feed는 검색해서 가져온 영상을 그대로 보여주는 페이지 →
+  // 다른 페이지와 달리 default를 '전체 기간 / 최소 조회수 0'으로 둬야
+  // 검색 직후 결과가 사라지지 않음. 사용자가 PageFilters로 명시 지정하면 그것 따름.
+  const minViews = numOpt(searchParams.minViews) ?? 0;
   const platforms = parsePlatforms(searchParams.platforms) ?? ALL_PLATFORMS;
-  const since = sinceFromPeriod(searchParams.period ?? '7d');
+  const since = sinceFromPeriod(searchParams.period ?? 'all');
   const sortBy = searchParams.sortBy ?? 'views';
 
   const videos = await safeFetchVideos({
