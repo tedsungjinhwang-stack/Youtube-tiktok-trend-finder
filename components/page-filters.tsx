@@ -89,8 +89,8 @@ export function PageFilters({
     platformParam ? (platformParam.split(',') as Platform[]) : platforms
   );
 
-  const period = (searchParams.get('period') as Period) ?? '7d';
-  const sortBy = (searchParams.get('sortBy') as SortBy) ?? 'viralScore';
+  const period = (searchParams.get('period') as Period) ?? 'all';
+  const sortBy = (searchParams.get('sortBy') as SortBy) ?? 'views';
 
   const togglePlatform = (p: Platform) => {
     const next = new Set(activePlatforms);
@@ -140,7 +140,7 @@ export function PageFilters({
             label={p.label}
             active={period === p.value}
             onClick={() =>
-              updateParams({ period: p.value === '7d' ? null : p.value })
+              updateParams({ period: p.value === 'all' ? null : p.value })
             }
           />
         ))}
@@ -154,7 +154,7 @@ export function PageFilters({
             active={sortBy === s.value}
             onClick={() =>
               updateParams({
-                sortBy: s.value === 'viralScore' ? null : s.value,
+                sortBy: s.value === 'views' ? null : s.value,
               })
             }
           />

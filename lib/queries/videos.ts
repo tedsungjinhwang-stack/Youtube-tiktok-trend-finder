@@ -33,6 +33,7 @@ export type VideoRow = {
   isShorts: boolean | null;
   publishedAt: Date;
   viralScore: number | null;
+  isStarred: boolean;
   channelName: string | null;
   channelHandle: string | null;
   folder: string;
@@ -47,8 +48,8 @@ export type VideoQueryResult = {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export async function queryVideos(filters: VideoFilters): Promise<VideoQueryResult> {
-  const period = filters.period ?? '7d';
-  const sortBy = filters.sortBy ?? 'viralScore';
+  const period = filters.period ?? 'all';
+  const sortBy = filters.sortBy ?? 'views';
   const minViews = filters.minViews ?? 50_000;
   const limit = Math.min(Math.max(filters.limit ?? 50, 1), 100);
 
@@ -78,12 +79,15 @@ export async function queryVideos(filters: VideoFilters): Promise<VideoQueryResu
         ? { platform: filters.platform }
         : {};
 
-  const orderBy: Prisma.VideoOrderByWithRelationInput =
+  // 별표된 영상은 항상 최상단 → 그 다음 사용자 선택 정렬
+  const orderBy: Prisma.VideoOrderByWithRelationInput[] = [
+    { isStarred: 'desc' },
     sortBy === 'viralScore'
       ? { viralScore: 'desc' }
       : sortBy === 'views'
         ? { viewCount: 'desc' }
-        : { publishedAt: 'desc' };
+        : { publishedAt: 'desc' },
+  ];
 
   const publishedAtRange: Prisma.DateTimeFilter | undefined =
     since && before
@@ -158,6 +162,7 @@ export async function queryVideos(filters: VideoFilters): Promise<VideoQueryResu
       isShorts: v.isShorts,
       publishedAt: v.publishedAt,
       viralScore: v.viralScore,
+      isStarred: v.isStarred,
       channelName: v.channel.displayName,
       channelHandle: v.channel.handle,
       folder: v.channel.folder.name,

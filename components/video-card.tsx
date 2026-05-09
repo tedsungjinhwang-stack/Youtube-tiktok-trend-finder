@@ -5,7 +5,7 @@ import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn, formatKr, formatKrPerHour, formatMultiplier } from '@/lib/utils';
 import { getGrowthBadge, getRankBadge, isVerifiedHit } from '@/lib/grading';
-import { deleteVideoAction } from '@/app/actions/videos';
+import { deleteVideoAction, toggleStarVideoAction } from '@/app/actions/videos';
 
 export type VideoCardData = {
   id: string;
@@ -46,6 +46,23 @@ export function VideoCard({ data }: { data: VideoCardData }) {
   const router = useRouter();
   const [isDeleting, startDelete] = useTransition();
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [starred, setStarred] = useState(data.starred ?? false);
+  const [, startStarTransition] = useTransition();
+
+  const onToggleStar = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const prev = starred;
+    setStarred(!prev); // optimistic
+    startStarTransition(async () => {
+      const r = await toggleStarVideoAction(data.id);
+      if (!r.ok) setStarred(prev);
+      else {
+        setStarred(r.starred);
+        router.refresh(); // 정렬에 반영
+      }
+    });
+  };
 
   const onDelete = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -150,16 +167,12 @@ export function VideoCard({ data }: { data: VideoCardData }) {
         )}
 
         <button
-          aria-label="관심"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
+          aria-label={starred ? '별표 해제' : '별표'}
+          title={starred ? '별표 해제 (정렬 맨 앞에서 빠짐)' : '별표 (목록 맨 앞으로)'}
+          onClick={onToggleStar}
           className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-[13px] backdrop-blur hover:bg-black/80"
         >
-          <span className={data.starred ? 'text-warning' : 'text-white/70'}>
-            ★
-          </span>
+          <span className={starred ? 'text-warning' : 'text-white/70'}>★</span>
         </button>
 
         <button

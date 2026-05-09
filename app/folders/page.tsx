@@ -46,7 +46,7 @@ export default async function FoldersPage() {
       <div className="mb-5">
         <h1 className="text-lg font-bold tracking-tight">폴더 관리</h1>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          이름·정렬·삭제. 시드 19개 다시 불러오기 가능.
+          이름·정렬·삭제.
         </p>
       </div>
 
@@ -55,7 +55,7 @@ export default async function FoldersPage() {
       <div className="overflow-hidden rounded-xl border bg-card">
         {folders.length === 0 ? (
           <div className="py-8 text-center text-[13px] text-muted-foreground">
-            폴더가 없습니다. 시드 다시 불러오기로 19개를 생성하세요.
+            폴더가 없습니다. 위의 + 새 폴더로 추가하세요.
           </div>
         ) : (
           <ul className="divide-y divide-border/60">

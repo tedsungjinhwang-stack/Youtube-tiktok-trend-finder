@@ -97,6 +97,7 @@ export default async function PopularFeedPage({
             folder: v.sourceHashtag ? `#${v.sourceHashtag}` : '발견',
             totalViews: Number(v.viewCount),
             publishedAt: v.publishedAt,
+            starred: v.isStarred,
             hideRankBadge: true,
           }))}
         />
@@ -164,12 +165,14 @@ async function safeFetchVideos(opts: {
   since: Date | null;
   sortBy: 'viralScore' | 'views' | 'publishedAt';
 }) {
-  const orderBy =
+  // 별표된 영상은 항상 최상단
+  const sortKey =
     opts.sortBy === 'views'
       ? { viewCount: 'desc' as const }
       : opts.sortBy === 'publishedAt'
         ? { publishedAt: 'desc' as const }
         : { viewCount: 'desc' as const };
+  const orderBy = [{ isStarred: 'desc' as const }, sortKey];
   try {
     const rows = await prisma.video.findMany({
       where: {
@@ -194,6 +197,7 @@ async function safeFetchVideos(opts: {
       viewCount: v.viewCount.toString(),
       publishedAt: v.publishedAt,
       sourceHashtag: v.sourceHashtag,
+      isStarred: v.isStarred,
       channelHandle: v.channel.displayName ?? v.channel.handle,
     }));
   } catch {

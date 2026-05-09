@@ -195,43 +195,51 @@ function ChannelItem({ c }: { c: ChannelRow }) {
   const display = c.displayName ?? c.handle ?? c.externalId;
   const channelUrl = buildChannelUrl(c);
 
+  // 핸들 영역 자체를 링크로 — 클릭 시 새 탭에서 채널로 이동
+  const NameBlock = (
+    <div className="min-w-0 flex-1">
+      <div className="truncate text-[13.5px] font-medium hover:underline">
+        {display}
+      </div>
+      <div className="num truncate text-[11.5px] text-muted-foreground hover:underline">
+        {c.handle ?? c.externalId}
+      </div>
+      {error && (
+        <div className="truncate text-[11px] text-warning" title={error}>
+          {error}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <li className="flex items-center gap-2 rounded-md border border-border/60 bg-background/40 px-2.5 py-2">
       <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-secondary text-[12px] font-bold">
         {display.slice(0, 1)}
       </span>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[13.5px] font-medium">{display}</div>
-        <div className="num truncate text-[11.5px] text-muted-foreground">
-          {c.handle ?? c.externalId}
-        </div>
-        {error && (
-          <div className="truncate text-[11px] text-warning" title={error}>
-            {error}
-          </div>
-        )}
-      </div>
-      {c.subscriberCount != null && (
-        <div className="num text-[12px] text-muted-foreground">
-          {(c.subscriberCount / 1000).toFixed(0)}K
-        </div>
-      )}
-      {channelUrl && (
+      {channelUrl ? (
         <a
           href={channelUrl}
           target="_blank"
           rel="noreferrer"
-          title="채널 바로가기"
-          className="rounded p-1 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
+          title={`${display} — 새 탭에서 채널 열기`}
+          className="min-w-0 flex-1"
         >
-          ↗
+          {NameBlock}
         </a>
+      ) : (
+        NameBlock
+      )}
+      {c.subscriberCount != null && (
+        <div className="num shrink-0 text-[12px] text-muted-foreground">
+          {(c.subscriberCount / 1000).toFixed(0)}K
+        </div>
       )}
       <button
         onClick={onScrape}
         disabled={isPending}
         title="수동 스크래핑"
-        className="rounded p-1 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border/60 text-[15px] text-muted-foreground hover:border-foreground/40 hover:bg-accent hover:text-foreground disabled:opacity-40"
       >
         {isPending ? '…' : '↻'}
       </button>
@@ -239,7 +247,7 @@ function ChannelItem({ c }: { c: ChannelRow }) {
         onClick={onDelete}
         disabled={isPending}
         title="삭제"
-        className="rounded p-1 text-[12px] text-muted-foreground hover:bg-warning/10 hover:text-warning disabled:opacity-40"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border/60 text-[14px] text-muted-foreground hover:border-warning/60 hover:bg-warning/10 hover:text-warning disabled:opacity-40"
       >
         ✕
       </button>

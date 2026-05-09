@@ -78,6 +78,7 @@ export default async function HomePage({
             totalViews: Number(v.viewCount),
             publishedAt: v.publishedAt,
             channelAvgMultiplier: v.viralScore ?? undefined,
+            starred: v.isStarred,
           }))}
         />
       </div>

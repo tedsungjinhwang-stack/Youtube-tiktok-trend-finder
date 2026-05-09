@@ -82,6 +82,7 @@ export default async function YoutubePage({
             totalViews: Number(v.viewCount),
             publishedAt: v.publishedAt,
             channelAvgMultiplier: v.viralScore ?? undefined,
+            starred: v.isStarred,
           }))}
         />
       </div>

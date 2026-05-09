@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { createFolderAction, reseedFoldersAction } from './actions';
+import { createFolderAction } from './actions';
 
 export function FoldersToolbar() {
   const [isPending, startTransition] = useTransition();
@@ -10,19 +10,6 @@ export function FoldersToolbar() {
   );
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
-
-  const onReseed = () => {
-    setMsg(null);
-    startTransition(async () => {
-      const r = await reseedFoldersAction();
-      if (!r.ok) setMsg({ kind: 'err', text: r.error });
-      else
-        setMsg({
-          kind: 'ok',
-          text: `완료 — 신규 ${r.data.created} · 정렬 갱신 ${r.data.updated}`,
-        });
-    });
-  };
 
   const onCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,13 +37,6 @@ export function FoldersToolbar() {
           className="rounded-lg bg-brand px-3 py-1.5 font-semibold text-brand-foreground hover:bg-brand/90"
         >
           {adding ? '취소' : '+ 새 폴더'}
-        </button>
-        <button
-          onClick={onReseed}
-          disabled={isPending}
-          className="rounded-lg border bg-card px-3 py-1.5 hover:border-foreground/40 disabled:opacity-50"
-        >
-          {isPending ? '처리 중…' : '시드 다시 불러오기'}
         </button>
         {msg && (
           <span

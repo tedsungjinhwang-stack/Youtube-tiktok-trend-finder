@@ -84,6 +84,7 @@ export default async function SocialPage({
             totalViews: Number(v.viewCount),
             publishedAt: v.publishedAt,
             channelAvgMultiplier: v.viralScore ?? undefined,
+            starred: v.isStarred,
           }))}
         />
       </div>

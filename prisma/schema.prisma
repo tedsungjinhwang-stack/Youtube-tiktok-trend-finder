@@ -91,12 +91,14 @@ model Video {
   format          VideoFormat?
   formatLockedBy  String?         // 'auto' | 'user' — user 락이면 자동 추론이 덮어쓰지 않음
   sourceHashtag   String?         // null이면 일반(채널) 수집, 값 있으면 그 해시태그로 발견
+  isStarred       Boolean         @default(false)
 
   @@unique([platform, externalId])
   @@index([sourceHashtag])
   @@index([channelId, publishedAt])
   @@index([viralScore])
   @@index([publishedAt])
+  @@index([isStarred])
 }
 
 model YoutubeApiKey {
