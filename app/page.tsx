@@ -60,7 +60,7 @@ export default async function HomePage({
         </div>
 
         <div className="mb-4">
-          <PageFilters defaults={defaults} />
+          <PageFilters showPlatformToggle={false} defaults={defaults} />
         </div>
 
         <SelectableVideoGrid

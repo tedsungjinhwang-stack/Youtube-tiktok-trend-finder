@@ -62,7 +62,11 @@ export default async function SocialPage({
         </div>
 
         <div className="mb-4">
-          <PageFilters platforms={ALLOWED} defaults={defaults} />
+          <PageFilters
+            platforms={ALLOWED}
+            showPlatformToggle={false}
+            defaults={defaults}
+          />
         </div>
 
         <SelectableVideoGrid
