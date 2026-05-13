@@ -23,6 +23,21 @@ export function formatKr(n: bigint | number | null | undefined): string {
   return String(num);
 }
 
+/**
+ * 예상 수익 범위 (KRW). 한국 쇼츠 평균 RPM 0.15~0.20원/view 기준.
+ * 100만 조회 → "15만~20만원", 542만 조회 → "81만~108만원".
+ */
+export function formatRevenueRange(
+  views: number | null | undefined,
+  rpmMin = 0.15,
+  rpmMax = 0.2
+): string {
+  if (!views || views <= 0) return '–';
+  const lo = formatKr(Math.round(views * rpmMin));
+  const hi = formatKr(Math.round(views * rpmMax));
+  return `${lo}~${hi}원`;
+}
+
 /** Per-hour abbreviated: 33000 → '3.3만/h' */
 export function formatKrPerHour(n: number | null | undefined): string {
   if (n == null) return '–';

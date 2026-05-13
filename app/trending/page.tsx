@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { cn, formatKr } from '@/lib/utils';
+import { cn, formatKr, formatRevenueRange } from '@/lib/utils';
 
 type TrendingItem = {
   rank: number;
@@ -154,7 +154,9 @@ export default function TrendingPage() {
             <div className="col-span-1">순위</div>
             <div className="col-span-5">영상</div>
             <div className="col-span-3">채널</div>
-            <div className="col-span-2 text-right">조회수</div>
+            <div className="col-span-2 text-right" title="예상수익은 한국 쇼츠 평균 RPM 0.15~0.20원 기준">
+              조회수 / 예상수익
+            </div>
             <div className="col-span-1 text-right">링크</div>
           </div>
           <ul className="divide-y divide-border/60">
@@ -225,6 +227,12 @@ function TrendingRow({ v }: { v: TrendingItem }) {
             <span>·</span>
             <span className="num">{formatRelative(v.publishedAt)}</span>
           </div>
+          <div
+            className="num mt-0.5 text-[11.5px] text-emerald-500/90 md:hidden"
+            title="한국 쇼츠 평균 RPM 0.15~0.20원 기준 추정"
+          >
+            예상수익 {formatRevenueRange(v.viewCount)}
+          </div>
         </div>
       </div>
 
@@ -252,8 +260,15 @@ function TrendingRow({ v }: { v: TrendingItem }) {
 
       <div className="hidden items-center justify-end md:col-span-2 md:flex">
         <div className="text-right">
-          <div className="num text-[15px] font-bold">{formatKr(v.viewCount)}</div>
-          <div className="text-[11px] text-muted-foreground/80">조회수</div>
+          <div className="num text-[15px] font-bold leading-tight">{formatKr(v.viewCount)}</div>
+          <div className="text-[10.5px] leading-tight text-muted-foreground/80">조회수</div>
+          <div
+            className="num mt-1 text-[12px] font-semibold leading-tight text-emerald-500/90"
+            title="한국 쇼츠 평균 RPM 0.15~0.20원 기준 추정"
+          >
+            {formatRevenueRange(v.viewCount)}
+          </div>
+          <div className="text-[10.5px] leading-tight text-muted-foreground/80">예상수익</div>
         </div>
       </div>
 
