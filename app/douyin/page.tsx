@@ -9,13 +9,11 @@ import {
   COOKIE_KEY_MIN_VIEWS,
   numFromCookie,
 } from '@/lib/settings';
-import type { Platform } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
 type SearchParams = {
   folderId?: string;
-  platforms?: string;
   period?: '24h' | '48h' | '7d' | '30d' | 'all';
   sortBy?: 'viralScore' | 'views' | 'publishedAt';
   minScore?: string;
@@ -23,10 +21,7 @@ type SearchParams = {
   minAgeDays?: string;
 };
 
-// Social 페이지: TT/IG 전용 (XHS=/xiaohongshu, Douyin=/douyin 별도 페이지)
-const ALLOWED: Platform[] = ['TIKTOK', 'INSTAGRAM'];
-
-export default async function SocialPage({
+export default async function DouyinPage({
   searchParams,
 }: {
   searchParams: SearchParams;
@@ -39,11 +34,10 @@ export default async function SocialPage({
       BUILTIN_DEFAULTS.minViews
     ),
   };
-  const platforms = parsePlatforms(searchParams.platforms) ?? ALLOWED;
 
   const result = await safeQuery({
     folderId: searchParams.folderId,
-    platforms,
+    platform: 'DOUYIN',
     period: searchParams.period,
     minAgeDays: numOpt(searchParams.minAgeDays),
     sortBy: searchParams.sortBy,
@@ -56,18 +50,14 @@ export default async function SocialPage({
 
       <div className="px-4 py-4">
         <div className="mb-4">
-          <h1 className="text-lg font-bold tracking-tight">TikTok / Instagram</h1>
+          <h1 className="text-lg font-bold tracking-tight">도우인</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            등록된 TT / IG 에셋 채널의 영상
+            등록된 도우인 채널 영상 · 폴더·기간·임계치 필터링
           </p>
         </div>
 
         <div className="mb-4">
-          <PageFilters
-            platforms={ALLOWED}
-            showPlatformToggle={false}
-            defaults={defaults}
-          />
+          <PageFilters platforms={['DOUYIN']} showPlatformToggle={false} defaults={defaults} />
         </div>
 
         <SelectableVideoGrid
@@ -100,21 +90,13 @@ function EmptyState() {
     <div className="rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground">
       <p className="font-medium text-foreground">표시할 영상이 없습니다</p>
       <p className="mt-1 text-xs">
-        TikTok / Instagram 채널을 추가하고 Apify로 스크래핑하면 표시됩니다 —
+        도우인 채널을 추가하고 스크래핑하면 여기에 표시됩니다 —
         <a href="/channels" className="ml-1 underline hover:text-foreground">
           채널 추가하러 가기
         </a>
       </p>
     </div>
   );
-}
-
-function parsePlatforms(raw?: string): Platform[] | undefined {
-  if (!raw) return undefined;
-  const list = raw
-    .split(',')
-    .filter((p): p is Platform => ALLOWED.includes(p as Platform));
-  return list.length > 0 ? list : undefined;
 }
 
 function numOpt(s?: string): number | undefined {
@@ -125,7 +107,6 @@ function numOpt(s?: string): number | undefined {
 
 async function safeFolders() {
   try {
-    // Prisma startsWith가 LIKE '__%'로 풀려 모든 행을 매치하므로 JS 필터 사용
     const folders = await prisma.folder.findMany({
       orderBy: { sortOrder: 'asc' },
       select: { id: true, name: true, _count: { select: { channels: true } } },
