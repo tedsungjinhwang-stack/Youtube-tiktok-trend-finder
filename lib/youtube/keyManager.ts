@@ -77,6 +77,23 @@ export async function markExhausted(keyId: string, error?: string) {
   }
 }
 
+/** 영구 비활성화 — API 키 만료/무효 등 quota 초과가 아닌 회복 불가능한 경우. */
+export async function markDisabled(keyId: string, error?: string) {
+  if (keyId === 'env') return null;
+  try {
+    return await prisma.youtubeApiKey.update({
+      where: { id: keyId },
+      data: {
+        isActive: false,
+        lastError: error,
+        failCount: { increment: 1 },
+      },
+    });
+  } catch {
+    return null;
+  }
+}
+
 export async function resetAllQuotas() {
   return prisma.youtubeApiKey.updateMany({
     data: {
