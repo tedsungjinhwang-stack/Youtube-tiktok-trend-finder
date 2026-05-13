@@ -122,7 +122,7 @@ export async function fetchTrendingShorts(
     relevanceLanguage: regionToLanguage(region),
     publishedAfter,
     maxResults: String(Math.min(50, maxResults)),
-    q: regionToShortsQuery(region),
+    q: '#shorts',
     key: key.apiKey,
   });
 
@@ -192,18 +192,6 @@ export async function fetchTrendingShorts(
   out.sort((a, b) => b.viewCount - a.viewCount);
   out.forEach((v, i) => (v.rank = i + 1));
   return out;
-}
-
-/** 검색어 자체를 국가 언어로 바꿔 글로벌 #shorts 결과가 섞이는 문제를 줄임. */
-function regionToShortsQuery(region: TrendingRegion): string {
-  switch (region) {
-    case 'KR':
-      return '쇼츠';
-    case 'JP':
-      return 'ショート';
-    default:
-      return '#shorts';
-  }
 }
 
 /** 제목·채널명에 해당 국가 문자가 없으면 제거. KR/JP 처럼 고유 스크립트가 있는 경우만 적용. */
