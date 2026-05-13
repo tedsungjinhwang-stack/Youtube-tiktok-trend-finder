@@ -2,12 +2,12 @@ import Link from 'next/link';
 
 const tabs = [
   { href: '/popular-feed', label: '인기피드검색' },
+  { href: '/trending', label: '실시간 인기' },
   { href: '/', label: '통합' },
   { href: '/youtube', label: 'YouTube' },
   { href: '/social', label: 'TikTok / Insta' },
   { href: '/xiaohongshu', label: '샤오홍수' },
   { href: '/douyin', label: '도우인' },
-  { href: '/trending', label: '실시간 인기' },
   { href: '/channels', label: '에셋 채널' },
   { href: '/folders', label: '폴더' },
 ];
