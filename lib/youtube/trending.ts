@@ -119,6 +119,7 @@ export async function fetchTrendingShorts(
     videoDuration: 'short',
     order: 'viewCount',
     regionCode: region,
+    relevanceLanguage: regionToLanguage(region),
     publishedAfter,
     maxResults: String(Math.min(50, maxResults)),
     q: '#shorts',
@@ -187,6 +188,28 @@ export async function fetchTrendingShorts(
   out.sort((a, b) => b.viewCount - a.viewCount);
   out.forEach((v, i) => (v.rank = i + 1));
   return out;
+}
+
+/** YouTube regionCode → relevanceLanguage 매핑. search.list 의 region 정확도 보완용. */
+function regionToLanguage(region: TrendingRegion): string {
+  switch (region) {
+    case 'KR':
+      return 'ko';
+    case 'JP':
+      return 'ja';
+    case 'DE':
+      return 'de';
+    case 'FR':
+      return 'fr';
+    case 'IN':
+      return 'hi';
+    case 'BR':
+      return 'pt';
+    case 'US':
+    case 'GB':
+    default:
+      return 'en';
+  }
 }
 
 export function parseIsoDurationSeconds(iso: string): number {
