@@ -19,6 +19,8 @@ type CommentData = {
   avatarLetter: string;
   /** Optional avatar image URL or data URL — 우선 표시 */
   avatarImageUrl?: string;
+  /** 작성자명·아바타 블러 처리 (익명화) */
+  isBlurred: boolean;
   showTime: boolean;
   showLikes: boolean;
   showReplyAction: boolean;
@@ -53,6 +55,7 @@ function makeDefault(): CommentData {
     showLikes: true,
     showReplyAction: true,
     isVerified: false,
+    isBlurred: false,
     replyText: '답글',
     width: 600,
     bodyFontSize: 16,
@@ -647,13 +650,38 @@ export default function CommentGeneratorPage() {
         </div>
 
         <div className="space-y-5 p-4">
-          <Field label="작성자">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-medium text-muted-foreground">
+                작성자
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5 text-[11px]">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={selected.isBlurred}
+                  onClick={() => update('isBlurred', !selected.isBlurred)}
+                  className={cn(
+                    'inline-flex h-4 w-7 shrink-0 items-center rounded-full border-2 border-transparent transition',
+                    selected.isBlurred ? 'bg-primary' : 'bg-input'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'pointer-events-none block h-3 w-3 rounded-full bg-background shadow transition-transform',
+                      selected.isBlurred ? 'translate-x-3' : 'translate-x-0'
+                    )}
+                  />
+                </button>
+                <span className="text-muted-foreground">블러</span>
+              </label>
+            </div>
             <input
               value={selected.authorName}
               onChange={(e) => onAuthorChange(e.target.value)}
               className="h-8 w-full rounded-md border bg-transparent px-2 text-sm"
             />
-          </Field>
+          </div>
 
           <Field label="이니셜 (1글자)">
             <input
@@ -964,6 +992,7 @@ function CommentCard({
             height: `${c.avatarSize}px`,
             fontSize: `${c.avatarSize / 2}px`,
             backgroundColor: c.avatarBg,
+            filter: c.isBlurred ? 'blur(8px)' : undefined,
           }}
         >
           {c.avatarImageUrl ? (
@@ -984,7 +1013,10 @@ function CommentCard({
             className="mb-1.5 flex flex-wrap items-center gap-2 leading-none"
             style={{ fontSize: `${c.nameFontSize}px` }}
           >
-            <span className="whitespace-nowrap font-semibold">
+            <span
+              className="whitespace-nowrap font-semibold"
+              style={c.isBlurred ? { filter: 'blur(5px)' } : undefined}
+            >
               {c.authorName}
             </span>
             {c.isVerified && (
