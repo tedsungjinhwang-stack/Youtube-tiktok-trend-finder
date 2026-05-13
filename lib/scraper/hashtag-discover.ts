@@ -14,12 +14,14 @@ import { prisma } from '@/lib/db';
 import {
   scrapeApifyTiktokByHashtag,
   scrapeApifyInstagramByHashtag,
+  scrapeApifyXiaohongshuByHashtag,
   type ScrapedVideo,
 } from './apify';
 import { searchYoutubeByHashtag } from '@/lib/youtube/hashtag-search';
 import { inferFormat } from '@/lib/format';
 
-export type HashtagPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM';
+// 인기피드 해시태그 모드는 hashtag/search 가능한 플랫폼만 (Douyin 제외)
+export type HashtagPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU';
 
 export type DiscoverResult = {
   hashtag: string;
@@ -57,6 +59,8 @@ export async function discoverByHashtag(
     result = await scrapeApifyTiktokByHashtag([tag], resultsLimit);
   } else if (platform === 'INSTAGRAM') {
     result = await scrapeApifyInstagramByHashtag(tag, resultsLimit);
+  } else if (platform === 'XIAOHONGSHU') {
+    result = await scrapeApifyXiaohongshuByHashtag(tag, resultsLimit);
   } else {
     // YouTube — Data API로 검색. period 적용 시 publishedAfter / publishedBefore 사용
     const publishedAfter = periodToSinceDate(period);
@@ -107,8 +111,8 @@ export async function discoverByHashtag(
   for (const v of fresh) {
     const authorHandle = extractAuthorHandle(v, platform);
     const channelExternalId =
-      platform === 'YOUTUBE'
-        ? v.authorChannelId ?? `unknown_${v.externalId.slice(0, 12)}`
+      platform === 'YOUTUBE' || platform === 'XIAOHONGSHU'
+        ? v.authorChannelId ?? authorHandle ?? `unknown_${v.externalId.slice(0, 12)}`
         : authorHandle ?? `unknown_${v.externalId.slice(0, 12)}`;
 
     const channel = await prisma.channel.upsert({

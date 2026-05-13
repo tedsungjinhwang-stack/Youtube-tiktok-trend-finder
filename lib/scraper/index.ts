@@ -8,6 +8,8 @@ import { scrapeYoutube } from './youtube';
 import {
   scrapeApifyTiktok,
   scrapeApifyInstagram,
+  scrapeApifyXiaohongshu,
+  scrapeApifyDouyin,
   type ScrapedVideo,
   type ScrapeResult,
 } from './apify';
@@ -29,7 +31,11 @@ export async function scrapeChannel(c: Channel): Promise<ScrapeResult> {
         ? await scrapeYoutube(c)
         : c.platform === 'TIKTOK'
           ? await scrapeApifyTiktok(c)
-          : await scrapeApifyInstagram(c);
+          : c.platform === 'INSTAGRAM'
+            ? await scrapeApifyInstagram(c)
+            : c.platform === 'XIAOHONGSHU'
+              ? await scrapeApifyXiaohongshu(c)
+              : await scrapeApifyDouyin(c);
 
     await persistVideos(c, result.videos);
     await prisma.channel.update({

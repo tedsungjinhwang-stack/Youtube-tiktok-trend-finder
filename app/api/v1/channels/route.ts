@@ -6,7 +6,7 @@ import { parseChannelInput } from '@/lib/url-parser';
 
 export const dynamic = 'force-dynamic';
 
-const PlatformEnum = z.enum(['YOUTUBE', 'TIKTOK', 'INSTAGRAM']);
+const PlatformEnum = z.enum(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'XIAOHONGSHU', 'DOUYIN']);
 
 const CreateChannelSchema = z.object({
   input: z.string().min(1).optional(), // raw URL or handle
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Resolve platform/externalId/handle from either {input} or {platform, handle}
-  let platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM';
+  let platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN';
   let externalId: string;
   let handle: string;
 

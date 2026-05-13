@@ -9,7 +9,7 @@ import {
   scrapeChannelAction,
 } from './actions';
 
-type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM';
+type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN';
 
 export type ChannelRow = {
   id: string;
@@ -28,6 +28,8 @@ const PLATFORMS: { v: Platform | 'ALL'; label: string }[] = [
   { v: 'YOUTUBE', label: 'YouTube' },
   { v: 'TIKTOK', label: 'TikTok' },
   { v: 'INSTAGRAM', label: 'Instagram' },
+  { v: 'XIAOHONGSHU', label: '샤오홍수' },
+  { v: 'DOUYIN', label: '도우인' },
 ];
 
 export function ChannelsClient({
@@ -276,6 +278,14 @@ function buildChannelUrl(c: ChannelRow): string | null {
     const username = raw.replace(/^@/, '');
     return `https://www.instagram.com/${username}/`;
   }
+  if (c.platform === 'XIAOHONGSHU') {
+    const id = c.externalId.replace(/^@/, '');
+    return `https://www.xiaohongshu.com/user/profile/${id}`;
+  }
+  if (c.platform === 'DOUYIN') {
+    const id = c.externalId.replace(/^@/, '');
+    return `https://www.douyin.com/user/${id}`;
+  }
   return null;
 }
 
@@ -294,6 +304,8 @@ function AddForm({
     YOUTUBE: 'https://youtube.com/@건봉이티비  또는  @건봉이티비',
     TIKTOK: 'https://www.tiktok.com/@ydb_compile  또는  @ydb_compile',
     INSTAGRAM: 'https://www.instagram.com/movie_kr  또는  movie_kr',
+    XIAOHONGSHU: 'https://www.xiaohongshu.com/user/profile/{userId}',
+    DOUYIN: 'https://www.douyin.com/user/{secUid}',
   };
 
   const onSubmit = (formData: FormData) => {
@@ -410,6 +422,8 @@ function PlatformBadge({ p }: { p: Platform }) {
     YOUTUBE: { letter: 'YT', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
     TIKTOK: { letter: 'TT', color: 'bg-zinc-200/10 text-zinc-100 border-zinc-300/30' },
     INSTAGRAM: { letter: 'IG', color: 'bg-pink-500/20 text-pink-400 border-pink-500/30' },
+    XIAOHONGSHU: { letter: '小', color: 'bg-red-400/20 text-red-300 border-red-400/30' },
+    DOUYIN: { letter: '抖', color: 'bg-cyan-400/20 text-cyan-300 border-cyan-400/30' },
   } as const;
   const m = map[p];
   return (

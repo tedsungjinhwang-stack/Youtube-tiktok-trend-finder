@@ -9,7 +9,7 @@ import {
   searchHashtagAction,
 } from './actions';
 
-type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM';
+type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU';
 
 type Hashtag = {
   id: string;
@@ -50,7 +50,7 @@ export function PopularFeedClient({
   return (
     <div className="space-y-3">
       <div className="flex gap-1 border-b">
-        {(['YOUTUBE', 'TIKTOK', 'INSTAGRAM'] as const).map((p) => (
+        {(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'XIAOHONGSHU'] as const).map((p) => (
           <button
             key={p}
             onClick={() => setTab(p)}
@@ -61,7 +61,13 @@ export function PopularFeedClient({
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
-            {p === 'YOUTUBE' ? 'YouTube' : p === 'TIKTOK' ? 'TikTok' : 'Instagram'}
+            {p === 'YOUTUBE'
+              ? 'YouTube'
+              : p === 'TIKTOK'
+                ? 'TikTok'
+                : p === 'INSTAGRAM'
+                  ? 'Instagram'
+                  : '샤오홍수'}
             <span className="num ml-1.5 text-[12px] text-muted-foreground">
               ({hashtags.filter((h) => h.platform === p).length})
             </span>

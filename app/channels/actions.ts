@@ -17,7 +17,7 @@ export async function addChannelAction(formData: FormData): Promise<ActionResult
 
   const r = parseChannelInput(
     input,
-    platformHint as 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | undefined
+    platformHint as 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN' | undefined
   );
   if ('error' in r) return { ok: false, error: r.error };
 

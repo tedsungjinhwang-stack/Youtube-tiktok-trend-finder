@@ -12,6 +12,8 @@ enum Platform {
   YOUTUBE
   TIKTOK
   INSTAGRAM
+  XIAOHONGSHU
+  DOUYIN
 }
 
 enum VideoFormat {

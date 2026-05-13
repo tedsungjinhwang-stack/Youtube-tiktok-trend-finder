@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 const QuerySchema = z.object({
   folderId: z.string().optional(),
   folderName: z.string().optional(),
-  platform: z.enum(['YOUTUBE', 'TIKTOK', 'INSTAGRAM']).optional(),
+  platform: z.enum(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'XIAOHONGSHU', 'DOUYIN']).optional(),
   period: z.enum(['24h', '48h', '7d', '30d', 'all']).default('7d'),
   minAgeDays: z.coerce.number().int().min(0).optional(),
   sortBy: z.enum(['viralScore', 'views', 'publishedAt']).default('viralScore'),

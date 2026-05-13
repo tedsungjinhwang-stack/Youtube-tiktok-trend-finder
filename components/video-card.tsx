@@ -14,7 +14,7 @@ export type VideoCardData = {
   /** 원본 URL (Instagram embed 미리보기에 필요) */
   url?: string;
   rank?: number;
-  platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM';
+  platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN';
   thumbnailUrl: string;
   title: string;
   channelName: string;
@@ -345,5 +345,8 @@ function buildPreviewUrl(
 function PlatformLetter({ p }: { p: VideoCardData['platform'] }) {
   if (p === 'YOUTUBE') return <span className="text-red-500">Y</span>;
   if (p === 'TIKTOK') return <span className="text-white">T</span>;
-  return <span className="text-pink-400">I</span>;
+  if (p === 'INSTAGRAM') return <span className="text-pink-400">I</span>;
+  if (p === 'XIAOHONGSHU') return <span className="text-red-400">小</span>;
+  if (p === 'DOUYIN') return <span className="text-cyan-400">抖</span>;
+  return null;
 }
