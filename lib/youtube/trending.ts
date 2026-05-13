@@ -122,7 +122,7 @@ export async function fetchTrendingShorts(
     relevanceLanguage: regionToLanguage(region),
     publishedAfter,
     maxResults: String(Math.min(50, maxResults)),
-    q: '#shorts',
+    q: regionToShortsQuery(region),
     key: key.apiKey,
   });
 
@@ -159,6 +159,7 @@ export async function fetchTrendingShorts(
   await markUsed(key.id, 1);
 
   const byId = new Map(detailsJson.items?.map((it) => [it.id, it]) ?? []);
+  const passScript = scriptFilter(region);
   const out: TrendingVideo[] = [];
   let rank = 0;
   for (const id of ids) {
@@ -166,6 +167,9 @@ export async function fetchTrendingShorts(
     if (!it) continue;
     const dur = parseIsoDurationSeconds(it.contentDetails?.duration ?? '');
     if (dur === 0 || dur > 60) continue;
+    const title = it.snippet?.title ?? '';
+    const ch = it.snippet?.channelTitle ?? '';
+    if (!passScript(title) && !passScript(ch)) continue;
     rank++;
     out.push({
       rank,
@@ -188,6 +192,30 @@ export async function fetchTrendingShorts(
   out.sort((a, b) => b.viewCount - a.viewCount);
   out.forEach((v, i) => (v.rank = i + 1));
   return out;
+}
+
+/** 검색어 자체를 국가 언어로 바꿔 글로벌 #shorts 결과가 섞이는 문제를 줄임. */
+function regionToShortsQuery(region: TrendingRegion): string {
+  switch (region) {
+    case 'KR':
+      return '쇼츠';
+    case 'JP':
+      return 'ショート';
+    default:
+      return '#shorts';
+  }
+}
+
+/** 제목·채널명에 해당 국가 문자가 없으면 제거. KR/JP 처럼 고유 스크립트가 있는 경우만 적용. */
+function scriptFilter(region: TrendingRegion): (text: string) => boolean {
+  switch (region) {
+    case 'KR':
+      return (t) => /[가-힯]/.test(t);
+    case 'JP':
+      return (t) => /[぀-ゟ゠-ヿ一-鿿]/.test(t);
+    default:
+      return () => true;
+  }
 }
 
 /** YouTube regionCode → relevanceLanguage 매핑. search.list 의 region 정확도 보완용. */
