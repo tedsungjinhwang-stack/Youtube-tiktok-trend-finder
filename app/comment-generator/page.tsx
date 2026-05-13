@@ -153,11 +153,51 @@ function getTemplateStyle(
   }
 }
 
+function formatRelativeKorean(iso: string): string {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 0) return '방금';
+  const min = Math.floor(ms / 60_000);
+  const hr = Math.floor(ms / 3_600_000);
+  const day = Math.floor(ms / 86_400_000);
+  if (min < 1) return '방금';
+  if (min < 60) return `${min}분 전`;
+  if (hr < 24) return `${hr}시간 전`;
+  if (day < 30) return `${day}일 전`;
+  const mo = Math.floor(day / 30);
+  if (mo < 12) return `${mo}개월 전`;
+  return `${Math.floor(mo / 12)}년 전`;
+}
+
+function formatLikesKr(n: number): string {
+  if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}억`;
+  if (n >= 10_000) return `${(n / 10_000).toFixed(n >= 100_000 ? 0 : 1)}만`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}천`;
+  return String(n);
+}
+
+const AVATAR_COLOR_POOL = [
+  '#FF5722', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5',
+  '#2196F3', '#03A9F4', '#00BCD4', '#009688', '#4CAF50',
+  '#8BC34A', '#FFC107', '#FF9800', '#795548', '#607D8B',
+];
+
+function hashColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_COLOR_POOL[h % AVATAR_COLOR_POOL.length];
+}
+
 export default function CommentGeneratorPage() {
   const [list, setList] = useState<CommentData[]>(() => [makeDefault()]);
   const [selectedId, setSelectedId] = useState(() => list[0].id);
   const refsMap = useRef(new Map<string, HTMLDivElement | null>());
   const [exporting, setExporting] = useState(false);
+  const [ytUrl, setYtUrl] = useState('');
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytError, setYtError] = useState<string | null>(null);
+  const [ytCount, setYtCount] = useState(10);
+  const [ytOrder, setYtOrder] = useState<'relevance' | 'time'>('relevance');
 
   const selected = list.find((x) => x.id === selectedId) ?? list[0];
 
@@ -231,6 +271,57 @@ export default function CommentGeneratorPage() {
       alert('내보내기 실패: ' + (e as Error).message);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const onFetchYoutube = async () => {
+    setYtError(null);
+    if (!ytUrl.trim()) {
+      setYtError('YouTube URL 또는 videoId 를 입력하세요');
+      return;
+    }
+    setYtLoading(true);
+    try {
+      const params = new URLSearchParams({
+        url: ytUrl.trim(),
+        maxResults: String(ytCount),
+        order: ytOrder,
+      });
+      const r = await fetch(`/api/v1/youtube/comments?${params}`);
+      const j = await r.json();
+      if (!j.success) {
+        setYtError(j.error?.message ?? '추출 실패');
+        return;
+      }
+      const fetched = (j.data as Array<{
+        authorName: string;
+        textOriginal: string;
+        likeCount: number;
+        publishedAt: string;
+      }>) ?? [];
+      if (fetched.length === 0) {
+        setYtError('댓글이 없습니다');
+        return;
+      }
+      const items: CommentData[] = fetched.map((row) => {
+        const name = (row.authorName ?? '').replace(/^@/, '').trim() || '익명';
+        return {
+          ...makeDefault(),
+          id: makeId(),
+          authorName: name,
+          avatarLetter: name.slice(0, 1) || '?',
+          avatarBg: hashColor(name),
+          content: row.textOriginal ?? '',
+          timeAgo: formatRelativeKorean(row.publishedAt),
+          likes: formatLikesKr(row.likeCount ?? 0),
+        };
+      });
+      setList(items);
+      setSelectedId(items[0].id);
+    } catch (e) {
+      setYtError((e as Error).message);
+    } finally {
+      setYtLoading(false);
     }
   };
 
@@ -312,6 +403,59 @@ export default function CommentGeneratorPage() {
             </button>
           </div>
         </header>
+
+        <div className="space-y-2 border-b bg-background px-4 py-3">
+          <div className="flex gap-2">
+            <input
+              value={ytUrl}
+              onChange={(e) => setYtUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onFetchYoutube();
+              }}
+              placeholder="YouTube URL 또는 11자리 videoId..."
+              className="h-9 flex-1 rounded-md border bg-transparent px-3 text-sm"
+            />
+            <button
+              onClick={onFetchYoutube}
+              disabled={ytLoading}
+              className="rounded-md bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+            >
+              {ytLoading ? '추출 중…' : '추출하기'}
+            </button>
+          </div>
+          <div className="flex items-center gap-3 text-xs">
+            <label className="flex items-center gap-1.5">
+              <span className="text-muted-foreground">정렬:</span>
+              <select
+                value={ytOrder}
+                onChange={(e) =>
+                  setYtOrder(e.target.value as 'relevance' | 'time')
+                }
+                className="h-7 rounded-md border bg-background px-2"
+              >
+                <option value="relevance">관련도순</option>
+                <option value="time">최신순</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-1.5">
+              <span className="text-muted-foreground">개수:</span>
+              <select
+                value={ytCount}
+                onChange={(e) => setYtCount(Number(e.target.value))}
+                className="h-7 rounded-md border bg-background px-2"
+              >
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+            {ytError && (
+              <span className="text-destructive">⚠ {ytError}</span>
+            )}
+          </div>
+        </div>
 
         <div className="flex-1 overflow-auto bg-secondary/30 p-8">
           <div className="flex flex-col items-center gap-6">
