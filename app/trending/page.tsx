@@ -45,16 +45,19 @@ export default function TrendingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [keyMissing, setKeyMissing] = useState(false);
+  const [keyExpired, setKeyExpired] = useState(false);
 
   const load = async () => {
     setLoading(true);
     setError(null);
     setKeyMissing(false);
+    setKeyExpired(false);
     try {
       const r = await fetch(`/api/v1/youtube/trending?country=${country}&type=${type}&pages=4`);
       const j = await r.json();
       if (!j.success) {
         if (j.error?.code === 'NO_KEY') setKeyMissing(true);
+        else if (j.error?.code === 'KEY_EXPIRED') setKeyExpired(true);
         else setError(j.error?.message ?? '오류');
         setItems([]);
       } else {
@@ -137,6 +140,20 @@ export default function TrendingPage() {
               /settings/api-keys
             </a>{' '}
             에서 YouTube Data API 키를 등록하세요.
+          </p>
+        </div>
+      )}
+
+      {keyExpired && (
+        <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13.5px]">
+          <div className="font-semibold text-destructive">YouTube API 키 만료/무효</div>
+          <p className="mt-1 text-muted-foreground">
+            만료된 키는 자동으로 비활성화됐습니다. Google Cloud Console 에서 키를 갱신하거나
+            새 키를 발급한 뒤{' '}
+            <a href="/settings/api-keys" className="text-brand underline">
+              /settings/api-keys
+            </a>{' '}
+            에서 등록하세요.
           </p>
         </div>
       )}

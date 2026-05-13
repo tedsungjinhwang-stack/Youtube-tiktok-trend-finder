@@ -44,6 +44,12 @@ export async function GET(req: NextRequest) {
         { status: 503 }
       );
     }
+    if (/만료|무효|expired|invalid/i.test(msg)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'KEY_EXPIRED', message: msg } },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
       { success: false, error: { code: 'YT_ERROR', message: msg.slice(0, 300) } },
       { status: 500 }
