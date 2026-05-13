@@ -282,22 +282,26 @@ export default function CommentGeneratorPage() {
     setSelectedId(fresh.id);
   };
 
-  const randomizeSelected = () => {
+  const randomizeOne = (x: CommentData): CommentData => {
     const nick = pick(RANDOM_NICKS);
+    return {
+      ...x,
+      authorName: nick,
+      avatarLetter: nick.slice(0, 1),
+      avatarBg: pick(COLORS),
+      likes: randomLikes(),
+      timeAgo: randomTimeAgo(),
+    };
+  };
+
+  const randomizeSelected = () => {
     setList((prev) =>
-      prev.map((x) =>
-        x.id === selectedId
-          ? {
-              ...x,
-              authorName: nick,
-              avatarLetter: nick.slice(0, 1),
-              avatarBg: pick(COLORS),
-              likes: randomLikes(),
-              timeAgo: randomTimeAgo(),
-            }
-          : x
-      )
+      prev.map((x) => (x.id === selectedId ? randomizeOne(x) : x))
     );
+  };
+
+  const randomizeAll = () => {
+    setList((prev) => prev.map(randomizeOne));
   };
 
   const removeSelected = () => {
@@ -571,9 +575,16 @@ export default function CommentGeneratorPage() {
             <button
               onClick={randomizeSelected}
               className="rounded-md border bg-card px-3 py-1.5 text-xs hover:border-foreground/40"
-              title="현재 선택된 댓글의 닉/색/좋아요/시간을 랜덤으로 재생성"
+              title="선택된 댓글의 닉/색/좋아요/시간만 재생성 (본문 유지)"
             >
-              🎲 랜덤화
+              🎲 선택 랜덤
+            </button>
+            <button
+              onClick={randomizeAll}
+              className="rounded-md border bg-card px-3 py-1.5 text-xs hover:border-foreground/40"
+              title="전체 댓글의 닉/색/좋아요/시간을 한번에 재생성 (본문 유지)"
+            >
+              🎲🎲 전체 랜덤
             </button>
             <button
               onClick={duplicateSelected}
