@@ -51,7 +51,7 @@ export default function TrendingPage() {
     setError(null);
     setKeyMissing(false);
     try {
-      const r = await fetch(`/api/v1/youtube/trending?country=${country}&type=${type}&pages=2`);
+      const r = await fetch(`/api/v1/youtube/trending?country=${country}&type=${type}&pages=4`);
       const j = await r.json();
       if (!j.success) {
         if (j.error?.code === 'NO_KEY') setKeyMissing(true);

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchTrending, fetchTrendingShorts, type TrendingRegion, type TrendingVideo } from '@/lib/youtube/trending';
+import { fetchTrending, type TrendingRegion, type TrendingVideo } from '@/lib/youtube/trending';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +8,7 @@ const REGIONS: TrendingRegion[] = ['KR', 'US', 'JP', 'GB', 'DE', 'FR', 'IN', 'BR
 export async function GET(req: NextRequest) {
   const country = (req.nextUrl.searchParams.get('country') ?? req.nextUrl.searchParams.get('region') ?? 'KR').toUpperCase() as TrendingRegion;
   const type = (req.nextUrl.searchParams.get('type') ?? 'all').toLowerCase();
-  const pages = Math.min(4, Math.max(1, Number(req.nextUrl.searchParams.get('pages') ?? 2)));
+  const pages = Math.min(4, Math.max(1, Number(req.nextUrl.searchParams.get('pages') ?? 4)));
 
   if (!REGIONS.includes(country)) {
     return NextResponse.json(
@@ -18,24 +18,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    let items: TrendingVideo[] = [];
-
-    if (type === 'short') {
-      items = await fetchTrendingShorts(country, 50);
-    } else if (type === 'long') {
-      const all = await fetchTrending(country, pages);
-      items = all.filter((v) => !v.isShorts);
-      items.forEach((v, i) => (v.rank = i + 1));
-    } else {
-      const [longFeed, shortsFeed] = await Promise.all([
-        fetchTrending(country, pages),
-        fetchTrendingShorts(country, 50).catch(() => [] as TrendingVideo[]),
-      ]);
-      const merged = [...longFeed.filter((v) => !v.isShorts), ...shortsFeed];
-      merged.sort((a, b) => b.viewCount - a.viewCount);
-      merged.forEach((v, i) => (v.rank = i + 1));
-      items = merged;
-    }
+    const all = await fetchTrending(country, pages);
+    let items: TrendingVideo[];
+    if (type === 'short') items = all.filter((v) => v.isShorts);
+    else if (type === 'long') items = all.filter((v) => !v.isShorts);
+    else items = all;
+    items.forEach((v, i) => (v.rank = i + 1));
 
     return NextResponse.json({
       success: true,
