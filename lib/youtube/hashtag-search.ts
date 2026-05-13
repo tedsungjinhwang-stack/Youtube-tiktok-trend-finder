@@ -8,7 +8,7 @@
  *   → 30,000/일 quota로 약 290회/일 가능
  */
 
-import { getActiveKey, markUsed, markExhausted } from './keyManager';
+import { getActiveKey, markUsed, markExhausted, markDisabled } from './keyManager';
 import { parseIsoDurationSeconds } from './trending';
 import type { ScrapedVideo } from '@/lib/scraper/apify';
 
@@ -159,9 +159,9 @@ async function ytFetch(
       continue;
     }
 
-    // INVALID/EXPIRED 키 — 다음 키로 회전
+    // INVALID/EXPIRED 키 — 영구 비활성화 후 다음 키로 회전
     if (resp.status === 400 && /API_KEY_INVALID|expired|invalid/i.test(body)) {
-      await markExhausted(key.id, body.slice(0, 200));
+      await markDisabled(key.id, body.slice(0, 200));
       lastErr = new Error('key_invalid');
       continue;
     }
