@@ -21,7 +21,8 @@ type SearchParams = {
   sortBy?: 'viralScore' | 'views' | 'publishedAt';
 };
 
-const ALL_PLATFORMS: Platform[] = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM'];
+// 인기피드는 해시태그 기반이라 hashtag 모드 있는 플랫폼만 (Douyin 제외)
+const ALL_PLATFORMS: Platform[] = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'XIAOHONGSHU'];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export default async function PopularFeedPage({
@@ -90,7 +91,7 @@ export default async function PopularFeedPage({
             externalId: v.externalId,
             url: v.url,
             rank: i + 1,
-            platform: v.platform as 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM',
+            platform: v.platform as 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN',
             thumbnailUrl: v.thumbnailUrl ?? '',
             title: v.caption ?? '(제목 없음)',
             channelName: v.channelHandle ?? '?',

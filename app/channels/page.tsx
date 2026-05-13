@@ -32,7 +32,7 @@ async function safeChannels() {
     });
     return rows.map((r) => ({
       id: r.id,
-      platform: r.platform as 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM',
+      platform: r.platform as 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN',
       externalId: r.externalId,
       handle: r.handle,
       displayName: r.displayName,

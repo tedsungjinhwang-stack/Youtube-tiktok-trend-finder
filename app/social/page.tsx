@@ -23,7 +23,8 @@ type SearchParams = {
   minAgeDays?: string;
 };
 
-const ALLOWED: Platform[] = ['TIKTOK', 'INSTAGRAM'];
+// Social 페이지: 등록된 채널 영상 (YouTube 제외 — YT 는 /youtube 전용 페이지)
+const ALLOWED: Platform[] = ['TIKTOK', 'INSTAGRAM', 'XIAOHONGSHU', 'DOUYIN'];
 
 export default async function SocialPage({
   searchParams,

@@ -1,4 +1,4 @@
-export type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM';
+export type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN';
 
 export type ParsedChannel = {
   platform: Platform;
@@ -53,6 +53,22 @@ export function parseChannelInput(
       return { platform: 'INSTAGRAM', externalId: handle, handle };
     }
 
+    if (host.endsWith('xiaohongshu.com') || host.endsWith('xhscdn.com') || host === 'xhslink.com') {
+      // https://www.xiaohongshu.com/user/profile/{userId}
+      const m = path.match(/\/user\/profile\/([^/]+)/);
+      if (!m) return { error: 'Xiaohongshu URL 파싱 실패 — /user/profile/{id} 형식 필요' };
+      const id = decodeURIComponent(m[1]);
+      return { platform: 'XIAOHONGSHU', externalId: id, handle: '@' + id };
+    }
+
+    if (host.endsWith('douyin.com') || host === 'iesdouyin.com') {
+      // https://www.douyin.com/user/{secUid}
+      const m = path.match(/^\/user\/([^/]+)/);
+      if (!m) return { error: 'Douyin URL 파싱 실패 — /user/{secUid} 형식 필요' };
+      const id = decodeURIComponent(m[1]);
+      return { platform: 'DOUYIN', externalId: id, handle: '@' + id.slice(0, 12) };
+    }
+
     return { error: '지원 안 하는 도메인' };
   }
 
@@ -71,7 +87,7 @@ function tryUrl(s: string): URL | null {
   try {
     if (!/^https?:\/\//i.test(s)) {
       // protocol 누락 시 보강해서 시도
-      if (/^(www\.)?(youtube|tiktok|instagram|youtu)\./i.test(s)) {
+      if (/^(www\.)?(youtube|tiktok|instagram|youtu|xiaohongshu|douyin|xhslink|iesdouyin)\./i.test(s)) {
         return new URL(`https://${s}`);
       }
       return null;

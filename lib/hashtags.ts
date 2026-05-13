@@ -4,7 +4,8 @@
 
 import { prisma } from '@/lib/db';
 
-export type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM';
+// 인기피드 해시태그는 hashtag/search 가능한 플랫폼만 (Douyin 제외)
+export type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU';
 
 export type Hashtag = {
   id: string;
@@ -187,12 +188,14 @@ export async function getActiveHashtagsByPlatform(): Promise<{
   YOUTUBE: string[];
   TIKTOK: string[];
   INSTAGRAM: string[];
+  XIAOHONGSHU: string[];
 }> {
   const all = await listHashtags();
   const out = {
     YOUTUBE: [] as string[],
     TIKTOK: [] as string[],
     INSTAGRAM: [] as string[],
+    XIAOHONGSHU: [] as string[],
   };
   for (const h of all) {
     if (h.isActive) out[h.platform].push(h.tag);

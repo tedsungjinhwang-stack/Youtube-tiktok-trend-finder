@@ -4,7 +4,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
-type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM';
+type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN';
 type Period = '24h' | '48h' | '7d' | '30d' | 'all';
 type SortBy = 'viralScore' | 'views' | 'publishedAt';
 type Preset = 'hot' | 'revival';
@@ -40,6 +40,8 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   YOUTUBE: 'YT',
   TIKTOK: 'TT',
   INSTAGRAM: 'IG',
+  XIAOHONGSHU: '샤오홍수',
+  DOUYIN: '도우인',
 };
 
 const PERIODS: { value: Period; label: string }[] = [

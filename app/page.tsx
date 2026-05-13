@@ -105,7 +105,7 @@ function EmptyState() {
 
 function parsePlatforms(raw?: string): Platform[] | undefined {
   if (!raw) return undefined;
-  const all: Platform[] = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM'];
+  const all: Platform[] = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'XIAOHONGSHU', 'DOUYIN'];
   const list = raw.split(',').filter((p): p is Platform =>
     all.includes(p as Platform)
   );

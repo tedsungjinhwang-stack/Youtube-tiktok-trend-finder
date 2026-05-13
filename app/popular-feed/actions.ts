@@ -16,9 +16,9 @@ type ActionResult<T = void> =
 export async function addHashtagAction(
   formData: FormData
 ): Promise<ActionResult> {
-  const platform = formData.get('platform') as 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | null;
+  const platform = formData.get('platform') as 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | null;
   const tag = String(formData.get('tag') ?? '').trim();
-  if (!platform || !['YOUTUBE', 'TIKTOK', 'INSTAGRAM'].includes(platform)) {
+  if (!platform || !['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'XIAOHONGSHU'].includes(platform)) {
     return { ok: false, error: '플랫폼이 올바르지 않습니다.' };
   }
   if (!tag) return { ok: false, error: '해시태그 입력 필요' };
@@ -67,7 +67,7 @@ export async function toggleHashtagAction(
 
 export async function searchHashtagAction(
   hashtag: string,
-  platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM',
+  platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU',
   period: DiscoverPeriod = 'all'
 ): Promise<ActionResult<{ saved: number; fetched: number; skipped: number }>> {
   try {
