@@ -154,7 +154,10 @@ export default function TrendingPage() {
             <div className="col-span-1">순위</div>
             <div className="col-span-5">영상</div>
             <div className="col-span-3">채널</div>
-            <div className="col-span-2 text-right" title="예상수익은 한국 쇼츠 평균 RPM 0.15~0.20원 기준">
+            <div
+              className="col-span-2 text-right"
+              title="예상수익 RPM 기준 — 쇼츠 0.15~0.20원, 롱폼(8분↑) 2.0~2.3원"
+            >
               조회수 / 예상수익
             </div>
             <div className="col-span-1 text-right">링크</div>
@@ -229,9 +232,9 @@ function TrendingRow({ v }: { v: TrendingItem }) {
           </div>
           <div
             className="num mt-0.5 text-[11.5px] text-emerald-500/90 md:hidden"
-            title="한국 쇼츠 평균 RPM 0.15~0.20원 기준 추정"
+            title={v.isShorts ? '한국 쇼츠 평균 RPM 0.15~0.20원 기준 추정' : '롱폼(8분↑) 평균 RPM 2.0~2.3원 기준 추정'}
           >
-            예상수익 {formatRevenueRange(v.viewCount)}
+            예상수익 {formatRevenueRange(v.viewCount, { durationSeconds: v.durationSeconds, isShorts: v.isShorts })}
           </div>
         </div>
       </div>
@@ -264,9 +267,9 @@ function TrendingRow({ v }: { v: TrendingItem }) {
           <div className="text-[10.5px] leading-tight text-muted-foreground/80">조회수</div>
           <div
             className="num mt-1 text-[12px] font-semibold leading-tight text-emerald-500/90"
-            title="한국 쇼츠 평균 RPM 0.15~0.20원 기준 추정"
+            title={v.isShorts ? '한국 쇼츠 평균 RPM 0.15~0.20원 기준 추정' : '롱폼(8분↑) 평균 RPM 2.0~2.3원 기준 추정'}
           >
-            {formatRevenueRange(v.viewCount)}
+            {formatRevenueRange(v.viewCount, { durationSeconds: v.durationSeconds, isShorts: v.isShorts })}
           </div>
           <div className="text-[10.5px] leading-tight text-muted-foreground/80">예상수익</div>
         </div>

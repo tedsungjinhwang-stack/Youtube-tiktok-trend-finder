@@ -136,8 +136,17 @@ export default async function VideoDetailPage({
         <StatBox label="누적 조회수" value={formatKr(totalViews)} primary />
         <StatBox
           label="예상수익"
-          value={formatRevenueRange(totalViews)}
-          sub="쇼츠 RPM 0.15~0.20원 기준"
+          value={formatRevenueRange(totalViews, {
+            durationSeconds: v.durationSeconds,
+            isShorts: v.isShorts,
+          })}
+          sub={
+            v.isShorts || (v.durationSeconds != null && v.durationSeconds <= 60)
+              ? '쇼츠 RPM 0.15~0.20원 기준'
+              : v.durationSeconds != null && v.durationSeconds >= 480
+                ? '롱폼 RPM 2.0~2.3원 기준'
+                : '쇼츠 RPM 0.15~0.20원 기준 (중간광고 불가)'
+          }
         />
         <StatBox
           label="평균 증가/h"

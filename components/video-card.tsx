@@ -28,6 +28,9 @@ export type VideoCardData = {
   starred?: boolean;
   /** true면 HOT/주목 배지 숨김 (#rank 자체는 유지) */
   hideRankBadge?: boolean;
+  /** 예상수익 RPM 계산용 — 쇼츠/롱폼 구분 */
+  durationSeconds?: number | null;
+  isShorts?: boolean | null;
 };
 
 const HOVER_DELAY_MS = 400;
@@ -219,9 +222,18 @@ export function VideoCard({ data }: { data: VideoCardData }) {
         />
         <Stat
           label="예상수익"
-          value={formatRevenueRange(data.totalViews)}
+          value={formatRevenueRange(data.totalViews, {
+            durationSeconds: data.durationSeconds,
+            isShorts: data.isShorts,
+          })}
           accent="up"
-          title="한국 쇼츠 평균 RPM 0.15~0.20원 기준 추정"
+          title={
+            data.isShorts || (data.durationSeconds != null && data.durationSeconds <= 60)
+              ? '한국 쇼츠 평균 RPM 0.15~0.20원 기준 추정'
+              : data.durationSeconds != null && data.durationSeconds >= 480
+                ? '롱폼(8분↑) 평균 RPM 2.0~2.3원 기준 추정 (중간광고 포함)'
+                : '쇼츠 RPM 0.15~0.20원 기준 추정 (중간광고 불가)'
+          }
         />
         {data.publishedAt && (
           <Stat
