@@ -78,6 +78,34 @@ const COLORS = [
 
 const EMOJIS = ['👍', '❤️', '🔥', '😂', '😮', '😢', '👏', '✨', '✅', '🙏', '💯'];
 
+const RANDOM_NICKS = [
+  '테크요정', '영상러버', '리뷰왕', '구독자123', '익명이', '먼지요정',
+  '햄찌', '말이안돼', '코끼리', '커피한잔', '치즈케이크', '늦잠러',
+  '오리주둥이', '구름이', '월요병', '취준생', '주말지킴이', '편집장인',
+  '코딩하는개발자', '맥주한캔', '심야영화', '냥집사', '집순이', '운동러버',
+];
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function randomLikes(): string {
+  const r = Math.random();
+  if (r < 0.3) return String(Math.floor(Math.random() * 99) + 1); // 1~99
+  if (r < 0.7) return `${(Math.random() * 9 + 1).toFixed(1)}천`; // 1.0~9.9천
+  if (r < 0.95) return `${(Math.random() * 99 + 1).toFixed(1)}만`; // 1.0~99.9만
+  return `${(Math.random() * 9 + 1).toFixed(1)}백만`; // 1.0~9.9백만
+}
+
+function randomTimeAgo(): string {
+  const r = Math.random();
+  if (r < 0.15) return `${Math.floor(Math.random() * 59) + 1}분 전`;
+  if (r < 0.55) return `${Math.floor(Math.random() * 23) + 1}시간 전`;
+  if (r < 0.85) return `${Math.floor(Math.random() * 29) + 1}일 전`;
+  if (r < 0.95) return `${Math.floor(Math.random() * 11) + 1}개월 전`;
+  return `${Math.floor(Math.random() * 5) + 1}년 전`;
+}
+
 const TEMPLATES: { id: TemplateId; label: string }[] = [
   { id: 'default', label: '기본' },
   { id: 'mlt', label: '마리텔' },
@@ -209,6 +237,7 @@ export default function CommentGeneratorPage() {
   const [aiTopic, setAiTopic] = useState('');
   const [translateLang, setTranslateLang] = useState('English');
   const [avatarStyle, setAvatarStyle] = useState<'pixel' | 'cartoon' | 'minimal' | 'robot' | 'emoji'>('cartoon');
+  const [randomizeOnAdd, setRandomizeOnAdd] = useState(false);
 
   const selected = list.find((x) => x.id === selectedId) ?? list[0];
 
@@ -235,9 +264,40 @@ export default function CommentGeneratorPage() {
   };
 
   const addNew = () => {
-    const fresh = makeDefault();
+    const base = makeDefault();
+    const fresh: CommentData = randomizeOnAdd
+      ? (() => {
+          const nick = pick(RANDOM_NICKS);
+          return {
+            ...base,
+            authorName: nick,
+            avatarLetter: nick.slice(0, 1),
+            avatarBg: pick(COLORS),
+            likes: randomLikes(),
+            timeAgo: randomTimeAgo(),
+          };
+        })()
+      : base;
     setList((prev) => [...prev, fresh]);
     setSelectedId(fresh.id);
+  };
+
+  const randomizeSelected = () => {
+    const nick = pick(RANDOM_NICKS);
+    setList((prev) =>
+      prev.map((x) =>
+        x.id === selectedId
+          ? {
+              ...x,
+              authorName: nick,
+              avatarLetter: nick.slice(0, 1),
+              avatarBg: pick(COLORS),
+              likes: randomLikes(),
+              timeAgo: randomTimeAgo(),
+            }
+          : x
+      )
+    );
   };
 
   const removeSelected = () => {
@@ -477,8 +537,43 @@ export default function CommentGeneratorPage() {
             <button
               onClick={addNew}
               className="rounded-md border bg-card px-3 py-1.5 text-xs hover:border-foreground/40"
+              title={
+                randomizeOnAdd
+                  ? '랜덤 모드 ON — 닉네임/색상/좋아요/시간이 자동 랜덤'
+                  : '기본값으로 빈 댓글 추가'
+              }
             >
               + 댓글 추가
+            </button>
+            <label
+              className="flex cursor-pointer items-center gap-1.5 text-[11px]"
+              title="추가할 때 닉네임/프사색/좋아요/시간을 자동 랜덤화"
+            >
+              <button
+                type="button"
+                role="switch"
+                aria-checked={randomizeOnAdd}
+                onClick={() => setRandomizeOnAdd((v) => !v)}
+                className={cn(
+                  'inline-flex h-4 w-7 shrink-0 items-center rounded-full border-2 border-transparent transition',
+                  randomizeOnAdd ? 'bg-primary' : 'bg-input'
+                )}
+              >
+                <span
+                  className={cn(
+                    'pointer-events-none block h-3 w-3 rounded-full bg-background shadow transition-transform',
+                    randomizeOnAdd ? 'translate-x-3' : 'translate-x-0'
+                  )}
+                />
+              </button>
+              <span className="text-muted-foreground">랜덤</span>
+            </label>
+            <button
+              onClick={randomizeSelected}
+              className="rounded-md border bg-card px-3 py-1.5 text-xs hover:border-foreground/40"
+              title="현재 선택된 댓글의 닉/색/좋아요/시간을 랜덤으로 재생성"
+            >
+              🎲 랜덤화
             </button>
             <button
               onClick={duplicateSelected}
