@@ -14,6 +14,7 @@ export type CredService =
   | 'APIFY_API_TOKEN'
   | 'OPENCLAW_API_KEY'
   | 'CRON_SECRET'
+  | 'OPENAI_API_KEY'
   | 'NEXT_PUBLIC_SUPABASE_URL'
   | 'NEXT_PUBLIC_SUPABASE_ANON_KEY'
   | 'SUPABASE_SERVICE_ROLE_KEY'
@@ -41,6 +42,11 @@ export const CRED_META: Record<
   CRON_SECRET: {
     label: 'Vercel Cron',
     description: '/api/cron/* 호출 인증',
+    editable: true,
+  },
+  OPENAI_API_KEY: {
+    label: 'OpenAI',
+    description: '댓글 생성기 AI 기능 (댓글 자동 생성·초월번역·아바타 이미지)',
     editable: true,
   },
   NEXT_PUBLIC_SUPABASE_URL: {

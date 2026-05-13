@@ -17,6 +17,8 @@ type CommentData = {
   likes: string;
   avatarBg: string;
   avatarLetter: string;
+  /** Optional avatar image URL or data URL — 우선 표시 */
+  avatarImageUrl?: string;
   showTime: boolean;
   showLikes: boolean;
   showReplyAction: boolean;
@@ -198,6 +200,12 @@ export default function CommentGeneratorPage() {
   const [ytError, setYtError] = useState<string | null>(null);
   const [ytCount, setYtCount] = useState(10);
   const [ytOrder, setYtOrder] = useState<'relevance' | 'time'>('relevance');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiCount, setAiCount] = useState(5);
+  const [aiTopic, setAiTopic] = useState('');
+  const [translateLang, setTranslateLang] = useState('English');
+  const [avatarStyle, setAvatarStyle] = useState<'pixel' | 'cartoon' | 'minimal' | 'robot' | 'emoji'>('cartoon');
 
   const selected = list.find((x) => x.id === selectedId) ?? list[0];
 
@@ -325,6 +333,102 @@ export default function CommentGeneratorPage() {
     }
   };
 
+  const onAiGenerate = async () => {
+    setAiError(null);
+    setAiBusy(true);
+    try {
+      const r = await fetch('/api/v1/cmt/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          count: aiCount,
+          topic: aiTopic,
+          language: '한국어',
+        }),
+      });
+      const j = await r.json();
+      if (!j.success) {
+        setAiError(j.error?.message ?? 'AI 생성 실패');
+        return;
+      }
+      const fetched = (j.data ?? []) as Array<{ authorName: string; content: string; likes: string; timeAgo: string }>;
+      const items: CommentData[] = fetched.map((row) => {
+        const name = (row.authorName || '익명').trim();
+        return {
+          ...makeDefault(),
+          id: makeId(),
+          authorName: name,
+          avatarLetter: name.slice(0, 1) || '?',
+          avatarBg: hashColor(name),
+          content: row.content,
+          likes: row.likes || '0',
+          timeAgo: row.timeAgo || '방금',
+        };
+      });
+      if (items.length === 0) {
+        setAiError('생성된 댓글이 없습니다');
+        return;
+      }
+      setList((prev) => [...prev, ...items]);
+      setSelectedId(items[0].id);
+    } catch (e) {
+      setAiError((e as Error).message);
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const onTranslateAll = async () => {
+    setAiError(null);
+    setAiBusy(true);
+    try {
+      const texts = list.map((x) => x.content);
+      const r = await fetch('/api/v1/cmt/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texts, targetLanguage: translateLang }),
+      });
+      const j = await r.json();
+      if (!j.success) {
+        setAiError(j.error?.message ?? '번역 실패');
+        return;
+      }
+      const translations = (j.data ?? []) as string[];
+      setList((prev) =>
+        prev.map((x, i) => ({ ...x, content: translations[i] ?? x.content }))
+      );
+    } catch (e) {
+      setAiError((e as Error).message);
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const onAiAvatar = async () => {
+    setAiError(null);
+    setAiBusy(true);
+    try {
+      const r = await fetch('/api/v1/cmt/avatar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: selected.authorName || 'a person',
+          style: avatarStyle,
+        }),
+      });
+      const j = await r.json();
+      if (!j.success) {
+        setAiError(j.error?.message ?? '이미지 생성 실패');
+        return;
+      }
+      update('avatarImageUrl', j.data.dataUrl as string);
+    } catch (e) {
+      setAiError((e as Error).message);
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
   const onExportAllZip = async () => {
     setExporting(true);
     try {
@@ -385,6 +489,15 @@ export default function CommentGeneratorPage() {
               className="rounded-md border bg-card px-3 py-1.5 text-xs hover:border-destructive/40 disabled:opacity-40"
             >
               − 삭제
+            </button>
+            <div className="mx-2 h-4 w-px bg-border" />
+            <button
+              onClick={onAiGenerate}
+              disabled={aiBusy}
+              className="rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-60"
+              title="AI 댓글 생성"
+            >
+              {aiBusy ? '⋯' : '✨ AI 생성'}
             </button>
             <div className="mx-2 h-4 w-px bg-border" />
             <button
@@ -455,6 +568,59 @@ export default function CommentGeneratorPage() {
               <span className="text-destructive">⚠ {ytError}</span>
             )}
           </div>
+          <div className="flex flex-wrap items-center gap-3 border-t pt-2 text-xs">
+            <span className="font-semibold text-primary">AI</span>
+            <input
+              value={aiTopic}
+              onChange={(e) => setAiTopic(e.target.value)}
+              placeholder="주제/맥락 (선택)"
+              className="h-7 w-56 rounded-md border bg-transparent px-2"
+            />
+            <label className="flex items-center gap-1">
+              <span className="text-muted-foreground">개수</span>
+              <select
+                value={aiCount}
+                onChange={(e) => setAiCount(Number(e.target.value))}
+                className="h-7 rounded-md border bg-background px-2"
+              >
+                <option value="3">3</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+              </select>
+            </label>
+            <button
+              onClick={onAiGenerate}
+              disabled={aiBusy}
+              className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1 text-primary hover:bg-primary/20 disabled:opacity-60"
+            >
+              {aiBusy ? '⋯' : '✨ 생성'}
+            </button>
+            <div className="mx-1 h-4 w-px bg-border" />
+            <label className="flex items-center gap-1">
+              <span className="text-muted-foreground">초월번역</span>
+              <select
+                value={translateLang}
+                onChange={(e) => setTranslateLang(e.target.value)}
+                className="h-7 rounded-md border bg-background px-2"
+              >
+                <option value="한국어">한국어</option>
+                <option value="English">English</option>
+                <option value="日本語">日本語</option>
+                <option value="中文">中文</option>
+              </select>
+            </label>
+            <button
+              onClick={onTranslateAll}
+              disabled={aiBusy || list.length === 0}
+              className="rounded-md border bg-background px-3 py-1 hover:bg-accent disabled:opacity-60"
+            >
+              전체 번역
+            </button>
+            {aiError && (
+              <span className="text-destructive">⚠ {aiError}</span>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 overflow-auto bg-secondary/30 p-8">
@@ -498,6 +664,49 @@ export default function CommentGeneratorPage() {
               maxLength={1}
               className="h-8 w-16 rounded-md border bg-transparent px-2 text-sm"
             />
+          </Field>
+
+          <Field label="프로필 이미지 (AI)">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                {selected.avatarImageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selected.avatarImageUrl}
+                    alt=""
+                    className="h-8 w-8 rounded-full object-cover"
+                  />
+                )}
+                <select
+                  value={avatarStyle}
+                  onChange={(e) =>
+                    setAvatarStyle(e.target.value as typeof avatarStyle)
+                  }
+                  className="h-7 rounded-md border bg-background px-2 text-xs"
+                >
+                  <option value="pixel">픽셀</option>
+                  <option value="cartoon">카툰</option>
+                  <option value="minimal">미니멀</option>
+                  <option value="robot">로봇</option>
+                  <option value="emoji">이모지</option>
+                </select>
+                <button
+                  onClick={onAiAvatar}
+                  disabled={aiBusy}
+                  className="rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20 disabled:opacity-60"
+                >
+                  {aiBusy ? '⋯' : '✨ AI'}
+                </button>
+                {selected.avatarImageUrl && (
+                  <button
+                    onClick={() => update('avatarImageUrl', undefined)}
+                    className="rounded-md border bg-background px-2 py-1 text-xs hover:bg-accent"
+                  >
+                    제거
+                  </button>
+                )}
+              </div>
+            </div>
           </Field>
 
           <Field label="프로필 배경색">
@@ -749,7 +958,7 @@ function CommentCard({
         }}
       >
         <div
-          className="flex shrink-0 select-none items-center justify-center rounded-full font-bold text-white"
+          className="flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full font-bold text-white"
           style={{
             width: `${c.avatarSize}px`,
             height: `${c.avatarSize}px`,
@@ -757,7 +966,17 @@ function CommentCard({
             backgroundColor: c.avatarBg,
           }}
         >
-          {c.avatarLetter}
+          {c.avatarImageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={c.avatarImageUrl}
+              alt=""
+              crossOrigin="anonymous"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            c.avatarLetter
+          )}
         </div>
 
         <div className="min-w-0 flex-1">
