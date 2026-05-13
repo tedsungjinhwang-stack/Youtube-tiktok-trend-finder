@@ -16,7 +16,7 @@
 
 import type { Channel } from '@prisma/client';
 import { prisma } from '@/lib/db';
-import { getActiveKey, markUsed, markExhausted } from '@/lib/youtube/keyManager';
+import { getActiveKey, markUsed, markExhausted, markDisabled } from '@/lib/youtube/keyManager';
 import { parseIsoDurationSeconds } from '@/lib/youtube/trending';
 
 export type ScrapedVideo = {
@@ -223,9 +223,9 @@ async function ytFetch(path: string, params: Record<string, string>): Promise<an
       continue; // 다음 키로 재시도
     }
 
-    // INVALID/EXPIRED 키 — 다음 키로 회전
+    // INVALID/EXPIRED 키 — 영구 비활성화 후 다음 키로 회전
     if (resp.status === 400 && /API_KEY_INVALID|expired|invalid/i.test(body)) {
-      await markExhausted(key.id, body.slice(0, 200));
+      await markDisabled(key.id, body.slice(0, 200));
       lastErr = new Error('key_invalid');
       continue;
     }
