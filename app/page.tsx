@@ -79,6 +79,8 @@ export default async function HomePage({
             publishedAt: v.publishedAt,
             channelAvgMultiplier: v.viralScore ?? undefined,
             starred: v.isStarred,
+            durationSeconds: v.durationSeconds,
+            isShorts: v.isShorts,
           }))}
         />
       </div>

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { cn, formatKr, formatKrPerHour, formatMultiplier } from '@/lib/utils';
+import { cn, formatKr, formatKrPerHour, formatMultiplier, formatRevenueRange } from '@/lib/utils';
 import { getGrowthBadge, getRankBadge, isVerifiedHit } from '@/lib/grading';
 import { deleteVideoAction, toggleStarVideoAction } from '@/app/actions/videos';
 
@@ -28,6 +28,9 @@ export type VideoCardData = {
   starred?: boolean;
   /** true면 HOT/주목 배지 숨김 (#rank 자체는 유지) */
   hideRankBadge?: boolean;
+  /** 예상수익 RPM 계산용 — 쇼츠/롱폼 구분 */
+  durationSeconds?: number | null;
+  isShorts?: boolean | null;
 };
 
 const HOVER_DELAY_MS = 400;
@@ -217,6 +220,21 @@ export function VideoCard({ data }: { data: VideoCardData }) {
           value={formatKr(data.totalViews)}
           accent="primary"
         />
+        <Stat
+          label="예상수익"
+          value={formatRevenueRange(data.totalViews, {
+            durationSeconds: data.durationSeconds,
+            isShorts: data.isShorts,
+          })}
+          accent="up"
+          title={
+            data.isShorts || (data.durationSeconds != null && data.durationSeconds <= 60)
+              ? '한국 쇼츠 평균 RPM 0.15~0.20원 기준 추정'
+              : data.durationSeconds != null && data.durationSeconds >= 480
+                ? '롱폼(8분↑) 평균 RPM 2.0~2.3원 기준 추정 (중간광고 포함)'
+                : '쇼츠 RPM 0.15~0.20원 기준 추정 (중간광고 불가)'
+          }
+        />
         {data.publishedAt && (
           <Stat
             label="업로드"
@@ -255,11 +273,13 @@ function Stat({
   value,
   accent,
   arrow,
+  title,
 }: {
   label: string;
   value: string;
   accent: 'primary' | 'up' | 'muted' | 'warning';
   arrow?: string;
+  title?: string;
 }) {
   const valueColor =
     accent === 'up'
@@ -270,7 +290,7 @@ function Stat({
           ? 'text-foreground/85'
           : 'text-foreground';
   return (
-    <div className="flex items-baseline justify-between text-[12.5px]">
+    <div className="flex items-baseline justify-between text-[12.5px]" title={title}>
       <span className="text-muted-foreground/80">{label}</span>
       <span className={cn('num font-semibold tabular-nums', valueColor)}>
         {arrow ? `${arrow} ` : ''}

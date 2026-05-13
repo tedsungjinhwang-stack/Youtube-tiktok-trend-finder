@@ -99,6 +99,8 @@ export default async function PopularFeedPage({
             publishedAt: v.publishedAt,
             starred: v.isStarred,
             hideRankBadge: true,
+            durationSeconds: v.durationSeconds,
+            isShorts: v.isShorts,
           }))}
         />
       </div>
@@ -199,6 +201,8 @@ async function safeFetchVideos(opts: {
       sourceHashtag: v.sourceHashtag,
       isStarred: v.isStarred,
       channelHandle: v.channel.displayName ?? v.channel.handle,
+      durationSeconds: v.durationSeconds,
+      isShorts: v.isShorts,
     }));
   } catch {
     return [];

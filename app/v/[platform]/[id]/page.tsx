@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
-import { formatKr, formatKrPerHour, formatMultiplier } from '@/lib/utils';
+import { formatKr, formatKrPerHour, formatMultiplier, formatRevenueRange } from '@/lib/utils';
 import { viewsPerHour, getGrowthBadge, isVerifiedHit } from '@/lib/grading';
 import { VideoActions } from './video-actions';
 
@@ -134,6 +134,20 @@ export default async function VideoDetailPage({
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <StatBox label="누적 조회수" value={formatKr(totalViews)} primary />
+        <StatBox
+          label="예상수익"
+          value={formatRevenueRange(totalViews, {
+            durationSeconds: v.durationSeconds,
+            isShorts: v.isShorts,
+          })}
+          sub={
+            v.isShorts || (v.durationSeconds != null && v.durationSeconds <= 60)
+              ? '쇼츠 RPM 0.15~0.20원 기준'
+              : v.durationSeconds != null && v.durationSeconds >= 480
+                ? '롱폼 RPM 2.0~2.3원 기준'
+                : '쇼츠 RPM 0.15~0.20원 기준 (중간광고 불가)'
+          }
+        />
         <StatBox
           label="평균 증가/h"
           value={formatKrPerHour(avgPerHour)}
