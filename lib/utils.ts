@@ -25,7 +25,8 @@ export function formatKr(n: bigint | number | null | undefined): string {
 
 /**
  * 예상 수익 범위 (KRW). 한국 쇼츠 평균 RPM 0.15~0.20원/view 기준.
- * 100만 조회 → "15만~20만원", 542만 조회 → "81만~108만원".
+ * 단위가 같으면 한 번만 표기: 100만 → "15~20만원", 542만 → "81~108만원".
+ * 단위가 다르면 둘 다 표기: 5억 → "7500만~1억원".
  */
 export function formatRevenueRange(
   views: number | null | undefined,
@@ -33,9 +34,18 @@ export function formatRevenueRange(
   rpmMax = 0.2
 ): string {
   if (!views || views <= 0) return '–';
-  const lo = formatKr(Math.round(views * rpmMin));
-  const hi = formatKr(Math.round(views * rpmMax));
-  return `${lo}~${hi}원`;
+  const loStr = formatKr(Math.round(views * rpmMin));
+  const hiStr = formatKr(Math.round(views * rpmMax));
+  const lo = splitKrUnit(loStr);
+  const hi = splitKrUnit(hiStr);
+  if (lo.unit === hi.unit) return `${lo.num}~${hi.num}${hi.unit}원`;
+  return `${loStr}~${hiStr}원`;
+}
+
+function splitKrUnit(s: string): { num: string; unit: string } {
+  const m = s.match(/^([\d.]+)(억|만|천)?$/);
+  if (!m) return { num: s, unit: '' };
+  return { num: m[1], unit: m[2] ?? '' };
 }
 
 /** Per-hour abbreviated: 33000 → '3.3만/h' */
