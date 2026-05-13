@@ -5,6 +5,10 @@ import { cn } from '@/lib/utils';
 
 type Theme = 'dark' | 'light';
 
+type TemplateId = 'default' | 'mlt' | 'news' | 'cyber' | 'insta' | 'overlay';
+
+type FontId = 'noto-kr' | 'noto-jp' | 'roboto' | 'gowun' | 'nanum-pen' | 'oswald';
+
 type CommentData = {
   authorName: string;
   content: string;
@@ -30,6 +34,8 @@ type CommentData = {
   /** 카드 모서리 radius */
   borderRadius: number;
   theme: Theme;
+  template: TemplateId;
+  fontFamily: FontId;
 };
 
 const DEFAULT_COMMENT: CommentData = {
@@ -52,7 +58,90 @@ const DEFAULT_COMMENT: CommentData = {
   opacity: 100,
   borderRadius: 16,
   theme: 'dark',
+  template: 'default',
+  fontFamily: 'noto-kr',
 };
+
+const TEMPLATES: { id: TemplateId; label: string }[] = [
+  { id: 'default', label: '기본' },
+  { id: 'mlt', label: '마리텔' },
+  { id: 'news', label: '뉴스' },
+  { id: 'cyber', label: '사이버' },
+  { id: 'insta', label: '인스타' },
+  { id: 'overlay', label: '오버레이' },
+];
+
+const FONTS: { id: FontId; label: string; stack: string }[] = [
+  { id: 'noto-kr', label: '노토 산스 KR', stack: '"Noto Sans KR", "Noto Sans JP", "Noto Sans SC", sans-serif' },
+  { id: 'noto-jp', label: '노토 산스 JP', stack: '"Noto Sans JP", "Noto Sans KR", sans-serif' },
+  { id: 'roboto', label: 'Roboto', stack: 'Roboto, "Helvetica Neue", Arial, sans-serif' },
+  { id: 'gowun', label: '고운 돋움', stack: '"Gowun Dodum", "Noto Sans KR", sans-serif' },
+  { id: 'nanum-pen', label: '나눔 펜', stack: '"Nanum Pen Script", cursive' },
+  { id: 'oswald', label: 'Oswald', stack: 'Oswald, "Bebas Neue", "Noto Sans KR", sans-serif' },
+];
+
+/** 템플릿별 카드 스타일 override 함수. Stage 1 의 dark/light theme 위에 얹는 layer. */
+function getTemplateStyle(
+  template: TemplateId,
+  theme: Theme,
+  borderRadius: number
+): React.CSSProperties {
+  switch (template) {
+    case 'mlt':
+      return {
+        background: 'linear-gradient(135deg, #ff4d6d 0%, #ff8a3c 100%)',
+        color: '#ffffff',
+        borderRadius: `${borderRadius}px`,
+        boxShadow: '0 8px 24px rgba(255,77,109,0.35)',
+      };
+    case 'news':
+      return {
+        background: '#ffffff',
+        color: '#0a0a0a',
+        borderRadius: `${Math.min(borderRadius, 4)}px`,
+        borderLeft: '6px solid #d40000',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+        fontFamily: 'Georgia, "Noto Serif KR", serif',
+      };
+    case 'cyber':
+      return {
+        background: 'rgba(10,10,20,0.95)',
+        color: '#f0f6ff',
+        borderRadius: `${borderRadius}px`,
+        border: '1px solid #00e5ff',
+        boxShadow: '0 0 12px #ff00aa, 0 0 28px rgba(0,229,255,0.45) inset',
+      };
+    case 'insta':
+      return {
+        background: theme === 'dark' ? '#0a0a0a' : '#ffffff',
+        color: theme === 'dark' ? '#ffffff' : '#0a0a0a',
+        borderRadius: `${borderRadius}px`,
+        backgroundClip: 'padding-box',
+        border: '3px solid transparent',
+        backgroundImage:
+          theme === 'dark'
+            ? 'linear-gradient(#0a0a0a,#0a0a0a), linear-gradient(45deg,#f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%)'
+            : 'linear-gradient(#fff,#fff), linear-gradient(45deg,#f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%)',
+        backgroundOrigin: 'border-box',
+        boxShadow: 'none',
+      };
+    case 'overlay':
+      return {
+        background: 'transparent',
+        color: '#ffffff',
+        borderRadius: '0px',
+        textShadow: '0 2px 8px rgba(0,0,0,0.85), 0 0 4px rgba(0,0,0,0.6)',
+        boxShadow: 'none',
+      };
+    case 'default':
+    default:
+      return {
+        background: theme === 'dark' ? 'rgba(30,30,30,1)' : '#ffffff',
+        color: theme === 'dark' ? '#ffffff' : '#0f172a',
+        borderRadius: `${borderRadius}px`,
+      };
+  }
+}
 
 const COLORS = [
   '#FF5722', '#E91E63', '#9C27B0', '#673AB7',
@@ -107,9 +196,9 @@ export default function CommentGeneratorPage() {
     }
   };
 
-  const isDark = c.theme === 'dark';
-  const cardBg = isDark ? 'rgba(30, 30, 30, 1)' : 'rgba(255, 255, 255, 1)';
-  const textColor = isDark ? '#ffffff' : '#0f172a';
+  const tplStyle = getTemplateStyle(c.template, c.theme, c.borderRadius);
+  const fontStack =
+    FONTS.find((f) => f.id === c.fontFamily)?.stack ?? FONTS[0].stack;
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
@@ -131,12 +220,9 @@ export default function CommentGeneratorPage() {
             className="flex items-start gap-4 p-5 md:p-6"
             style={{
               width: `${c.width}px`,
-              borderRadius: `${c.borderRadius}px`,
-              backgroundColor: cardBg,
-              color: textColor,
               opacity: c.opacity / 100,
-              fontFamily:
-                'Noto Sans KR, "Noto Sans JP", "Noto Sans SC", sans-serif',
+              fontFamily: fontStack,
+              ...tplStyle,
             }}
           >
             <div
@@ -335,6 +421,45 @@ export default function CommentGeneratorPage() {
 
           <div className="border-t pt-3">
             <h3 className="mb-3 text-sm font-semibold">스타일</h3>
+
+            <Field label="템플릿">
+              <div className="flex flex-wrap gap-1">
+                {TEMPLATES.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => update('template', t.id)}
+                    className={cn(
+                      'h-7 rounded-md border px-3 text-xs',
+                      c.template === t.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-background hover:bg-accent'
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            <Field label="폰트">
+              <div className="flex flex-wrap gap-1">
+                {FONTS.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => update('fontFamily', f.id)}
+                    style={{ fontFamily: f.stack }}
+                    className={cn(
+                      'h-7 rounded-md border px-3 text-xs',
+                      c.fontFamily === f.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-background hover:bg-accent'
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </Field>
 
             <Field label="테마">
               <div className="flex gap-1">
