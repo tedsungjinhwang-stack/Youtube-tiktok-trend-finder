@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 type Theme = 'dark' | 'light';
@@ -10,6 +10,7 @@ type TemplateId = 'default' | 'mlt' | 'news' | 'cyber' | 'insta' | 'overlay';
 type FontId = 'noto-kr' | 'noto-jp' | 'roboto' | 'gowun' | 'nanum-pen' | 'oswald';
 
 type CommentData = {
+  id: string;
   authorName: string;
   content: string;
   timeAgo: string;
@@ -21,46 +22,56 @@ type CommentData = {
   showReplyAction: boolean;
   isVerified: boolean;
   replyText: string;
-  /** 카드 너비 px */
   width: number;
-  /** 본문 폰트 크기 */
   bodyFontSize: number;
-  /** 사용자명 폰트 크기 */
   nameFontSize: number;
-  /** 프로필 크기 */
   avatarSize: number;
-  /** 카드 투명도 0~100 */
   opacity: number;
-  /** 카드 모서리 radius */
   borderRadius: number;
   theme: Theme;
   template: TemplateId;
   fontFamily: FontId;
 };
 
-const DEFAULT_COMMENT: CommentData = {
-  authorName: '테크요정',
-  content:
-    '와.. 진짜 유용한 기능이네요! 투명 배경으로 저장되니까 영상 편집할 때 바로 쓸 수 있어서 너무 좋아요. 다음 업데이트도 기대됩니다! 🔥',
-  timeAgo: '2시간 전',
-  likes: '1.2천',
-  avatarBg: '#FF5722',
-  avatarLetter: '테',
-  showTime: true,
-  showLikes: true,
-  showReplyAction: true,
-  isVerified: false,
-  replyText: '답글',
-  width: 600,
-  bodyFontSize: 16,
-  nameFontSize: 13,
-  avatarSize: 40,
-  opacity: 100,
-  borderRadius: 16,
-  theme: 'dark',
-  template: 'default',
-  fontFamily: 'noto-kr',
-};
+function makeId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+function makeDefault(): CommentData {
+  return {
+    id: makeId(),
+    authorName: '테크요정',
+    content:
+      '와.. 진짜 유용한 기능이네요! 투명 배경으로 저장되니까 영상 편집할 때 바로 쓸 수 있어서 너무 좋아요. 다음 업데이트도 기대됩니다! 🔥',
+    timeAgo: '2시간 전',
+    likes: '1.2천',
+    avatarBg: '#FF5722',
+    avatarLetter: '테',
+    showTime: true,
+    showLikes: true,
+    showReplyAction: true,
+    isVerified: false,
+    replyText: '답글',
+    width: 600,
+    bodyFontSize: 16,
+    nameFontSize: 13,
+    avatarSize: 40,
+    opacity: 100,
+    borderRadius: 16,
+    theme: 'dark',
+    template: 'default',
+    fontFamily: 'noto-kr',
+  };
+}
+
+const COLORS = [
+  '#FF5722', '#E91E63', '#9C27B0', '#673AB7',
+  '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4',
+  '#009688', '#4CAF50', '#8BC34A', '#CDDC39',
+  '#FFC107', '#FF9800', '#795548', '#607D8B',
+];
+
+const EMOJIS = ['👍', '❤️', '🔥', '😂', '😮', '😢', '👏', '✨', '✅', '🙏', '💯'];
 
 const TEMPLATES: { id: TemplateId; label: string }[] = [
   { id: 'default', label: '기본' },
@@ -80,7 +91,6 @@ const FONTS: { id: FontId; label: string; stack: string }[] = [
   { id: 'oswald', label: 'Oswald', stack: 'Oswald, "Bebas Neue", "Noto Sans KR", sans-serif' },
 ];
 
-/** 템플릿별 카드 스타일 override 함수. Stage 1 의 dark/light theme 위에 얹는 layer. */
 function getTemplateStyle(
   template: TemplateId,
   theme: Theme,
@@ -143,48 +153,76 @@ function getTemplateStyle(
   }
 }
 
-const COLORS = [
-  '#FF5722', '#E91E63', '#9C27B0', '#673AB7',
-  '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4',
-  '#009688', '#4CAF50', '#8BC34A', '#CDDC39',
-  '#FFC107', '#FF9800', '#795548', '#607D8B',
-];
-
-const EMOJIS = ['👍', '❤️', '🔥', '😂', '😮', '😢', '👏', '✨', '✅', '🙏', '💯'];
-
 export default function CommentGeneratorPage() {
-  const [c, setC] = useState<CommentData>(DEFAULT_COMMENT);
-  const previewRef = useRef<HTMLDivElement>(null);
+  const [list, setList] = useState<CommentData[]>(() => [makeDefault()]);
+  const [selectedId, setSelectedId] = useState(() => list[0].id);
+  const refsMap = useRef(new Map<string, HTMLDivElement | null>());
   const [exporting, setExporting] = useState(false);
 
-  const update = <K extends keyof CommentData>(k: K, v: CommentData[K]) =>
-    setC((prev) => ({ ...prev, [k]: v }));
+  const selected = list.find((x) => x.id === selectedId) ?? list[0];
 
-  const onAuthorChange = (name: string) => {
-    setC((p) => ({
-      ...p,
-      authorName: name,
-      avatarLetter: name.trim().slice(0, 1) || '?',
-    }));
+  useEffect(() => {
+    if (!list.find((x) => x.id === selectedId) && list[0]) {
+      setSelectedId(list[0].id);
+    }
+  }, [list, selectedId]);
+
+  const update = <K extends keyof CommentData>(k: K, v: CommentData[K]) => {
+    setList((prev) =>
+      prev.map((x) => (x.id === selectedId ? { ...x, [k]: v } : x))
+    );
   };
 
-  const onExportPng = async () => {
-    if (!previewRef.current) return;
+  const onAuthorChange = (name: string) => {
+    setList((prev) =>
+      prev.map((x) =>
+        x.id === selectedId
+          ? { ...x, authorName: name, avatarLetter: name.trim().slice(0, 1) || '?' }
+          : x
+      )
+    );
+  };
+
+  const addNew = () => {
+    const fresh = makeDefault();
+    setList((prev) => [...prev, fresh]);
+    setSelectedId(fresh.id);
+  };
+
+  const removeSelected = () => {
+    if (list.length <= 1) return;
+    setList((prev) => prev.filter((x) => x.id !== selectedId));
+  };
+
+  const duplicateSelected = () => {
+    const dup = { ...selected, id: makeId() };
+    setList((prev) => [...prev, dup]);
+    setSelectedId(dup.id);
+  };
+
+  const exportNode = async (
+    node: HTMLDivElement,
+    h2c: typeof import('html2canvas').default
+  ): Promise<Blob> => {
+    const canvas = await h2c(node, { backgroundColor: null, scale: 2 });
+    const blob: Blob | null = await new Promise((res) =>
+      canvas.toBlob(res, 'image/png')
+    );
+    if (!blob) throw new Error('blob 생성 실패');
+    return blob;
+  };
+
+  const onExportSelectedPng = async () => {
+    const node = refsMap.current.get(selectedId);
+    if (!node) return;
     setExporting(true);
     try {
-      const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(previewRef.current, {
-        backgroundColor: null,
-        scale: 2,
-      });
-      const blob: Blob | null = await new Promise((res) =>
-        canvas.toBlob(res, 'image/png')
-      );
-      if (!blob) throw new Error('blob 생성 실패');
+      const h2c = (await import('html2canvas')).default;
+      const blob = await exportNode(node, h2c);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `comment-${Date.now()}.png`;
+      a.download = `comment-${selected.id}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -196,100 +234,96 @@ export default function CommentGeneratorPage() {
     }
   };
 
-  const tplStyle = getTemplateStyle(c.template, c.theme, c.borderRadius);
-  const fontStack =
-    FONTS.find((f) => f.id === c.fontFamily)?.stack ?? FONTS[0].stack;
+  const onExportAllZip = async () => {
+    setExporting(true);
+    try {
+      const [{ default: h2c }, { default: JSZip }] = await Promise.all([
+        import('html2canvas'),
+        import('jszip'),
+      ]);
+      const zip = new JSZip();
+      for (let i = 0; i < list.length; i++) {
+        const item = list[i];
+        const node = refsMap.current.get(item.id);
+        if (!node) continue;
+        const blob = await exportNode(node, h2c);
+        zip.file(`comment-${String(i + 1).padStart(2, '0')}-${item.id}.png`, blob);
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `comments-${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('ZIP 내보내기 실패: ' + (e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
-      <div className="flex-1 overflow-auto bg-secondary/30 p-8">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-lg font-bold">댓글 생성기</h1>
-          <button
-            onClick={onExportPng}
-            disabled={exporting}
-            className="rounded-md bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-          >
-            {exporting ? '내보내는 중…' : '↓ PNG 내보내기'}
-          </button>
-        </div>
-
-        <div className="flex justify-center">
-          <div
-            ref={previewRef}
-            className="flex items-start gap-4 p-5 md:p-6"
-            style={{
-              width: `${c.width}px`,
-              opacity: c.opacity / 100,
-              fontFamily: fontStack,
-              ...tplStyle,
-            }}
-          >
-            <div
-              className="flex shrink-0 select-none items-center justify-center rounded-full font-bold text-white"
-              style={{
-                width: `${c.avatarSize}px`,
-                height: `${c.avatarSize}px`,
-                fontSize: `${c.avatarSize / 2}px`,
-                backgroundColor: c.avatarBg,
-              }}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <header className="flex items-center justify-between gap-3 border-b px-4 py-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-bold">댓글 생성기</h1>
+            <span className="num text-xs text-muted-foreground">
+              {list.length}개
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={addNew}
+              className="rounded-md border bg-card px-3 py-1.5 text-xs hover:border-foreground/40"
             >
-              {c.avatarLetter}
-            </div>
+              + 댓글 추가
+            </button>
+            <button
+              onClick={duplicateSelected}
+              className="rounded-md border bg-card px-3 py-1.5 text-xs hover:border-foreground/40"
+            >
+              복제
+            </button>
+            <button
+              onClick={removeSelected}
+              disabled={list.length <= 1}
+              className="rounded-md border bg-card px-3 py-1.5 text-xs hover:border-destructive/40 disabled:opacity-40"
+            >
+              − 삭제
+            </button>
+            <div className="mx-2 h-4 w-px bg-border" />
+            <button
+              onClick={onExportSelectedPng}
+              disabled={exporting}
+              className="rounded-md border bg-card px-3 py-1.5 text-xs hover:border-foreground/40 disabled:opacity-60"
+            >
+              ↓ 선택 PNG
+            </button>
+            <button
+              onClick={onExportAllZip}
+              disabled={exporting}
+              className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+            >
+              {exporting ? '내보내는 중…' : '↓ 전체 ZIP'}
+            </button>
+          </div>
+        </header>
 
-            <div className="min-w-0 flex-1">
-              <div
-                className="mb-1.5 flex flex-wrap items-center gap-2 leading-none"
-                style={{ fontSize: `${c.nameFontSize}px` }}
-              >
-                <span className="whitespace-nowrap font-semibold">
-                  {c.authorName}
-                </span>
-                {c.isVerified && (
-                  <span
-                    title="인증됨"
-                    className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-[10px]"
-                    style={{ backgroundColor: '#aaa', color: '#fff' }}
-                  >
-                    ✓
-                  </span>
-                )}
-                {c.showTime && (
-                  <span className="text-[0.9em] opacity-60">{c.timeAgo}</span>
-                )}
-              </div>
-
-              <div
-                className="mb-2.5 break-words text-left opacity-95"
-                style={{
-                  fontSize: `${c.bodyFontSize}px`,
-                  fontWeight: 400,
-                  whiteSpace: 'pre-wrap',
-                  lineHeight: 1.5,
-                }}
-              >
-                {c.content}
-              </div>
-
-              <div className="flex items-center gap-4 text-xs font-medium opacity-70">
-                {c.showLikes && (
-                  <>
-                    <div className="flex items-center gap-1.5">
-                      <ThumbUp size={16} />
-                      <span>{c.likes}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <ThumbUp size={16} flip />
-                    </div>
-                  </>
-                )}
-                {c.showReplyAction && c.replyText && (
-                  <span className="cursor-pointer hover:opacity-100">
-                    {c.replyText}
-                  </span>
-                )}
-              </div>
-            </div>
+        <div className="flex-1 overflow-auto bg-secondary/30 p-8">
+          <div className="flex flex-col items-center gap-6">
+            {list.map((c) => (
+              <CommentCard
+                key={c.id}
+                c={c}
+                isSelected={c.id === selectedId}
+                onClick={() => setSelectedId(c.id)}
+                attachRef={(el) => refsMap.current.set(c.id, el)}
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -297,22 +331,23 @@ export default function CommentGeneratorPage() {
       <aside className="w-80 shrink-0 overflow-auto border-l bg-background">
         <div className="border-b px-4 py-3">
           <h2 className="text-sm font-semibold">편집</h2>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            선택된 댓글: {selected.authorName}
+          </p>
         </div>
 
         <div className="space-y-5 p-4">
           <Field label="작성자">
-            <div className="flex gap-1.5">
-              <input
-                value={c.authorName}
-                onChange={(e) => onAuthorChange(e.target.value)}
-                className="h-8 flex-1 rounded-md border bg-transparent px-2 text-sm"
-              />
-            </div>
+            <input
+              value={selected.authorName}
+              onChange={(e) => onAuthorChange(e.target.value)}
+              className="h-8 w-full rounded-md border bg-transparent px-2 text-sm"
+            />
           </Field>
 
           <Field label="이니셜 (1글자)">
             <input
-              value={c.avatarLetter}
+              value={selected.avatarLetter}
               onChange={(e) =>
                 update('avatarLetter', e.target.value.slice(0, 1))
               }
@@ -329,7 +364,7 @@ export default function CommentGeneratorPage() {
                   onClick={() => update('avatarBg', color)}
                   className={cn(
                     'h-6 w-6 rounded-full border-2 transition',
-                    c.avatarBg === color
+                    selected.avatarBg === color
                       ? 'border-primary ring-2 ring-primary ring-offset-1'
                       : 'border-transparent hover:border-muted-foreground'
                   )}
@@ -339,7 +374,7 @@ export default function CommentGeneratorPage() {
               ))}
               <input
                 type="color"
-                value={c.avatarBg}
+                value={selected.avatarBg}
                 onChange={(e) => update('avatarBg', e.target.value)}
                 className="h-6 w-6 cursor-pointer rounded-full border-0"
                 title="커스텀 색상"
@@ -349,7 +384,7 @@ export default function CommentGeneratorPage() {
 
           <Field label="내용">
             <textarea
-              value={c.content}
+              value={selected.content}
               onChange={(e) => update('content', e.target.value)}
               rows={4}
               className="w-full rounded-md border bg-transparent p-2 text-sm"
@@ -361,7 +396,7 @@ export default function CommentGeneratorPage() {
               {EMOJIS.map((emoji) => (
                 <button
                   key={emoji}
-                  onClick={() => update('content', c.content + emoji)}
+                  onClick={() => update('content', selected.content + emoji)}
                   className="rounded p-1 text-base hover:bg-muted"
                 >
                   {emoji}
@@ -373,14 +408,14 @@ export default function CommentGeneratorPage() {
           <div className="grid grid-cols-2 gap-3">
             <Field label="시간">
               <input
-                value={c.timeAgo}
+                value={selected.timeAgo}
                 onChange={(e) => update('timeAgo', e.target.value)}
                 className="h-8 w-full rounded-md border bg-transparent px-2 text-sm"
               />
             </Field>
             <Field label="좋아요">
               <input
-                value={c.likes}
+                value={selected.likes}
                 onChange={(e) => update('likes', e.target.value)}
                 className="h-8 w-full rounded-md border bg-transparent px-2 text-sm"
               />
@@ -389,7 +424,7 @@ export default function CommentGeneratorPage() {
 
           <Field label="답글 텍스트 (비우면 숨김)">
             <input
-              value={c.replyText}
+              value={selected.replyText}
               onChange={(e) => update('replyText', e.target.value)}
               placeholder="답글, Reply, 返信..."
               className="h-8 w-full rounded-md border bg-transparent px-2 text-sm"
@@ -398,22 +433,22 @@ export default function CommentGeneratorPage() {
 
           <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">
             <Toggle
-              checked={c.showTime}
+              checked={selected.showTime}
               onChange={(v) => update('showTime', v)}
               label="시간 표시"
             />
             <Toggle
-              checked={c.showLikes}
+              checked={selected.showLikes}
               onChange={(v) => update('showLikes', v)}
               label="좋아요 표시"
             />
             <Toggle
-              checked={c.showReplyAction}
+              checked={selected.showReplyAction}
               onChange={(v) => update('showReplyAction', v)}
               label="답글 표시"
             />
             <Toggle
-              checked={c.isVerified}
+              checked={selected.isVerified}
               onChange={(v) => update('isVerified', v)}
               label="인증됨"
             />
@@ -430,7 +465,7 @@ export default function CommentGeneratorPage() {
                     onClick={() => update('template', t.id)}
                     className={cn(
                       'h-7 rounded-md border px-3 text-xs',
-                      c.template === t.id
+                      selected.template === t.id
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-background hover:bg-accent'
                     )}
@@ -450,7 +485,7 @@ export default function CommentGeneratorPage() {
                     style={{ fontFamily: f.stack }}
                     className={cn(
                       'h-7 rounded-md border px-3 text-xs',
-                      c.fontFamily === f.id
+                      selected.fontFamily === f.id
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-background hover:bg-accent'
                     )}
@@ -469,7 +504,7 @@ export default function CommentGeneratorPage() {
                     onClick={() => update('theme', t)}
                     className={cn(
                       'h-7 flex-1 rounded-md border text-xs',
-                      c.theme === t
+                      selected.theme === t
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-background hover:bg-accent'
                     )}
@@ -485,7 +520,7 @@ export default function CommentGeneratorPage() {
               suffix="px"
               min={300}
               max={800}
-              value={c.width}
+              value={selected.width}
               onChange={(v) => update('width', v)}
             />
             <Slider
@@ -493,7 +528,7 @@ export default function CommentGeneratorPage() {
               suffix="px"
               min={12}
               max={24}
-              value={c.bodyFontSize}
+              value={selected.bodyFontSize}
               onChange={(v) => update('bodyFontSize', v)}
             />
             <Slider
@@ -501,7 +536,7 @@ export default function CommentGeneratorPage() {
               suffix="px"
               min={10}
               max={20}
-              value={c.nameFontSize}
+              value={selected.nameFontSize}
               onChange={(v) => update('nameFontSize', v)}
             />
             <Slider
@@ -509,7 +544,7 @@ export default function CommentGeneratorPage() {
               suffix="px"
               min={24}
               max={64}
-              value={c.avatarSize}
+              value={selected.avatarSize}
               onChange={(v) => update('avatarSize', v)}
             />
             <Slider
@@ -517,7 +552,7 @@ export default function CommentGeneratorPage() {
               suffix="%"
               min={0}
               max={100}
-              value={c.opacity}
+              value={selected.opacity}
               onChange={(v) => update('opacity', v)}
             />
             <Slider
@@ -525,12 +560,116 @@ export default function CommentGeneratorPage() {
               suffix="px"
               min={0}
               max={32}
-              value={c.borderRadius}
+              value={selected.borderRadius}
               onChange={(v) => update('borderRadius', v)}
             />
           </div>
         </div>
       </aside>
+    </div>
+  );
+}
+
+function CommentCard({
+  c,
+  isSelected,
+  onClick,
+  attachRef,
+}: {
+  c: CommentData;
+  isSelected: boolean;
+  onClick: () => void;
+  attachRef: (el: HTMLDivElement | null) => void;
+}) {
+  const tplStyle = getTemplateStyle(c.template, c.theme, c.borderRadius);
+  const fontStack =
+    FONTS.find((f) => f.id === c.fontFamily)?.stack ?? FONTS[0].stack;
+
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        'relative cursor-pointer transition',
+        isSelected ? 'ring-2 ring-primary ring-offset-2 ring-offset-secondary/30' : 'hover:ring-1 hover:ring-muted-foreground/40'
+      )}
+      style={{ borderRadius: tplStyle.borderRadius }}
+    >
+      <div
+        ref={attachRef}
+        className="flex items-start gap-4 p-5 md:p-6"
+        style={{
+          width: `${c.width}px`,
+          opacity: c.opacity / 100,
+          fontFamily: fontStack,
+          ...tplStyle,
+        }}
+      >
+        <div
+          className="flex shrink-0 select-none items-center justify-center rounded-full font-bold text-white"
+          style={{
+            width: `${c.avatarSize}px`,
+            height: `${c.avatarSize}px`,
+            fontSize: `${c.avatarSize / 2}px`,
+            backgroundColor: c.avatarBg,
+          }}
+        >
+          {c.avatarLetter}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div
+            className="mb-1.5 flex flex-wrap items-center gap-2 leading-none"
+            style={{ fontSize: `${c.nameFontSize}px` }}
+          >
+            <span className="whitespace-nowrap font-semibold">
+              {c.authorName}
+            </span>
+            {c.isVerified && (
+              <span
+                title="인증됨"
+                className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-[10px]"
+                style={{ backgroundColor: '#aaa', color: '#fff' }}
+              >
+                ✓
+              </span>
+            )}
+            {c.showTime && (
+              <span className="text-[0.9em] opacity-60">{c.timeAgo}</span>
+            )}
+          </div>
+
+          <div
+            className="mb-2.5 break-words text-left opacity-95"
+            style={{
+              fontSize: `${c.bodyFontSize}px`,
+              fontWeight: 400,
+              whiteSpace: 'pre-wrap',
+              lineHeight: 1.5,
+            }}
+          >
+            {c.content}
+          </div>
+
+          <div className="flex items-center gap-4 text-xs font-medium opacity-70">
+            {c.showLikes && (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <ThumbUp size={16} />
+                  <span>{c.likes}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <ThumbUp size={16} flip />
+                </div>
+              </>
+            )}
+            {c.showReplyAction && c.replyText && (
+              <span className="cursor-pointer hover:opacity-100">
+                {c.replyText}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
