@@ -25,9 +25,9 @@ export function formatKr(n: bigint | number | null | undefined): string {
 
 /**
  * 영상 길이/타입별 한국 평균 RPM (원/view).
- * - 쇼츠 (≤60s): 0.15~0.20원 (1만 = 1.5~2천원, 100만 = 15~20만원)
- * - 롱폼 (≥8분=480s, 중간광고 가능): 2.0~2.3원 (1만 = 2~2.3만원)
- * - 중간 (60~480s, 중간광고 불가): 쇼츠 기준으로 보수적 추정
+ * - 쇼츠 (≤180s = 3분, YouTube 새 정의): 0.15~0.20원
+ * - 롱폼 (≥8분=480s, 중간광고 가능): 2.0~2.3원
+ * - 중간 (180~480s, 중간광고 불가): 쇼츠 기준으로 보수적 추정
  */
 export function getRpmRange(
   durationSeconds?: number | null,
@@ -35,7 +35,7 @@ export function getRpmRange(
 ): [number, number] {
   if (isShorts) return [0.15, 0.2];
   if (durationSeconds == null) return [0.15, 0.2];
-  if (durationSeconds <= 60) return [0.15, 0.2];
+  if (durationSeconds <= 180) return [0.15, 0.2];
   if (durationSeconds >= 480) return [2.0, 2.3];
   return [0.15, 0.2];
 }

@@ -141,7 +141,7 @@ export default async function VideoDetailPage({
             isShorts: v.isShorts,
           })}
           sub={
-            v.isShorts || (v.durationSeconds != null && v.durationSeconds <= 60)
+            v.isShorts || (v.durationSeconds != null && v.durationSeconds <= 180)
               ? '쇼츠 RPM 0.15~0.20원 기준'
               : v.durationSeconds != null && v.durationSeconds >= 480
                 ? '롱폼 RPM 2.0~2.3원 기준'
