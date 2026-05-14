@@ -87,14 +87,26 @@ export async function fetchTrending(
     for (const it of json.items ?? []) {
       rank++;
       const dur = parseIsoDurationSeconds(it.contentDetails?.duration ?? '');
-      const isShorts = dur > 0 && dur <= 60;
+      const title = it.snippet?.title ?? '';
+      const desc = it.snippet?.description ?? '';
+      const tags = (it.snippet?.tags ?? []).map((t) => t.toLowerCase());
+      // YouTube API 가 vertical/Shorts 여부 플래그 안 줘서 휴리스틱 사용:
+      //  - duration ≤ 60s  AND
+      //  - 제목·설명·태그 중 '#shorts' / 'shorts' 마커 존재
+      // ≤60s 라도 마커 없으면 가로형 짧은 영상(뉴스 클립 등)일 가능성 → 롱폼으로 분류
+      const hasShortsMarker =
+        /#shorts/i.test(title) ||
+        /#shorts/i.test(desc) ||
+        tags.includes('shorts') ||
+        tags.includes('#shorts');
+      const isShorts = dur > 0 && dur <= 60 && hasShortsMarker;
       out.push({
         rank,
         videoId: it.id,
         url: isShorts
           ? `https://www.youtube.com/shorts/${it.id}`
           : `https://www.youtube.com/watch?v=${it.id}`,
-        title: it.snippet?.title ?? '',
+        title,
         thumbnailUrl: `https://img.youtube.com/vi/${it.id}/maxresdefault.jpg`,
         channelId: it.snippet?.channelId ?? '',
         channelName: it.snippet?.channelTitle ?? '',
@@ -128,6 +140,8 @@ type YtVideosResponse = {
     id: string;
     snippet?: {
       title?: string;
+      description?: string;
+      tags?: string[];
       channelId?: string;
       channelTitle?: string;
       publishedAt?: string;
