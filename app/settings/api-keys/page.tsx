@@ -1,5 +1,6 @@
 import { CredentialList } from '@/components/credential-list';
 import { YoutubeKeyList } from '@/components/youtube-key-list';
+import { OpenAIOAuthPanel } from './openai-oauth-panel';
 
 export default function ApiKeysPage() {
   return (
@@ -17,6 +18,13 @@ export default function ApiKeysPage() {
       </div>
 
       <YoutubeKeyList />
+
+      <Section
+        title="OpenAI 인증"
+        desc="ChatGPT 계정으로 OAuth 로그인하면 API key 없이 chat/completions 호출 가능 (우회 방식 · 차단 시 API key 자동 fallback)."
+      >
+        <OpenAIOAuthPanel />
+      </Section>
 
       <Section
         title="외부 서비스"

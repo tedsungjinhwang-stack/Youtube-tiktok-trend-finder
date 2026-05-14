@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCred } from '@/lib/credentials';
+import { openaiFetch } from '@/lib/openai/oauth';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,14 +9,6 @@ export const dynamic = 'force-dynamic';
  * 응답: { success, data: { dataUrl: string } }
  */
 export async function POST(req: NextRequest) {
-  const apiKey = await getCred('OPENAI_API_KEY');
-  if (!apiKey) {
-    return NextResponse.json(
-      { success: false, error: { code: 'NO_KEY', message: 'OPENAI_API_KEY 등록 필요' } },
-      { status: 503 }
-    );
-  }
-
   let body: { prompt?: string; style?: string };
   try {
     body = await req.json();
@@ -40,21 +32,22 @@ export async function POST(req: NextRequest) {
   const prompt = `Circular profile avatar of ${userPrompt}. ${styleHint}. Plain solid color background. Head and shoulders only, centered, high contrast.`;
 
   try {
-    const resp = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+    const resp = await openaiFetch(
+      '/v1/images/generations',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'dall-e-3',
+          prompt,
+          n: 1,
+          size: '1024x1024',
+          quality: 'standard',
+          response_format: 'b64_json',
+        }),
       },
-      body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt,
-        n: 1,
-        size: '1024x1024',
-        quality: 'standard',
-        response_format: 'b64_json',
-      }),
-    });
+      { forceApiKey: true }
+    );
     if (!resp.ok) {
       const text = await resp.text();
       return NextResponse.json(

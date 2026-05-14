@@ -176,3 +176,15 @@ model TrendingSettings {
   lastError     String?
   updatedAt     DateTime @updatedAt
 }
+
+/// OpenAI OAuth (Codex CLI 방식 우회 — Sign in with ChatGPT, device flow).
+/// 싱글톤 (id='default'). ⚠️ TOS 회색지대 — OpenAI가 차단할 가능성 있음.
+model OpenAIOAuth {
+  id           String   @id @default("default")
+  accessToken  String
+  refreshToken String?
+  expiresAt    DateTime
+  accountEmail String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
