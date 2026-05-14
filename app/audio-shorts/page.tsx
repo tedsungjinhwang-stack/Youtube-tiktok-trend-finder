@@ -24,6 +24,9 @@ export default function AudioShortsPage() {
   const [transcribeErr, setTranscribeErr] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportErr, setExportErr] = useState<string | null>(null);
+  const [exportProgress, setExportProgress] = useState<string>('');
 
   const selected = scenes.find((s) => s.id === selectedId) ?? null;
   const currentScene =
@@ -136,6 +139,164 @@ export default function AudioShortsPage() {
     });
   };
 
+  const renderSceneToPng = async (scene: Scene): Promise<Blob> => {
+    // 9:16, 720x1280 캔버스에 이미지+자막 직접 그림 (html2canvas 없이 순수 canvas)
+    const W = 720;
+    const H = 1280;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('canvas context 실패');
+
+    // 배경
+    if (scene.imageUrl) {
+      const img = await loadImage(scene.imageUrl);
+      // object-fit: cover 흉내
+      const r = Math.max(W / img.width, H / img.height);
+      const w = img.width * r;
+      const h = img.height * r;
+      ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+    } else {
+      const grd = ctx.createLinearGradient(0, 0, W, H);
+      grd.addColorStop(0, '#334155');
+      grd.addColorStop(1, '#0f172a');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // 자막 영역 — 하단 30% 어두운 그라데이션
+    const gradH = H * 0.35;
+    const gradY = H - gradH;
+    const grad = ctx.createLinearGradient(0, gradY, 0, H);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.85)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, gradY, W, gradH);
+
+    // 자막 텍스트
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.shadowColor = 'rgba(0,0,0,0.85)';
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 3;
+
+    const fontSize = 44;
+    ctx.font = `700 ${fontSize}px "Noto Sans KR", sans-serif`;
+    const maxWidth = W * 0.85;
+    const lines = wrapText(ctx, scene.caption, maxWidth);
+    const lineHeight = fontSize * 1.3;
+    const startY = H - 60 - (lines.length - 1) * lineHeight;
+    lines.forEach((line, i) => {
+      ctx.fillText(line, W / 2, startY + i * lineHeight);
+    });
+
+    return new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((b) => {
+        if (b) resolve(b);
+        else reject(new Error('toBlob 실패'));
+      }, 'image/png');
+    });
+  };
+
+  const onExportMp4 = async () => {
+    if (!audioFile || scenes.length === 0) return;
+    setExportErr(null);
+    setExporting(true);
+    setExportProgress('ffmpeg 로딩 중…');
+    try {
+      const [ffmpegMod, utilMod] = await Promise.all([
+        import('@ffmpeg/ffmpeg'),
+        import('@ffmpeg/util'),
+      ]);
+      const { FFmpeg } = ffmpegMod;
+      const ff = new FFmpeg();
+      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+      await ff.load({
+        coreURL: await utilMod.toBlobURL(
+          `${baseURL}/ffmpeg-core.js`,
+          'text/javascript'
+        ),
+        wasmURL: await utilMod.toBlobURL(
+          `${baseURL}/ffmpeg-core.wasm`,
+          'application/wasm'
+        ),
+      });
+
+      // 1. audio 파일 작성
+      setExportProgress('오디오 작성 중…');
+      const audioExt = audioFile.name.split('.').pop()?.toLowerCase() || 'mp3';
+      const audioName = `audio.${audioExt}`;
+      const audioAb = await audioFile.arrayBuffer();
+      await ff.writeFile(audioName, new Uint8Array(audioAb));
+
+      // 2. 각 씬을 PNG로 렌더링 + 작성
+      const concatLines: string[] = [];
+      for (let i = 0; i < scenes.length; i++) {
+        setExportProgress(`씬 ${i + 1}/${scenes.length} 렌더링…`);
+        const s = scenes[i];
+        const blob = await renderSceneToPng(s);
+        const name = `scene_${String(i + 1).padStart(3, '0')}.png`;
+        const ab = await blob.arrayBuffer();
+        await ff.writeFile(name, new Uint8Array(ab));
+        const dur = Math.max(0.1, s.end - s.start);
+        concatLines.push(`file '${name}'`);
+        concatLines.push(`duration ${dur.toFixed(3)}`);
+      }
+      // concat demuxer 는 마지막 파일을 한 번 더 명시해야 함
+      concatLines.push(`file '${`scene_${String(scenes.length).padStart(3, '0')}.png`}'`);
+      await ff.writeFile(
+        'concat.txt',
+        new TextEncoder().encode(concatLines.join('\n'))
+      );
+
+      // 3. ffmpeg 실행
+      setExportProgress('영상 렌더링 중… (수십초 소요)');
+      await ff.exec([
+        '-f',
+        'concat',
+        '-safe',
+        '0',
+        '-i',
+        'concat.txt',
+        '-i',
+        audioName,
+        '-c:v',
+        'libx264',
+        '-pix_fmt',
+        'yuv420p',
+        '-vf',
+        'fps=30,scale=trunc(iw/2)*2:trunc(ih/2)*2',
+        '-c:a',
+        'aac',
+        '-shortest',
+        'out.mp4',
+      ]);
+
+      setExportProgress('마무리 중…');
+      const data = await ff.readFile('out.mp4');
+      const buf =
+        typeof data === 'string' ? new TextEncoder().encode(data) : data;
+      const mp4 = new Blob([new Uint8Array(buf as Uint8Array)], {
+        type: 'video/mp4',
+      });
+      const url = URL.createObjectURL(mp4);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `audio-shorts-${Date.now()}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setExportErr((e as Error).message);
+    } finally {
+      setExporting(false);
+      setExportProgress('');
+    }
+  };
+
   const splitAtCurrent = () => {
     if (!selectedId || !selected) return;
     const t = currentTime;
@@ -182,13 +343,27 @@ export default function AudioShortsPage() {
             <button
               onClick={onTranscribe}
               disabled={!audioFile || transcribing}
-              className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+              className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-60"
               title="OpenAI Whisper 로 자동 전사 + 씬 분할"
             >
               {transcribing ? '전사 중…' : '✨ AI 자동 전사 + 씬 분할'}
             </button>
+            <button
+              onClick={onExportMp4}
+              disabled={!audioFile || scenes.length === 0 || exporting}
+              className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+              title="ffmpeg.wasm 으로 오디오+이미지+자막 합성 MP4 (수십초 소요)"
+            >
+              {exporting ? `… ${exportProgress}` : '↓ MP4 export'}
+            </button>
           </div>
         </header>
+
+        {exportErr && (
+          <div className="border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
+            ⚠ {exportErr}
+          </div>
+        )}
 
         {audioUrl && (
           <div className="border-b bg-background px-4 py-2">
@@ -415,4 +590,39 @@ function fmt(s: number): string {
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${m}:${sec.toFixed(2).padStart(5, '0')}`;
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = (e) => reject(new Error('이미지 로드 실패: ' + String(e)));
+    img.src = src;
+  });
+}
+
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+): string[] {
+  const lines: string[] = [];
+  // 한국어/영어 혼용: 공백 기준 단어 분리. 너무 긴 단어는 글자 단위 폴백.
+  const paragraphs = text.split('\n');
+  for (const para of paragraphs) {
+    const words = para.split(/\s+/).filter(Boolean);
+    let line = '';
+    for (const w of words) {
+      const cand = line ? `${line} ${w}` : w;
+      if (ctx.measureText(cand).width > maxWidth && line) {
+        lines.push(line);
+        line = w;
+      } else {
+        line = cand;
+      }
+    }
+    if (line) lines.push(line);
+  }
+  return lines.length > 0 ? lines : [''];
 }
