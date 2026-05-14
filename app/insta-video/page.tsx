@@ -21,6 +21,14 @@ type SlideData = {
   align: 'center' | 'left' | 'right';
   vertical: 'top' | 'middle' | 'bottom';
   fontFamily: FontId;
+  /** 좌우 패딩 (px). 기본 56 */
+  padding: number;
+  /** 제목 위 카운터 표시 (예: 01 / 05) */
+  showCounter: boolean;
+  /** 텍스트 강조색 (제목 액센트 바) */
+  accentColor?: string;
+  /** 강조 라인 표시 (제목 위/아래 두꺼운 라인) */
+  accentBar: 'none' | 'top' | 'bottom';
 };
 
 type FontId = 'noto-kr' | 'noto-jp' | 'roboto' | 'gowun' | 'nanum-pen' | 'oswald';
@@ -54,21 +62,145 @@ function makeId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
+type TemplateStyle = Omit<SlideData, 'id' | 'title' | 'body' | 'bgImageUrl'>;
+
+type Template = {
+  id: string;
+  label: string;
+  emoji: string;
+  style: TemplateStyle;
+};
+
+/** 인스타/숏폼 자주 쓰는 카드 스타일 12종 */
+const TEMPLATES: Template[] = [
+  {
+    id: 'mono',
+    label: '모노 타이포',
+    emoji: '⬛',
+    style: {
+      width: 540, bgKind: 'solid', bgColor1: '#0a0a0a', bgColor2: '#0a0a0a',
+      textColor: '#ffffff', fontSize: 26, titleSize: 56, align: 'left', vertical: 'middle',
+      fontFamily: 'noto-kr', padding: 56, showCounter: true, accentColor: '#facc15', accentBar: 'top',
+    },
+  },
+  {
+    id: 'sunset',
+    label: '선셋',
+    emoji: '🌅',
+    style: {
+      width: 540, bgKind: 'gradient', bgColor1: '#ff4d6d', bgColor2: '#ff8a3c',
+      textColor: '#ffffff', fontSize: 28, titleSize: 50, align: 'center', vertical: 'middle',
+      fontFamily: 'noto-kr', padding: 48, showCounter: false, accentBar: 'none',
+    },
+  },
+  {
+    id: 'mint-card',
+    label: '민트 카드',
+    emoji: '🌿',
+    style: {
+      width: 540, bgKind: 'gradient', bgColor1: '#14b8a6', bgColor2: '#0ea5e9',
+      textColor: '#ffffff', fontSize: 26, titleSize: 48, align: 'left', vertical: 'top',
+      fontFamily: 'noto-kr', padding: 56, showCounter: true, accentColor: '#fef3c7', accentBar: 'bottom',
+    },
+  },
+  {
+    id: 'cream-note',
+    label: '크림 노트',
+    emoji: '📝',
+    style: {
+      width: 540, bgKind: 'solid', bgColor1: '#fef3c7', bgColor2: '#fef3c7',
+      textColor: '#1f2937', fontSize: 30, titleSize: 52, align: 'left', vertical: 'middle',
+      fontFamily: 'nanum-pen', padding: 64, showCounter: false, accentColor: '#ef4444', accentBar: 'none',
+    },
+  },
+  {
+    id: 'midnight',
+    label: '미드나잇',
+    emoji: '🌙',
+    style: {
+      width: 540, bgKind: 'gradient', bgColor1: '#0f172a', bgColor2: '#1e3a8a',
+      textColor: '#e0e7ff', fontSize: 26, titleSize: 54, align: 'center', vertical: 'middle',
+      fontFamily: 'oswald', padding: 56, showCounter: true, accentColor: '#fbbf24', accentBar: 'top',
+    },
+  },
+  {
+    id: 'shock-yellow',
+    label: '쇼킹 옐로우',
+    emoji: '⚡',
+    style: {
+      width: 540, bgKind: 'solid', bgColor1: '#facc15', bgColor2: '#facc15',
+      textColor: '#0a0a0a', fontSize: 28, titleSize: 60, align: 'left', vertical: 'top',
+      fontFamily: 'noto-kr', padding: 52, showCounter: true, accentColor: '#0a0a0a', accentBar: 'bottom',
+    },
+  },
+  {
+    id: 'forest',
+    label: '포레스트',
+    emoji: '🌲',
+    style: {
+      width: 540, bgKind: 'gradient', bgColor1: '#064e3b', bgColor2: '#16a34a',
+      textColor: '#ecfccb', fontSize: 26, titleSize: 48, align: 'center', vertical: 'middle',
+      fontFamily: 'gowun', padding: 56, showCounter: false, accentBar: 'none',
+    },
+  },
+  {
+    id: 'retro-pink',
+    label: '레트로 핑크',
+    emoji: '🌸',
+    style: {
+      width: 540, bgKind: 'gradient', bgColor1: '#ec4899' , bgColor2: '#a855f7',
+      textColor: '#ffffff', fontSize: 26, titleSize: 52, align: 'center', vertical: 'middle',
+      fontFamily: 'noto-kr', padding: 52, showCounter: true, accentColor: '#fde68a', accentBar: 'top',
+    },
+  },
+  {
+    id: 'tip-card',
+    label: '팁 카드',
+    emoji: '💡',
+    style: {
+      width: 540, bgKind: 'solid', bgColor1: '#ffffff', bgColor2: '#ffffff',
+      textColor: '#0f172a', fontSize: 26, titleSize: 48, align: 'left', vertical: 'top',
+      fontFamily: 'noto-kr', padding: 64, showCounter: true, accentColor: '#2563eb', accentBar: 'top',
+    },
+  },
+  {
+    id: 'bold-quote',
+    label: '굵은 인용',
+    emoji: '💬',
+    style: {
+      width: 540, bgKind: 'solid', bgColor1: '#1f2937', bgColor2: '#1f2937',
+      textColor: '#ffffff', fontSize: 24, titleSize: 64, align: 'center', vertical: 'middle',
+      fontFamily: 'oswald', padding: 56, showCounter: false, accentColor: '#f59e0b', accentBar: 'bottom',
+    },
+  },
+  {
+    id: 'sky-blue',
+    label: '스카이 블루',
+    emoji: '☁️',
+    style: {
+      width: 540, bgKind: 'gradient', bgColor1: '#0ea5e9', bgColor2: '#22d3ee',
+      textColor: '#ffffff', fontSize: 28, titleSize: 50, align: 'left', vertical: 'bottom',
+      fontFamily: 'noto-kr', padding: 56, showCounter: true, accentColor: '#fff7ed', accentBar: 'top',
+    },
+  },
+  {
+    id: 'rouge',
+    label: '루즈 레드',
+    emoji: '🌹',
+    style: {
+      width: 540, bgKind: 'solid', bgColor1: '#7f1d1d', bgColor2: '#7f1d1d',
+      textColor: '#fef2f2', fontSize: 26, titleSize: 52, align: 'center', vertical: 'middle',
+      fontFamily: 'noto-kr', padding: 56, showCounter: true, accentColor: '#fbbf24', accentBar: 'bottom',
+    },
+  },
+];
+
 function makeDefaultSlide(): SlideData {
   return {
     id: makeId(),
     title: '여기에 제목',
     body: '여기에 본문을 입력하세요. 한 줄에 너무 길지 않게 나눠 쓰면 더 잘 읽혀요.',
-    width: 540,
-    bgKind: 'gradient',
-    bgColor1: '#ff4d6d',
-    bgColor2: '#ff8a3c',
-    textColor: '#ffffff',
-    fontSize: 28,
-    titleSize: 44,
-    align: 'center',
-    vertical: 'middle',
-    fontFamily: 'noto-kr',
+    ...TEMPLATES[0].style,
   };
 }
 
@@ -106,6 +238,14 @@ export default function InstaVideoPage() {
   const removeSelected = () => {
     if (list.length <= 1) return;
     setList((prev) => prev.filter((x) => x.id !== selectedId));
+  };
+
+  const applyTemplate = (tpl: Template, scope: 'one' | 'all') => {
+    setList((prev) =>
+      prev.map((x) =>
+        scope === 'all' || x.id === selectedId ? { ...x, ...tpl.style } : x
+      )
+    );
   };
 
   const move = (dir: -1 | 1) => {
@@ -285,8 +425,23 @@ export default function InstaVideoPage() {
     }
   };
 
-  const fontStack =
-    FONTS.find((f) => f.id === selected.fontFamily)?.stack ?? FONTS[0].stack;
+  const onUploadBgImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setList((prev) =>
+          prev.map((x) =>
+            x.id === selectedId
+              ? { ...x, bgImageUrl: reader.result as string, bgKind: 'image' }
+              : x
+          )
+        );
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
@@ -416,6 +571,8 @@ export default function InstaVideoPage() {
                 </span>
                 <SlideCard
                   s={s}
+                  index={i}
+                  total={list.length}
                   isSelected={s.id === selectedId}
                   onClick={() => setSelectedId(s.id)}
                   attachRef={(el) => refsMap.current.set(s.id, el)}
@@ -432,6 +589,40 @@ export default function InstaVideoPage() {
         </div>
 
         <div className="space-y-5 p-4">
+          <Field label="템플릿 (12종)">
+            <div className="grid grid-cols-3 gap-1.5">
+              {TEMPLATES.map((t) => {
+                const tbg =
+                  t.style.bgKind === 'gradient'
+                    ? `linear-gradient(135deg, ${t.style.bgColor1}, ${t.style.bgColor2})`
+                    : t.style.bgColor1;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => applyTemplate(t, 'one')}
+                    onDoubleClick={() => applyTemplate(t, 'all')}
+                    title={`${t.label} (더블클릭: 전체 적용)`}
+                    className="group relative aspect-[9/16] overflow-hidden rounded border-2 border-transparent transition hover:border-primary"
+                    style={{ background: tbg }}
+                  >
+                    <span className="absolute inset-0 flex items-center justify-center text-xl">
+                      {t.emoji}
+                    </span>
+                    <span
+                      className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-center text-[9px] font-semibold"
+                      style={{ color: t.style.textColor }}
+                    >
+                      {t.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-[10.5px] text-muted-foreground">
+              클릭: 선택 슬라이드만 / 더블클릭: 모든 슬라이드 적용
+            </p>
+          </Field>
+
           <Field label="제목">
             <input
               value={selected.title}
@@ -471,7 +662,7 @@ export default function InstaVideoPage() {
 
           <Field label="배경">
             <div className="flex gap-1">
-              {(['solid', 'gradient'] as const).map((k) => (
+              {(['solid', 'gradient', 'image'] as const).map((k) => (
                 <button
                   key={k}
                   onClick={() => update('bgKind', k)}
@@ -482,11 +673,43 @@ export default function InstaVideoPage() {
                       : 'bg-background hover:bg-accent'
                   )}
                 >
-                  {k === 'solid' ? '단색' : '그라데이션'}
+                  {k === 'solid' ? '단색' : k === 'gradient' ? '그라데이션' : '이미지'}
                 </button>
               ))}
             </div>
           </Field>
+
+          {selected.bgKind === 'image' && (
+            <Field label="배경 이미지">
+              <div className="space-y-1.5">
+                {selected.bgImageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selected.bgImageUrl}
+                    alt=""
+                    className="aspect-[9/16] w-full rounded object-cover"
+                  />
+                )}
+                <label className="block cursor-pointer rounded-md border bg-card px-2 py-1.5 text-center text-xs hover:border-foreground/40">
+                  {selected.bgImageUrl ? '이미지 교체' : '이미지 업로드'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={onUploadBgImage}
+                    className="hidden"
+                  />
+                </label>
+                {selected.bgImageUrl && (
+                  <button
+                    onClick={() => update('bgImageUrl', undefined)}
+                    className="w-full rounded-md border bg-background px-2 py-1 text-[11px] hover:bg-accent"
+                  >
+                    이미지 제거
+                  </button>
+                )}
+              </div>
+            </Field>
+          )}
 
           {selected.bgKind === 'solid' && (
             <Field label="배경색">
@@ -598,6 +821,45 @@ export default function InstaVideoPage() {
             ))}
           </div>
 
+          <Field label="액센트 바">
+            <div className="flex gap-1">
+              {(['none', 'top', 'bottom'] as const).map((b) => (
+                <button
+                  key={b}
+                  onClick={() => update('accentBar', b)}
+                  className={cn(
+                    'h-7 flex-1 rounded-md border text-xs',
+                    selected.accentBar === b
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-background hover:bg-accent'
+                  )}
+                >
+                  {b === 'none' ? '없음' : b === 'top' ? '위' : '아래'}
+                </button>
+              ))}
+            </div>
+            {selected.accentBar !== 'none' && (
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">색</span>
+                <input
+                  type="color"
+                  value={selected.accentColor ?? selected.textColor}
+                  onChange={(e) => update('accentColor', e.target.value)}
+                  className="h-7 w-12 cursor-pointer rounded border"
+                />
+              </div>
+            )}
+          </Field>
+
+          <label className="flex cursor-pointer items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={selected.showCounter}
+              onChange={(e) => update('showCounter', e.target.checked)}
+            />
+            <span>슬라이드 번호 표시 (01 / 05)</span>
+          </label>
+
           <Slider
             label="너비"
             suffix="px"
@@ -605,6 +867,14 @@ export default function InstaVideoPage() {
             max={720}
             value={selected.width}
             onChange={(v) => update('width', v)}
+          />
+          <Slider
+            label="안쪽 여백"
+            suffix="px"
+            min={16}
+            max={120}
+            value={selected.padding}
+            onChange={(v) => update('padding', v)}
           />
           <Slider
             label="제목 크기"
@@ -630,11 +900,15 @@ export default function InstaVideoPage() {
 
 function SlideCard({
   s,
+  index,
+  total,
   isSelected,
   onClick,
   attachRef,
 }: {
   s: SlideData;
+  index: number;
+  total: number;
   isSelected: boolean;
   onClick: () => void;
   attachRef: (el: HTMLDivElement | null) => void;
@@ -643,9 +917,11 @@ function SlideCard({
     FONTS.find((f) => f.id === s.fontFamily)?.stack ?? FONTS[0].stack;
 
   const bg =
-    s.bgKind === 'gradient'
-      ? `linear-gradient(135deg, ${s.bgColor1} 0%, ${s.bgColor2} 100%)`
-      : s.bgColor1;
+    s.bgKind === 'image' && s.bgImageUrl
+      ? `url(${s.bgImageUrl}) center / cover no-repeat`
+      : s.bgKind === 'gradient'
+        ? `linear-gradient(135deg, ${s.bgColor1} 0%, ${s.bgColor2} 100%)`
+        : s.bgColor1;
 
   const justify =
     s.vertical === 'top'
@@ -653,6 +929,16 @@ function SlideCard({
       : s.vertical === 'bottom'
         ? 'flex-end'
         : 'center';
+
+  const accent = s.accentColor ?? s.textColor;
+  const accentBarStyle: React.CSSProperties = {
+    width: 56,
+    height: 6,
+    borderRadius: 3,
+    background: accent,
+    alignSelf:
+      s.align === 'center' ? 'center' : s.align === 'right' ? 'flex-end' : 'flex-start',
+  };
 
   return (
     <div
@@ -667,7 +953,7 @@ function SlideCard({
     >
       <div
         ref={attachRef}
-        className="overflow-hidden p-8"
+        className="overflow-hidden"
         style={{
           width: `${s.width}px`,
           height: `${(s.width * 16) / 9}px`,
@@ -680,29 +966,47 @@ function SlideCard({
           justifyContent: justify,
           gap: '0.6em',
           borderRadius: 12,
+          padding: `${s.padding}px`,
         }}
       >
+        {s.showCounter && total > 1 && (
+          <div
+            style={{
+              fontSize: `${Math.max(12, s.fontSize * 0.5)}px`,
+              fontFamily: 'Oswald, ui-sans-serif',
+              fontWeight: 600,
+              letterSpacing: '0.15em',
+              opacity: 0.85,
+              color: accent,
+            }}
+          >
+            {String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
+          </div>
+        )}
+        {s.accentBar === 'top' && <div style={accentBarStyle} />}
         {s.title && (
           <div
             style={{
               fontSize: `${s.titleSize}px`,
-              fontWeight: 700,
-              lineHeight: 1.2,
+              fontWeight: 800,
+              lineHeight: 1.18,
               whiteSpace: 'pre-wrap',
               wordBreak: 'keep-all',
+              letterSpacing: '-0.01em',
             }}
           >
             {s.title}
           </div>
         )}
+        {s.accentBar === 'bottom' && <div style={accentBarStyle} />}
         {s.body && (
           <div
             style={{
               fontSize: `${s.fontSize}px`,
-              lineHeight: 1.5,
+              lineHeight: 1.55,
               whiteSpace: 'pre-wrap',
               wordBreak: 'keep-all',
-              opacity: 0.95,
+              opacity: 0.92,
             }}
           >
             {s.body}
