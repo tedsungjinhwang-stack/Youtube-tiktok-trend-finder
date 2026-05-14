@@ -11,6 +11,110 @@ type Scene = {
   imageUrl?: string; // data URL 또는 외부 URL
 };
 
+type CaptionPos = 'top' | 'middle' | 'bottom';
+type CaptionBgStyle = 'gradient' | 'box' | 'plain';
+
+type VideoTemplate = {
+  id: string;
+  label: string;
+  emoji: string;
+  /** 이미지 없을 때 배경 그라데이션 */
+  bgFrom: string;
+  bgTo: string;
+  captionPos: CaptionPos;
+  captionBgStyle: CaptionBgStyle;
+  /** box 스타일일 때 박스 배경색 (rgba) */
+  captionBoxColor: string;
+  captionTextColor: string;
+  /** 캔버스 1280px 기준 폰트 크기 */
+  fontSize: number;
+  fontWeight: number;
+  fontFamily: string;
+  /** 텍스트 그림자 (Canvas shadowColor / blur / offsetY) */
+  shadowColor: string;
+  shadowBlur: number;
+  /** 위·아래 검은 letterbox 바 */
+  letterbox: boolean;
+  /** 텍스트 외곽선 두께 (0 이면 안 그림) */
+  strokeWidth: number;
+  strokeColor: string;
+};
+
+const TEMPLATES: VideoTemplate[] = [
+  {
+    id: 'classic', label: '클래식', emoji: '🎬',
+    bgFrom: '#334155', bgTo: '#0f172a',
+    captionPos: 'bottom', captionBgStyle: 'gradient',
+    captionBoxColor: 'rgba(0,0,0,0.85)', captionTextColor: '#ffffff',
+    fontSize: 44, fontWeight: 700, fontFamily: '"Noto Sans KR", sans-serif',
+    shadowColor: 'rgba(0,0,0,0.85)', shadowBlur: 12,
+    letterbox: false, strokeWidth: 0, strokeColor: '#000000',
+  },
+  {
+    id: 'impact', label: '임팩트', emoji: '💥',
+    bgFrom: '#0a0a0a', bgTo: '#0a0a0a',
+    captionPos: 'middle', captionBgStyle: 'plain',
+    captionBoxColor: 'rgba(0,0,0,0)', captionTextColor: '#ffffff',
+    fontSize: 64, fontWeight: 900, fontFamily: 'Oswald, "Noto Sans KR", sans-serif',
+    shadowColor: 'rgba(0,0,0,0.95)', shadowBlur: 20,
+    letterbox: false, strokeWidth: 4, strokeColor: '#000000',
+  },
+  {
+    id: 'neon', label: '네온', emoji: '🌃',
+    bgFrom: '#1e1b4b', bgTo: '#312e81',
+    captionPos: 'bottom', captionBgStyle: 'plain',
+    captionBoxColor: 'rgba(0,0,0,0)', captionTextColor: '#22d3ee',
+    fontSize: 50, fontWeight: 800, fontFamily: '"Noto Sans KR", sans-serif',
+    shadowColor: '#22d3ee', shadowBlur: 28,
+    letterbox: false, strokeWidth: 2, strokeColor: '#082f49',
+  },
+  {
+    id: 'note', label: '노트', emoji: '📝',
+    bgFrom: '#fef3c7', bgTo: '#fde68a',
+    captionPos: 'middle', captionBgStyle: 'plain',
+    captionBoxColor: 'rgba(0,0,0,0)', captionTextColor: '#1f2937',
+    fontSize: 48, fontWeight: 400, fontFamily: '"Nanum Pen Script", cursive',
+    shadowColor: 'rgba(0,0,0,0.0)', shadowBlur: 0,
+    letterbox: false, strokeWidth: 0, strokeColor: '#000000',
+  },
+  {
+    id: 'card', label: '카드', emoji: '🪪',
+    bgFrom: '#0f172a', bgTo: '#1e293b',
+    captionPos: 'middle', captionBgStyle: 'box',
+    captionBoxColor: 'rgba(255,255,255,0.92)', captionTextColor: '#0f172a',
+    fontSize: 40, fontWeight: 700, fontFamily: '"Noto Sans KR", sans-serif',
+    shadowColor: 'rgba(0,0,0,0)', shadowBlur: 0,
+    letterbox: false, strokeWidth: 0, strokeColor: '#000000',
+  },
+  {
+    id: 'cinema', label: '시네마', emoji: '🎞️',
+    bgFrom: '#000000', bgTo: '#000000',
+    captionPos: 'bottom', captionBgStyle: 'plain',
+    captionBoxColor: 'rgba(0,0,0,0)', captionTextColor: '#ffffff',
+    fontSize: 38, fontWeight: 500, fontFamily: '"Noto Sans KR", sans-serif',
+    shadowColor: 'rgba(0,0,0,0.9)', shadowBlur: 14,
+    letterbox: true, strokeWidth: 0, strokeColor: '#000000',
+  },
+  {
+    id: 'youtube', label: '유튜브 자막', emoji: '▶️',
+    bgFrom: '#1f2937', bgTo: '#111827',
+    captionPos: 'bottom', captionBgStyle: 'box',
+    captionBoxColor: 'rgba(0,0,0,0.78)', captionTextColor: '#ffffff',
+    fontSize: 42, fontWeight: 700, fontFamily: '"Roboto", "Noto Sans KR", sans-serif',
+    shadowColor: 'rgba(0,0,0,0)', shadowBlur: 0,
+    letterbox: false, strokeWidth: 0, strokeColor: '#000000',
+  },
+  {
+    id: 'top-bold', label: '상단 굵게', emoji: '⬆️',
+    bgFrom: '#7c2d12', bgTo: '#dc2626',
+    captionPos: 'top', captionBgStyle: 'gradient',
+    captionBoxColor: 'rgba(0,0,0,0.7)', captionTextColor: '#fff7ed',
+    fontSize: 48, fontWeight: 800, fontFamily: '"Noto Sans KR", sans-serif',
+    shadowColor: 'rgba(0,0,0,0.9)', shadowBlur: 12,
+    letterbox: false, strokeWidth: 0, strokeColor: '#000000',
+  },
+];
+
 function makeId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -27,6 +131,7 @@ export default function AudioShortsPage() {
   const [exporting, setExporting] = useState(false);
   const [exportErr, setExportErr] = useState<string | null>(null);
   const [exportProgress, setExportProgress] = useState<string>('');
+  const [template, setTemplate] = useState<VideoTemplate>(TEMPLATES[0]);
 
   const selected = scenes.find((s) => s.id === selectedId) ?? null;
   const currentScene =
@@ -139,7 +244,10 @@ export default function AudioShortsPage() {
     });
   };
 
-  const renderSceneToPng = async (scene: Scene): Promise<Blob> => {
+  const renderSceneToPng = async (
+    scene: Scene,
+    tpl: VideoTemplate
+  ): Promise<Blob> => {
     // 9:16, 720x1280 캔버스에 이미지+자막 직접 그림 (html2canvas 없이 순수 canvas)
     const W = 720;
     const H = 1280;
@@ -152,45 +260,95 @@ export default function AudioShortsPage() {
     // 배경
     if (scene.imageUrl) {
       const img = await loadImage(scene.imageUrl);
-      // object-fit: cover 흉내
       const r = Math.max(W / img.width, H / img.height);
       const w = img.width * r;
       const h = img.height * r;
       ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
     } else {
       const grd = ctx.createLinearGradient(0, 0, W, H);
-      grd.addColorStop(0, '#334155');
-      grd.addColorStop(1, '#0f172a');
+      grd.addColorStop(0, tpl.bgFrom);
+      grd.addColorStop(1, tpl.bgTo);
       ctx.fillStyle = grd;
       ctx.fillRect(0, 0, W, H);
     }
 
-    // 자막 영역 — 하단 30% 어두운 그라데이션
-    const gradH = H * 0.35;
-    const gradY = H - gradH;
-    const grad = ctx.createLinearGradient(0, gradY, 0, H);
-    grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(1, 'rgba(0,0,0,0.85)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, gradY, W, gradH);
+    // letterbox 검은 바
+    if (tpl.letterbox) {
+      ctx.fillStyle = '#000000';
+      const barH = H * 0.12;
+      ctx.fillRect(0, 0, W, barH);
+      ctx.fillRect(0, H - barH, W, barH);
+    }
 
-    // 자막 텍스트
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.shadowColor = 'rgba(0,0,0,0.85)';
-    ctx.shadowBlur = 12;
-    ctx.shadowOffsetY = 3;
-
-    const fontSize = 44;
-    ctx.font = `700 ${fontSize}px "Noto Sans KR", sans-serif`;
-    const maxWidth = W * 0.85;
+    const fontSize = tpl.fontSize;
+    ctx.font = `${tpl.fontWeight} ${fontSize}px ${tpl.fontFamily}`;
+    const maxWidth = W * 0.86;
     const lines = wrapText(ctx, scene.caption, maxWidth);
     const lineHeight = fontSize * 1.3;
-    const startY = H - 60 - (lines.length - 1) * lineHeight;
+    const blockH = lines.length * lineHeight;
+
+    // 자막 위치 계산 (top/middle/bottom)
+    let baseY: number;
+    if (tpl.captionPos === 'top') {
+      baseY = (tpl.letterbox ? H * 0.12 : 0) + 80;
+    } else if (tpl.captionPos === 'middle') {
+      baseY = (H - blockH) / 2;
+    } else {
+      baseY = H - 80 - blockH;
+    }
+
+    // 캡션 배경 (gradient / box / plain)
+    if (tpl.captionBgStyle === 'gradient') {
+      const gradH = H * 0.4;
+      if (tpl.captionPos === 'top') {
+        const g = ctx.createLinearGradient(0, 0, 0, gradH);
+        g.addColorStop(0, 'rgba(0,0,0,0.85)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, gradH);
+      } else {
+        const gradY = H - gradH;
+        const g = ctx.createLinearGradient(0, gradY, 0, H);
+        g.addColorStop(0, 'rgba(0,0,0,0)');
+        g.addColorStop(1, 'rgba(0,0,0,0.85)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, gradY, W, gradH);
+      }
+    } else if (tpl.captionBgStyle === 'box') {
+      const padX = 36;
+      const padY = 24;
+      const boxX = (W - maxWidth) / 2 - padX;
+      const boxY = baseY - padY;
+      const boxW = maxWidth + padX * 2;
+      const boxH = blockH + padY * 2;
+      ctx.fillStyle = tpl.captionBoxColor;
+      roundRect(ctx, boxX, boxY, boxW, boxH, 16);
+      ctx.fill();
+    }
+
+    // 자막 텍스트
+    ctx.fillStyle = tpl.captionTextColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.shadowColor = tpl.shadowColor;
+    ctx.shadowBlur = tpl.shadowBlur;
+    ctx.shadowOffsetY = tpl.shadowBlur > 0 ? 3 : 0;
+
     lines.forEach((line, i) => {
-      ctx.fillText(line, W / 2, startY + i * lineHeight);
+      const y = baseY + i * lineHeight;
+      if (tpl.strokeWidth > 0) {
+        ctx.lineWidth = tpl.strokeWidth;
+        ctx.strokeStyle = tpl.strokeColor;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(line, W / 2, y);
+      }
+      ctx.fillText(line, W / 2, y);
     });
+
+    // shadow 초기화 (이후 다른 그림 영향 안 받게)
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
 
     return new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((b) => {
@@ -236,7 +394,7 @@ export default function AudioShortsPage() {
       for (let i = 0; i < scenes.length; i++) {
         setExportProgress(`씬 ${i + 1}/${scenes.length} 렌더링…`);
         const s = scenes[i];
-        const blob = await renderSceneToPng(s);
+        const blob = await renderSceneToPng(s, template);
         const name = `scene_${String(i + 1).padStart(3, '0')}.png`;
         const ab = await blob.arrayBuffer();
         await ff.writeFile(name, new Uint8Array(ab));
@@ -440,12 +598,44 @@ export default function AudioShortsPage() {
               미리보기
             </div>
             <div className="flex flex-1 items-center justify-center p-8">
-              <Preview scene={currentScene} />
+              <Preview scene={currentScene} tpl={template} />
             </div>
           </div>
 
           <aside className="w-80 shrink-0 overflow-auto border-l bg-background">
             <div className="border-b px-4 py-3">
+              <h2 className="text-sm font-semibold">템플릿 (영상 전체)</h2>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 p-3">
+              {TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTemplate(t)}
+                  title={t.label}
+                  className={cn(
+                    'group relative aspect-[9/16] overflow-hidden rounded border-2 transition',
+                    template.id === t.id
+                      ? 'border-primary ring-2 ring-primary/30'
+                      : 'border-transparent hover:border-foreground/40'
+                  )}
+                  style={{
+                    background: `linear-gradient(135deg, ${t.bgFrom}, ${t.bgTo})`,
+                  }}
+                >
+                  <span className="absolute inset-0 flex items-center justify-center text-lg">
+                    {t.emoji}
+                  </span>
+                  <span
+                    className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-center text-[9.5px] font-semibold"
+                    style={{ color: t.captionTextColor }}
+                  >
+                    {t.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="border-b border-t px-4 py-3">
               <h2 className="text-sm font-semibold">씬 편집</h2>
             </div>
             <div className="space-y-4 p-4">
@@ -552,7 +742,13 @@ export default function AudioShortsPage() {
   );
 }
 
-function Preview({ scene }: { scene: Scene | undefined }) {
+function Preview({
+  scene,
+  tpl,
+}: {
+  scene: Scene | undefined;
+  tpl: VideoTemplate;
+}) {
   if (!scene) {
     return (
       <div className="flex aspect-[9/16] w-72 items-center justify-center rounded-xl border border-dashed bg-secondary text-center text-xs text-muted-foreground">
@@ -560,6 +756,30 @@ function Preview({ scene }: { scene: Scene | undefined }) {
       </div>
     );
   }
+
+  // 미리보기는 720→288 (40%) 스케일. ratio = 0.4
+  const r = 0.4;
+  const fontSizePx = Math.round(tpl.fontSize * r);
+  const justify =
+    tpl.captionPos === 'top'
+      ? 'flex-start'
+      : tpl.captionPos === 'bottom'
+        ? 'flex-end'
+        : 'center';
+
+  const captionShadow =
+    tpl.shadowBlur > 0
+      ? `0 ${Math.max(1, tpl.shadowBlur * 0.2)}px ${tpl.shadowBlur * 0.5}px ${tpl.shadowColor}`
+      : 'none';
+
+  const captionStroke =
+    tpl.strokeWidth > 0
+      ? {
+          WebkitTextStroke: `${tpl.strokeWidth * 0.4}px ${tpl.strokeColor}`,
+          paintOrder: 'stroke fill' as const,
+        }
+      : {};
+
   return (
     <div className="relative flex aspect-[9/16] w-72 overflow-hidden rounded-xl bg-black shadow-2xl">
       {scene.imageUrl ? (
@@ -570,13 +790,50 @@ function Preview({ scene }: { scene: Scene | undefined }) {
           className="absolute inset-0 h-full w-full object-cover"
         />
       ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-700 to-slate-900" />
-      )}
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-4">
-        <p
-          className="text-center text-[18px] font-bold leading-tight text-white"
+        <div
+          className="absolute inset-0"
           style={{
-            textShadow: '0 2px 8px rgba(0,0,0,0.85), 0 0 4px rgba(0,0,0,0.6)',
+            background: `linear-gradient(135deg, ${tpl.bgFrom}, ${tpl.bgTo})`,
+          }}
+        />
+      )}
+
+      {tpl.letterbox && (
+        <>
+          <div className="absolute inset-x-0 top-0 h-[12%] bg-black" />
+          <div className="absolute inset-x-0 bottom-0 h-[12%] bg-black" />
+        </>
+      )}
+
+      {tpl.captionBgStyle === 'gradient' && tpl.captionPos === 'bottom' && (
+        <div className="absolute inset-x-0 bottom-0 h-[40%] bg-gradient-to-t from-black/85 to-transparent" />
+      )}
+      {tpl.captionBgStyle === 'gradient' && tpl.captionPos === 'top' && (
+        <div className="absolute inset-x-0 top-0 h-[40%] bg-gradient-to-b from-black/85 to-transparent" />
+      )}
+
+      <div
+        className="absolute inset-0 flex flex-col px-3 py-3"
+        style={{ justifyContent: justify }}
+      >
+        <p
+          className="text-center leading-tight"
+          style={{
+            color: tpl.captionTextColor,
+            fontWeight: tpl.fontWeight,
+            fontFamily: tpl.fontFamily,
+            fontSize: `${fontSizePx}px`,
+            textShadow: captionShadow,
+            ...captionStroke,
+            ...(tpl.captionBgStyle === 'box'
+              ? {
+                  background: tpl.captionBoxColor,
+                  display: 'inline-block',
+                  alignSelf: 'center',
+                  padding: '8px 14px',
+                  borderRadius: 8,
+                }
+              : {}),
           }}
         >
           {scene.caption}
@@ -584,6 +841,27 @@ function Preview({ scene }: { scene: Scene | undefined }) {
       </div>
     </div>
   );
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 function fmt(s: number): string {
