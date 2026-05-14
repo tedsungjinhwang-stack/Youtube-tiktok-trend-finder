@@ -78,6 +78,10 @@ export default function InstaVideoPage() {
   const [exporting, setExporting] = useState<string | null>(null);
   const refsMap = useRef(new Map<string, HTMLDivElement | null>());
   const [secondsPerSlide, setSecondsPerSlide] = useState(3);
+  const [aiTopic, setAiTopic] = useState('');
+  const [aiCount, setAiCount] = useState(5);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const selected = list.find((x) => x.id === selectedId) ?? list[0];
 
@@ -114,6 +118,50 @@ export default function InstaVideoPage() {
       [next[idx], next[target]] = [next[target], next[idx]];
       return next;
     });
+  };
+
+  const onAiGenerate = async () => {
+    setAiError(null);
+    if (!aiTopic.trim()) {
+      setAiError('주제를 입력하세요');
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const r = await fetch('/api/v1/insta/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: aiTopic,
+          count: aiCount,
+          language: '한국어',
+        }),
+      });
+      const j = await r.json();
+      if (!j.success) {
+        setAiError(j.error?.message ?? '생성 실패');
+        return;
+      }
+      const slides = (j.data ?? []) as Array<{ title: string; body: string }>;
+      if (slides.length === 0) {
+        setAiError('생성된 슬라이드가 없습니다');
+        return;
+      }
+      // 현재 첫 슬라이드의 스타일을 베이스로 새 슬라이드 생성 (배경/폰트 일관성)
+      const base = list[0];
+      const fresh: SlideData[] = slides.map((s) => ({
+        ...base,
+        id: makeId(),
+        title: s.title,
+        body: s.body,
+      }));
+      setList(fresh);
+      setSelectedId(fresh[0].id);
+    } catch (e) {
+      setAiError((e as Error).message);
+    } finally {
+      setAiBusy(false);
+    }
   };
 
   const captureSlide = async (
@@ -323,6 +371,41 @@ export default function InstaVideoPage() {
             </button>
           </div>
         </header>
+
+        <div className="flex flex-wrap items-center gap-2 border-b bg-background px-4 py-2 text-xs">
+          <span className="font-semibold text-primary">✨ AI</span>
+          <input
+            value={aiTopic}
+            onChange={(e) => setAiTopic(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onAiGenerate();
+            }}
+            placeholder="주제를 입력하세요 (예: 챗GPT 활용 5가지 팁)"
+            className="h-7 flex-1 min-w-[200px] rounded-md border bg-transparent px-2"
+          />
+          <label className="flex items-center gap-1">
+            <span className="text-muted-foreground">장수</span>
+            <select
+              value={aiCount}
+              onChange={(e) => setAiCount(Number(e.target.value))}
+              className="h-7 rounded-md border bg-background px-2"
+            >
+              <option value="3">3</option>
+              <option value="5">5</option>
+              <option value="7">7</option>
+              <option value="10">10</option>
+              <option value="12">12</option>
+            </select>
+          </label>
+          <button
+            onClick={onAiGenerate}
+            disabled={aiBusy}
+            className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1 text-primary hover:bg-primary/20 disabled:opacity-60"
+          >
+            {aiBusy ? '⋯' : '슬라이드 생성'}
+          </button>
+          {aiError && <span className="text-destructive">⚠ {aiError}</span>}
+        </div>
 
         <div className="flex-1 overflow-auto bg-secondary/30 p-8">
           <div className="flex flex-wrap justify-center gap-6">
