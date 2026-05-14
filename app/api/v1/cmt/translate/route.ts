@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCred } from '@/lib/credentials';
+import { openaiFetch } from '@/lib/openai/oauth';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,14 +9,6 @@ export const dynamic = 'force-dynamic';
  * 응답: { success, data: string[] }  (입력 순서 동일)
  */
 export async function POST(req: NextRequest) {
-  const apiKey = await getCred('OPENAI_API_KEY');
-  if (!apiKey) {
-    return NextResponse.json(
-      { success: false, error: { code: 'NO_KEY', message: 'OPENAI_API_KEY 등록 필요' } },
-      { status: 503 }
-    );
-  }
-
   let body: { texts?: string[]; targetLanguage?: string };
   try {
     body = await req.json();
@@ -47,12 +39,9 @@ export async function POST(req: NextRequest) {
 응답 형식: { "translations": ["...", "..."] }`;
 
   try {
-    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    const resp = await openaiFetch('/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         response_format: { type: 'json_object' },

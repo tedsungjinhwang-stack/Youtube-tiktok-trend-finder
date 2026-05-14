@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCred } from '@/lib/credentials';
+import { openaiFetch } from '@/lib/openai/oauth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Whisper can be slow
@@ -10,14 +10,6 @@ export const maxDuration = 60; // Whisper can be slow
  * 응답: { success, data: { text, segments: Array<{ start, end, text }> } }
  */
 export async function POST(req: NextRequest) {
-  const apiKey = await getCred('OPENAI_API_KEY');
-  if (!apiKey) {
-    return NextResponse.json(
-      { success: false, error: { code: 'NO_KEY', message: 'OPENAI_API_KEY 등록 필요' } },
-      { status: 503 }
-    );
-  }
-
   const form = await req.formData();
   const file = form.get('file');
   if (!(file instanceof File)) {
@@ -34,11 +26,11 @@ export async function POST(req: NextRequest) {
   upstream.append('timestamp_granularities[]', 'segment');
 
   try {
-    const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: upstream,
-    });
+    const resp = await openaiFetch(
+      '/v1/audio/transcriptions',
+      { method: 'POST', body: upstream },
+      { forceApiKey: true }
+    );
     if (!resp.ok) {
       const text = await resp.text();
       return NextResponse.json(
