@@ -1,15 +1,29 @@
 import { cookies } from 'next/headers';
 import { ThresholdsForm } from './thresholds-form';
 import { AutoScrapeToggle } from './auto-scrape-toggle';
+import { TrendingSnapshotToggle } from './trending-snapshot-toggle';
 import {
   BUILTIN_DEFAULTS,
   COOKIE_KEY_MIN_VIEWS,
   numFromCookie,
 } from '@/lib/settings';
 import { getAutoScrapeEnabled } from '@/lib/system-settings';
+import { prisma } from '@/lib/db';
 import vercelConfig from '@/vercel.json';
 
 export const dynamic = 'force-dynamic';
+
+async function getTrendingSnapshotEnabled(): Promise<{ enabled: boolean; intervalHours: number } | null> {
+  try {
+    const s = await prisma.trendingSettings.findUnique({
+      where: { id: 'default' },
+    });
+    if (!s) return { enabled: true, intervalHours: 4 };
+    return { enabled: s.enabled, intervalHours: s.intervalHours };
+  } catch {
+    return null;
+  }
+}
 
 export default async function SettingsPage() {
   const c = cookies();
@@ -20,7 +34,8 @@ export default async function SettingsPage() {
     ),
   };
   const autoScrapeEnabled = await getAutoScrapeEnabled();
-  const cronInfo = describeCrons(vercelConfig.crons ?? []);
+  const trendingSnap = await getTrendingSnapshotEnabled();
+  const cronSchedules = parseCronSchedules(vercelConfig.crons ?? []);
   const ownerEmail = process.env.OWNER_EMAIL;
   const openclawSet = !!process.env.OPENCLAW_API_KEY;
   const cronSecretSet = !!process.env.CRON_SECRET;
@@ -39,28 +54,40 @@ export default async function SettingsPage() {
           </div>
         </Card>
 
-        <Card title="수집 주기" subtitle="vercel.json — 배포 후 적용. 변경하려면 파일 직접 수정 + 재배포.">
-          <RowToggle
-            label="자동 수집 활성화"
-            hint={autoScrapeEnabled ? 'cron 시간이 되면 자동 스크래핑 실행' : 'cron이 와도 스킵'}
+        <Card title="자동 작업 (Cron)" subtitle="각 작업은 개별 토글로 ON/OFF 가능. 스케줄은 vercel.json (배포 후 적용)">
+          <CronRow
+            label="자동 스크래핑"
+            hint="등록한 모든 활성 채널을 매일 자동 스크래핑"
+            schedule={cronSchedules['/api/cron/scrape-all']}
           >
             <AutoScrapeToggle initial={autoScrapeEnabled} />
-          </RowToggle>
-          {cronInfo.map((c) => (
-            <Row key={c.path} label={c.label} value={c.schedule} />
-          ))}
-          <Row label="채널별 수동 트리거" value="활성 (채널 페이지에서)" />
-        </Card>
+          </CronRow>
 
-        <Card title="트렌딩 스냅샷 (KR)" subtitle="mostPopular 누적해 쇼츠 결과 풍부하게 — 자세한 설정은 ↗">
-          <div className="px-4 py-3 text-sm">
-            <a
-              href="/settings/trending"
-              className="rounded-md border bg-card px-3 py-1.5 text-xs hover:border-foreground/40"
-            >
-              트렌딩 스냅샷 설정으로 이동 →
-            </a>
-          </div>
+          <CronRow
+            label="트렌딩 스냅샷 (KR)"
+            hint={
+              trendingSnap
+                ? `매시간 트리거, ${trendingSnap.intervalHours}h 간격으로 KR mostPopular 200개 저장 — 주기 조정은 → /settings/trending`
+                : '⚠ DB 마이그레이션 필요 — /settings/trending 참고'
+            }
+            schedule={cronSchedules['/api/cron/snapshot-trending']}
+          >
+            {trendingSnap ? (
+              <TrendingSnapshotToggle initial={trendingSnap.enabled} />
+            ) : (
+              <span className="text-[12px] text-warning">DB 미설정</span>
+            )}
+          </CronRow>
+
+          <CronRow
+            label="YouTube 쿼터 리셋"
+            hint="API 키 사용량 카운터를 매일 자정에 0으로 리셋 (PT midnight 기준)"
+            schedule={cronSchedules['/api/cron/reset-youtube-quotas']}
+          >
+            <span className="text-[12px] text-success">항상 ON</span>
+          </CronRow>
+
+          <Row label="채널별 수동 트리거" value="활성 (채널 페이지에서)" />
         </Card>
 
         <Card title="인증">
@@ -85,26 +112,21 @@ export default async function SettingsPage() {
   );
 }
 
-function describeCrons(
+function parseCronSchedules(
   crons: { path: string; schedule: string }[]
-): { path: string; label: string; schedule: string }[] {
-  return crons.map((c) => ({
-    path: c.path,
-    label: labelForCronPath(c.path),
-    schedule: `${c.schedule} (UTC) → ${cronToKst(c.schedule)}`,
-  }));
-}
-
-function labelForCronPath(path: string): string {
-  if (path.includes('scrape-all')) return '자동 스크래핑';
-  if (path.includes('reset-youtube-quotas')) return 'YT 쿼터 리셋';
-  return path;
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const c of crons) {
+    out[c.path] = `${c.schedule} (UTC) → ${cronToKst(c.schedule)}`;
+  }
+  return out;
 }
 
 function cronToKst(cron: string): string {
   const [minute, hour] = cron.split(' ');
+  if (hour === '*') return '매시간';
   const h = parseInt(hour, 10);
-  if (isNaN(h)) return `KST 변환 실패 (${cron})`;
+  if (isNaN(h)) return cron;
   const kst = (h + 9) % 24;
   return `매일 KST ${String(kst).padStart(2, '0')}:${minute.padStart(2, '0')}`;
 }
@@ -133,26 +155,35 @@ function Card({
   );
 }
 
-function RowToggle({
+function CronRow({
   label,
   hint,
+  schedule,
   children,
 }: {
   label: string;
   hint?: string;
+  schedule?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-[14px]">
-      <div className="flex-1">
-        <div className="text-muted-foreground">{label}</div>
-        {hint && (
-          <div className="mt-0.5 text-[12px] text-muted-foreground/70">
-            {hint}
-          </div>
-        )}
+    <div className="px-4 py-3 text-[14px]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <div className="font-medium">{label}</div>
+          {hint && (
+            <div className="mt-0.5 text-[12px] text-muted-foreground/80">
+              {hint}
+            </div>
+          )}
+          {schedule && (
+            <div className="num mt-1 text-[11.5px] text-muted-foreground/70">
+              {schedule}
+            </div>
+          )}
+        </div>
+        <div className="shrink-0">{children}</div>
       </div>
-      {children}
     </div>
   );
 }
