@@ -142,3 +142,37 @@ model ScrapeRun {
   @@index([channelId])
   @@index([startedAt])
 }
+
+/// YouTube 트렌딩 mostPopular 스냅샷 (KR only, 시간당 누적).
+/// 캡처 시점 별로 영상 메타·통계 저장. 같은 videoId 가 시간마다 반복 저장됨.
+/// 최근 N시간 누적해서 쇼츠 100+개 보장하는 용도.
+model TrendingSnapshot {
+  id              String   @id @default(cuid())
+  region          String   // 'KR' 등
+  videoId         String   // YouTube 11자
+  title           String
+  channelId       String
+  channelName     String
+  thumbnailUrl    String?
+  viewCount       BigInt
+  likeCount       BigInt?
+  commentCount    BigInt?
+  durationSeconds Int
+  isShorts        Boolean
+  publishedAt     DateTime
+  capturedAt      DateTime @default(now())
+
+  @@index([region, capturedAt])
+  @@index([region, isShorts, capturedAt])
+  @@index([videoId])
+}
+
+/// 트렌딩 스냅샷 cron 설정 (싱글톤 행, id='default').
+model TrendingSettings {
+  id            String   @id @default("default")
+  enabled       Boolean  @default(true)
+  intervalHours Int      @default(4)
+  lastRunAt     DateTime?
+  lastError     String?
+  updatedAt     DateTime @updatedAt
+}

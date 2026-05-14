@@ -10,6 +10,10 @@
     {
       "path": "/api/cron/scrape-all",
       "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/snapshot-trending",
+      "schedule": "0 * * * *"
     }
   ]
 }
