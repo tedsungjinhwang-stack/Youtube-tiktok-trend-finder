@@ -117,7 +117,8 @@ export async function searchYoutubeByHashtag(
           ? Number(it.statistics.commentCount)
           : null,
       durationSeconds: dur,
-      isShorts: dur > 0 && dur <= 60,
+      // YouTube Shorts 정의: 최대 3분(180초)
+      isShorts: dur > 0 && dur <= 180,
       publishedAt: new Date(it.snippet?.publishedAt ?? Date.now()),
       authorHandle: null,
       authorChannelId: channelId || null,

@@ -228,7 +228,7 @@ export function VideoCard({ data }: { data: VideoCardData }) {
           })}
           accent="up"
           title={
-            data.isShorts || (data.durationSeconds != null && data.durationSeconds <= 60)
+            data.isShorts || (data.durationSeconds != null && data.durationSeconds <= 180)
               ? '한국 쇼츠 평균 RPM 0.15~0.20원 기준 추정'
               : data.durationSeconds != null && data.durationSeconds >= 480
                 ? '롱폼(8분↑) 평균 RPM 2.0~2.3원 기준 추정 (중간광고 포함)'

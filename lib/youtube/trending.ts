@@ -87,7 +87,8 @@ export async function fetchTrending(
     for (const it of json.items ?? []) {
       rank++;
       const dur = parseIsoDurationSeconds(it.contentDetails?.duration ?? '');
-      const isShorts = dur > 0 && dur <= 60;
+      // YouTube Shorts 정의: 최대 3분(180초). 2024년 말 변경.
+      const isShorts = dur > 0 && dur <= 180;
       out.push({
         rank,
         videoId: it.id,
