@@ -21,13 +21,6 @@ type TrendingItem = {
 
 const COUNTRIES: { code: string; label: string }[] = [
   { code: 'KR', label: '한국' },
-  { code: 'US', label: '미국' },
-  { code: 'JP', label: '일본' },
-  { code: 'GB', label: '영국' },
-  { code: 'DE', label: '독일' },
-  { code: 'FR', label: '프랑스' },
-  { code: 'IN', label: '인도' },
-  { code: 'BR', label: '브라질' },
 ];
 
 type FormatTab = 'all' | 'long' | 'short';

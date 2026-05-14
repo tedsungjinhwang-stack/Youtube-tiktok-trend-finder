@@ -52,6 +52,17 @@ export default async function SettingsPage() {
           <Row label="채널별 수동 트리거" value="활성 (채널 페이지에서)" />
         </Card>
 
+        <Card title="트렌딩 스냅샷 (KR)" subtitle="mostPopular 누적해 쇼츠 결과 풍부하게 — 자세한 설정은 ↗">
+          <div className="px-4 py-3 text-sm">
+            <a
+              href="/settings/trending"
+              className="rounded-md border bg-card px-3 py-1.5 text-xs hover:border-foreground/40"
+            >
+              트렌딩 스냅샷 설정으로 이동 →
+            </a>
+          </div>
+        </Card>
+
         <Card title="인증">
           <Row
             label="OWNER_EMAIL"
