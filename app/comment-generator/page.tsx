@@ -55,7 +55,7 @@ function makeDefault(): CommentData {
     showLikes: true,
     showReplyAction: true,
     isVerified: false,
-    isBlurred: false,
+    isBlurred: true,
     replyText: '답글',
     width: 600,
     bodyFontSize: 16,
@@ -63,7 +63,7 @@ function makeDefault(): CommentData {
     avatarSize: 40,
     opacity: 100,
     borderRadius: 16,
-    theme: 'dark',
+    theme: 'light',
     template: 'default',
     fontFamily: 'noto-kr',
   };
@@ -355,16 +355,39 @@ export default function CommentGeneratorPage() {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         for (const b of blurredRegions) {
-          const region = document.createElement('canvas');
-          region.width = Math.max(1, Math.ceil(b.w));
-          region.height = Math.max(1, Math.ceil(b.h));
-          const rctx = region.getContext('2d');
-          if (!rctx) continue;
-          rctx.drawImage(canvas, b.x, b.y, b.w, b.h, 0, 0, b.w, b.h);
+          // 블러 커널이 가장자리 바깥 픽셀까지 참조하도록 패딩 포함하여 잘라낸 뒤
+          // 별도 오프스크린 캔버스에 blur 를 적용하고 정확한 영역만 다시 덮어쓴다.
+          const pad = Math.max(4, Math.ceil(b.blurPx * 2));
+          const sx = Math.max(0, Math.floor(b.x - pad));
+          const sy = Math.max(0, Math.floor(b.y - pad));
+          const sw = Math.min(canvas.width - sx, Math.ceil(b.w + pad * 2));
+          const sh = Math.min(canvas.height - sy, Math.ceil(b.h + pad * 2));
+          if (sw <= 0 || sh <= 0) continue;
+
+          const padded = document.createElement('canvas');
+          padded.width = sw;
+          padded.height = sh;
+          const pctx = padded.getContext('2d');
+          if (!pctx) continue;
+          pctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+
+          const blurred = document.createElement('canvas');
+          blurred.width = sw;
+          blurred.height = sh;
+          const bctx = blurred.getContext('2d');
+          if (!bctx) continue;
+          bctx.filter = `blur(${b.blurPx}px)`;
+          bctx.drawImage(padded, 0, 0);
+
+          const offsetX = b.x - sx;
+          const offsetY = b.y - sy;
           ctx.save();
           ctx.clearRect(b.x, b.y, b.w, b.h);
-          ctx.filter = `blur(${b.blurPx}px)`;
-          ctx.drawImage(region, b.x, b.y);
+          ctx.drawImage(
+            blurred,
+            offsetX, offsetY, b.w, b.h,
+            b.x, b.y, b.w, b.h
+          );
           ctx.restore();
         }
       }
