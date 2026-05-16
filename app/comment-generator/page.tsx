@@ -569,32 +569,29 @@ export default function CommentGeneratorPage() {
     }
   };
 
-  const onExportAllZip = async () => {
+  const onExportAll = async () => {
     setExporting(true);
     try {
-      const [{ default: h2c }, { default: JSZip }] = await Promise.all([
-        import('html2canvas'),
-        import('jszip'),
-      ]);
-      const zip = new JSZip();
+      const h2c = (await import('html2canvas')).default;
       for (let i = 0; i < list.length; i++) {
         const item = list[i];
         const node = refsMap.current.get(item.id);
         if (!node) continue;
         const blob = await exportNode(node, h2c);
-        zip.file(`comment-${String(i + 1).padStart(2, '0')}-${item.id}.png`, blob);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `comment-${String(i + 1).padStart(2, '0')}-${item.id}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        if (i < list.length - 1) {
+          await new Promise((r) => setTimeout(r, 250));
+        }
       }
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `comments-${Date.now()}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
     } catch (e) {
-      alert('ZIP 내보내기 실패: ' + (e as Error).message);
+      alert('내보내기 실패: ' + (e as Error).message);
     } finally {
       setExporting(false);
     }
@@ -690,11 +687,11 @@ export default function CommentGeneratorPage() {
               ↓ 선택 PNG
             </button>
             <button
-              onClick={onExportAllZip}
+              onClick={onExportAll}
               disabled={exporting}
               className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
             >
-              {exporting ? '내보내는 중…' : '↓ 전체 ZIP'}
+              {exporting ? '내보내는 중…' : '↓ 전체 다운로드'}
             </button>
           </div>
         </header>
