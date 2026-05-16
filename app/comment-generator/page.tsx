@@ -342,87 +342,15 @@ export default function CommentGeneratorPage() {
     setSelectedId(dup.id);
   };
 
-  const exportNode = async (
-    node: HTMLDivElement,
-    h2c: typeof import('html2canvas').default
-  ): Promise<Blob> => {
-    // html2canvas 는 CSS filter: blur() 를 렌더링하지 않으므로,
-    // 캡처 전에 블러된 요소의 위치/크기/블러량을 수집해두고,
-    // 캡처 후 canvas ctx.filter 로 해당 영역만 다시 블러 처리한다.
-    const scale = 2;
-    const containerRect = node.getBoundingClientRect();
-    const blurredRegions: Array<{
-      x: number;
-      y: number;
-      w: number;
-      h: number;
-      blurPx: number;
-    }> = [];
-
-    node.querySelectorAll('*').forEach((el) => {
-      const styleFilter = (el as HTMLElement).style?.filter || '';
-      const computedFilter = getComputedStyle(el as HTMLElement).filter || '';
-      const filterStr = styleFilter || computedFilter;
-      const m = filterStr.match(/blur\(\s*([\d.]+)px\s*\)/);
-      if (!m) return;
-      const r = (el as HTMLElement).getBoundingClientRect();
-      if (r.width === 0 || r.height === 0) return;
-      blurredRegions.push({
-        x: (r.left - containerRect.left) * scale,
-        y: (r.top - containerRect.top) * scale,
-        w: r.width * scale,
-        h: r.height * scale,
-        blurPx: parseFloat(m[1]) * scale,
-      });
+  const exportNode = async (node: HTMLDivElement): Promise<Blob> => {
+    // html-to-image: SVG foreignObject 로 DOM 을 그려 CSS filter: blur() 를
+    // 그대로 보존한다 (html2canvas 는 filter 를 무시했음).
+    const { toBlob } = await import('html-to-image');
+    const blob = await toBlob(node, {
+      pixelRatio: 2,
+      backgroundColor: undefined,
+      cacheBust: true,
     });
-
-    const canvas = await h2c(node, { backgroundColor: null, scale });
-
-    if (blurredRegions.length > 0) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        for (const b of blurredRegions) {
-          // 블러 커널이 가장자리 바깥 픽셀까지 참조하도록 패딩 포함하여 잘라낸 뒤
-          // 별도 오프스크린 캔버스에 blur 를 적용하고 정확한 영역만 다시 덮어쓴다.
-          const pad = Math.max(4, Math.ceil(b.blurPx * 2));
-          const sx = Math.max(0, Math.floor(b.x - pad));
-          const sy = Math.max(0, Math.floor(b.y - pad));
-          const sw = Math.min(canvas.width - sx, Math.ceil(b.w + pad * 2));
-          const sh = Math.min(canvas.height - sy, Math.ceil(b.h + pad * 2));
-          if (sw <= 0 || sh <= 0) continue;
-
-          const padded = document.createElement('canvas');
-          padded.width = sw;
-          padded.height = sh;
-          const pctx = padded.getContext('2d');
-          if (!pctx) continue;
-          pctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
-
-          const blurred = document.createElement('canvas');
-          blurred.width = sw;
-          blurred.height = sh;
-          const bctx = blurred.getContext('2d');
-          if (!bctx) continue;
-          bctx.filter = `blur(${b.blurPx}px)`;
-          bctx.drawImage(padded, 0, 0);
-
-          const offsetX = b.x - sx;
-          const offsetY = b.y - sy;
-          ctx.save();
-          ctx.clearRect(b.x, b.y, b.w, b.h);
-          ctx.drawImage(
-            blurred,
-            offsetX, offsetY, b.w, b.h,
-            b.x, b.y, b.w, b.h
-          );
-          ctx.restore();
-        }
-      }
-    }
-
-    const blob: Blob | null = await new Promise((res) =>
-      canvas.toBlob(res, 'image/png')
-    );
     if (!blob) throw new Error('blob 생성 실패');
     return blob;
   };
@@ -432,8 +360,7 @@ export default function CommentGeneratorPage() {
     if (!node) return;
     setExporting(true);
     try {
-      const h2c = (await import('html2canvas')).default;
-      const blob = await exportNode(node, h2c);
+      const blob = await exportNode(node);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -599,12 +526,11 @@ export default function CommentGeneratorPage() {
   const onExportAll = async () => {
     setExporting(true);
     try {
-      const h2c = (await import('html2canvas')).default;
       for (let i = 0; i < list.length; i++) {
         const item = list[i];
         const node = refsMap.current.get(item.id);
         if (!node) continue;
-        const blob = await exportNode(node, h2c);
+        const blob = await exportNode(node);
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
