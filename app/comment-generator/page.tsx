@@ -47,7 +47,7 @@ function makeDefault(): CommentData {
     authorName: '테크요정',
     content:
       '와.. 진짜 유용한 기능이네요! 투명 배경으로 저장되니까 영상 편집할 때 바로 쓸 수 있어서 너무 좋아요. 다음 업데이트도 기대됩니다! 🔥',
-    timeAgo: '2시간 전',
+    timeAgo: '2주 전',
     likes: '1.2천',
     avatarBg: '#FF5722',
     avatarLetter: '테',
@@ -90,20 +90,19 @@ function pick<T>(arr: T[]): T {
 }
 
 function randomLikes(): string {
+  // 100 이상 ~ 5만 이하 범위로 현실적인 분포
   const r = Math.random();
-  if (r < 0.3) return String(Math.floor(Math.random() * 99) + 1); // 1~99
-  if (r < 0.7) return `${(Math.random() * 9 + 1).toFixed(1)}천`; // 1.0~9.9천
-  if (r < 0.95) return `${(Math.random() * 99 + 1).toFixed(1)}만`; // 1.0~99.9만
-  return `${(Math.random() * 9 + 1).toFixed(1)}백만`; // 1.0~9.9백만
+  if (r < 0.5) return String(Math.floor(Math.random() * 900) + 100); // 100~999
+  if (r < 0.85) return `${(Math.random() * 8.9 + 1).toFixed(1)}천`; // 1.0~9.9천
+  return `${(Math.random() * 4 + 1).toFixed(1)}만`; // 1.0~5.0만
 }
 
 function randomTimeAgo(): string {
+  // 최소 1주 이상 ~ 최대 4년
   const r = Math.random();
-  if (r < 0.15) return `${Math.floor(Math.random() * 59) + 1}분 전`;
-  if (r < 0.55) return `${Math.floor(Math.random() * 23) + 1}시간 전`;
-  if (r < 0.85) return `${Math.floor(Math.random() * 29) + 1}일 전`;
-  if (r < 0.95) return `${Math.floor(Math.random() * 11) + 1}개월 전`;
-  return `${Math.floor(Math.random() * 5) + 1}년 전`;
+  if (r < 0.55) return `${Math.floor(Math.random() * 3) + 1}주 전`; // 1~3주
+  if (r < 0.9) return `${Math.floor(Math.random() * 11) + 1}개월 전`; // 1~11개월
+  return `${Math.floor(Math.random() * 4) + 1}년 전`; // 1~4년
 }
 
 const TEMPLATES: { id: TemplateId; label: string }[] = [
