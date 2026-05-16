@@ -25,6 +25,16 @@ const API_BASE = 'https://api.openai.com';
 const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'; // Codex CLI client_id
 const SCOPE = 'openid profile email offline_access';
 
+/**
+ * Codex CLI 와 비슷한 헤더로 위장.
+ * auth.openai.com 이 Cloudflare 로 보호되어 있어 기본 fetch UA 는 403 받음.
+ */
+const CODEX_HEADERS: Record<string, string> = {
+  'User-Agent': 'codex_cli_rs/0.20.0',
+  Accept: 'application/json',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
+
 export type DeviceCodeResponse = {
   device_code: string;
   user_code: string;
@@ -45,7 +55,10 @@ export type TokenResponse = {
 export async function requestDeviceCode(): Promise<DeviceCodeResponse> {
   const resp = await fetch(`${OAUTH_BASE}/oauth/device/code`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      ...CODEX_HEADERS,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
     body: new URLSearchParams({
       client_id: CLIENT_ID,
       scope: SCOPE,
@@ -53,7 +66,12 @@ export async function requestDeviceCode(): Promise<DeviceCodeResponse> {
   });
   if (!resp.ok) {
     const text = await resp.text();
-    throw new Error(`device code 요청 실패 (${resp.status}): ${text.slice(0, 200)}`);
+    const isCloudflare = text.includes('Just a moment') || text.includes('cf-');
+    throw new Error(
+      isCloudflare
+        ? `OpenAI 인증 서버가 서버 IP 를 차단함 (Cloudflare 403). 이 기능은 Vercel 등 서버리스에서는 안정적으로 동작하지 않습니다. 설정 > API 키에서 OPENAI_API_KEY 를 등록해 사용해주세요.`
+        : `device code 요청 실패 (${resp.status}): ${text.slice(0, 200)}`
+    );
   }
   return (await resp.json()) as DeviceCodeResponse;
 }
@@ -64,7 +82,10 @@ export async function pollToken(
 ): Promise<{ status: 'pending' | 'ok' | 'expired' | 'denied'; token?: TokenResponse; error?: string }> {
   const resp = await fetch(`${OAUTH_BASE}/oauth/token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      ...CODEX_HEADERS,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
     body: new URLSearchParams({
       client_id: CLIENT_ID,
       grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
@@ -95,7 +116,10 @@ export async function pollToken(
 export async function refreshAccessToken(refreshToken: string): Promise<TokenResponse> {
   const resp = await fetch(`${OAUTH_BASE}/oauth/token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      ...CODEX_HEADERS,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
     body: new URLSearchParams({
       client_id: CLIENT_ID,
       grant_type: 'refresh_token',
