@@ -237,6 +237,8 @@ export default function CommentGeneratorPage() {
   const [translateLang, setTranslateLang] = useState('English');
   const [avatarStyle, setAvatarStyle] = useState<'pixel' | 'cartoon' | 'minimal' | 'robot' | 'emoji'>('cartoon');
   const [randomizeOnAdd, setRandomizeOnAdd] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState('');
 
   const selected = list.find((x) => x.id === selectedId) ?? list[0];
 
@@ -279,6 +281,32 @@ export default function CommentGeneratorPage() {
       : base;
     setList((prev) => [...prev, fresh]);
     setSelectedId(fresh.id);
+  };
+
+  const addBulk = () => {
+    const lines = bulkText
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (lines.length === 0) return;
+    const items: CommentData[] = lines.map((line) => {
+      const base = makeDefault();
+      if (!randomizeOnAdd) return { ...base, content: line };
+      const nick = pick(RANDOM_NICKS);
+      return {
+        ...base,
+        content: line,
+        authorName: nick,
+        avatarLetter: nick.slice(0, 1),
+        avatarBg: pick(COLORS),
+        likes: randomLikes(),
+        timeAgo: randomTimeAgo(),
+      };
+    });
+    setList((prev) => [...prev, ...items]);
+    setSelectedId(items[items.length - 1].id);
+    setBulkText('');
+    setBulkOpen(false);
   };
 
   const randomizeOne = (x: CommentData): CommentData => {
@@ -618,6 +646,18 @@ export default function CommentGeneratorPage() {
             >
               + 댓글 추가
             </button>
+            <button
+              onClick={() => setBulkOpen((v) => !v)}
+              className={cn(
+                'rounded-md border px-3 py-1.5 text-xs',
+                bulkOpen
+                  ? 'border-primary/40 bg-primary/10 text-primary'
+                  : 'bg-card hover:border-foreground/40'
+              )}
+              title="한 줄당 하나의 댓글로 일괄 추가"
+            >
+              📋 일괄 추가
+            </button>
             <label
               className="flex cursor-pointer items-center gap-1.5 text-[11px]"
               title="추가할 때 닉네임/프사색/좋아요/시간을 자동 랜덤화"
@@ -694,6 +734,46 @@ export default function CommentGeneratorPage() {
             </button>
           </div>
         </header>
+
+        {bulkOpen && (
+          <div className="space-y-2 border-b bg-secondary/30 px-4 py-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold">
+                📋 일괄 추가 (한 줄당 하나의 댓글)
+              </label>
+              <span className="text-[11px] text-muted-foreground">
+                {bulkText.split('\n').filter((s) => s.trim()).length}줄
+              </span>
+            </div>
+            <textarea
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              placeholder={
+                '와 진짜 유익한 영상이네요\n이거 보고 바로 적용했는데 효과 좋아요!\n다음 영상도 기대됩니다 🔥'
+              }
+              rows={6}
+              className="w-full resize-y rounded-md border bg-background px-3 py-2 text-sm"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setBulkText('');
+                  setBulkOpen(false);
+                }}
+                className="rounded-md border bg-card px-3 py-1.5 text-xs hover:border-foreground/40"
+              >
+                취소
+              </button>
+              <button
+                onClick={addBulk}
+                disabled={!bulkText.trim()}
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
+              >
+                추가
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-2 border-b bg-background px-4 py-3">
           <div className="flex gap-2">
