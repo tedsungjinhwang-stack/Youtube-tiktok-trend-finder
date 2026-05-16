@@ -13,7 +13,7 @@
     },
     {
       "path": "/api/cron/snapshot-trending",
-      "schedule": "0 * * * *"
+      "schedule": "0 21 * * *"
     }
   ]
 }
