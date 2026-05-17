@@ -13,6 +13,7 @@ const tabs = [
   { href: '/comment-generator', label: '댓글생성기' },
   { href: '/insta-video', label: '인스타영상' },
   { href: '/audio-shorts', label: '군림보형' },
+  { href: '/my-schedule', label: '내 채널 스케줄' },
 ];
 
 export function TopBar() {

@@ -188,3 +188,45 @@ model OpenAIOAuth {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+/// 내 채널 스케줄 관리 — 채널 메타.
+model MyChannel {
+  id        String           @id @default(cuid())
+  name      String
+  category  String?
+  url       String?
+  sortOrder Int              @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  videos    ScheduledVideo[]
+}
+
+/// 내 채널의 예약 영상.
+model ScheduledVideo {
+  id           String    @id @default(cuid())
+  channelId    String
+  channel      MyChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  title        String
+  notes        String?
+  scheduledAt  DateTime
+  status       String    @default("planned")
+  gcalEventId  String?
+  gcalSyncedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([channelId])
+  @@index([scheduledAt])
+}
+
+/// Google OAuth (Calendar 동기화용). 싱글톤 (id='default').
+model GoogleOAuth {
+  id           String   @id @default("default")
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  accountEmail String?
+  calendarId   String   @default("primary")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
