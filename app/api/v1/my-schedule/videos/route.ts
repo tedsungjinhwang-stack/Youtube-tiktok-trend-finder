@@ -1,0 +1,32 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { syncScheduledVideo } from '@/lib/google/calendar';
+
+export const dynamic = 'force-dynamic';
+
+export async function POST(req: Request) {
+  const body = await req.json();
+  const { channelId, title, scheduledAt, notes } = body as {
+    channelId?: string;
+    title?: string;
+    scheduledAt?: string;
+    notes?: string;
+  };
+  if (!channelId || !title?.trim() || !scheduledAt) {
+    return NextResponse.json(
+      { success: false, error: { code: 'BAD_INPUT', message: 'channelId, title, scheduledAt 필수' } },
+      { status: 400 }
+    );
+  }
+  const created = await prisma.scheduledVideo.create({
+    data: {
+      channelId,
+      title: title.trim(),
+      scheduledAt: new Date(scheduledAt),
+      notes: notes?.trim() || null,
+    },
+  });
+  // best-effort GCal 동기화
+  syncScheduledVideo(created.id).catch(() => {});
+  return NextResponse.json({ success: true, data: created });
+}
