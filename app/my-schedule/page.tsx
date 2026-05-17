@@ -51,6 +51,7 @@ export default function MySchedulePage() {
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [google, setGoogle] = useState<GoogleStatus>({ connected: false, email: null, calendarId: null });
   const [loading, setLoading] = useState(true);
+  const [setupWarning, setSetupWarning] = useState<string | null>(null);
 
   // 채널 추가 폼
   const [newName, setNewName] = useState('');
@@ -63,16 +64,26 @@ export default function MySchedulePage() {
   const [vNotes, setVNotes] = useState('');
 
   const refresh = async () => {
-    const [c, g] = await Promise.all([
-      fetch('/api/v1/my-schedule/channels').then((r) => r.json()),
-      fetch('/api/google/status').then((r) => r.json()),
-    ]);
-    if (c.success) {
-      setChannels(c.data);
-      if (!selectedChannelId && c.data.length > 0) setSelectedChannelId(c.data[0].id);
+    try {
+      const [c, g] = await Promise.all([
+        fetch('/api/v1/my-schedule/channels').then((r) => r.json()),
+        fetch('/api/google/status')
+          .then((r) => r.json())
+          .catch(() => ({ success: false })),
+      ]);
+      if (c.success) {
+        setChannels(c.data ?? []);
+        if (!selectedChannelId && c.data?.length > 0) setSelectedChannelId(c.data[0].id);
+        setSetupWarning(c.warning ?? null);
+      } else {
+        setSetupWarning(c.error?.message ?? '채널 목록 로드 실패');
+      }
+      if (g.success) setGoogle(g.data);
+    } catch (e) {
+      setSetupWarning('네트워크 오류: ' + (e as Error).message);
+    } finally {
+      setLoading(false);
     }
-    if (g.success) setGoogle(g.data);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -179,7 +190,13 @@ export default function MySchedulePage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]">
+    <div className="flex h-[calc(100vh-3.5rem)] flex-col">
+      {setupWarning && (
+        <div className="border-b border-amber-500/30 bg-amber-50 px-4 py-2.5 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          ⚠️ {setupWarning}
+        </div>
+      )}
+      <div className="flex flex-1 overflow-hidden">
       {/* 좌측: 채널 리스트 */}
       <aside className="flex w-72 shrink-0 flex-col border-r">
         <div className="border-b p-4">
@@ -443,6 +460,7 @@ export default function MySchedulePage() {
           </>
         )}
       </main>
+      </div>
     </div>
   );
 }
