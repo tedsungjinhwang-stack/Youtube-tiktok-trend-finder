@@ -17,8 +17,15 @@ import { prisma } from '@/lib/db';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
-const SCOPES = [
+
+const SCOPES_CALENDAR = [
   'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'openid',
+].join(' ');
+
+const SCOPES_YOUTUBE = [
+  'https://www.googleapis.com/auth/youtube.readonly',
   'https://www.googleapis.com/auth/userinfo.email',
   'openid',
 ].join(' ');
@@ -35,14 +42,20 @@ function clientCfg() {
   return { cid, csec, redirect };
 }
 
-/** Consent URL 생성 (state 로 CSRF 방지) */
-export function buildAuthUrl(state: string): string {
+export type OAuthKind = 'calendar' | 'youtube';
+
+/** Consent URL 생성 (state 로 CSRF 방지 + kind 별 스코프) */
+export function buildAuthUrl(
+  state: string,
+  opts: { kind?: OAuthKind } = {}
+): string {
   const { cid, redirect } = clientCfg();
+  const scope = opts.kind === 'youtube' ? SCOPES_YOUTUBE : SCOPES_CALENDAR;
   const p = new URLSearchParams({
     client_id: cid,
     redirect_uri: redirect,
     response_type: 'code',
-    scope: SCOPES,
+    scope,
     access_type: 'offline',
     prompt: 'consent',
     state,
