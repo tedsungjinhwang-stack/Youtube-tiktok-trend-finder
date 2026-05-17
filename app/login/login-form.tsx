@@ -73,7 +73,7 @@ export function LoginForm() {
         </button>
 
         <p className="mt-3 text-[11.5px] text-muted-foreground">
-          쿠키 30일 유지.
+          브라우저를 닫으면 자동 로그아웃됩니다.
         </p>
       </form>
     </div>
