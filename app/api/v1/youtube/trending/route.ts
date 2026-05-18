@@ -12,6 +12,8 @@ const CACHED_REGIONS = new Set(['KR']);
 const WINDOW_STEPS_HOURS = [72, 168, 336, 720]; // 3일 → 7일 → 14일 → 30일
 /** 이 개수 미만이면 다음 윈도우로 확장 + realtime 으로 보충 */
 const MIN_TARGET = 100;
+/** 마지막 스냅샷이 이 시간보다 오래되면 백그라운드로 새 스냅샷 트리거 */
+const SNAPSHOT_STALE_HOURS = 4;
 
 export async function GET(req: NextRequest) {
   const country = (req.nextUrl.searchParams.get('country') ?? req.nextUrl.searchParams.get('region') ?? 'KR').toUpperCase() as TrendingRegion;
@@ -22,6 +24,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       { success: false, error: { code: 'INVALID_REGION', message: `country must be one of ${REGIONS.join(', ')}` } },
       { status: 400 }
+    );
+  }
+
+  // 0. KR 이면 마지막 스냅샷이 오래됐는지 체크하고 백그라운드로 새 스냅샷 트리거.
+  //    (사용자는 즉시 캐시 결과 받음 — 다음 방문부터 신선한 데이터)
+  if (CACHED_REGIONS.has(country)) {
+    maybeTakeSnapshotInBackground(country).catch((e) =>
+      console.error('[bg snapshot]', e)
     );
   }
 
@@ -104,6 +114,54 @@ export async function GET(req: NextRequest) {
       { success: false, error: { code: 'YT_ERROR', message: msg.slice(0, 300) } },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * 마지막 스냅샷이 SNAPSHOT_STALE_HOURS 보다 오래됐으면 새로 캡처해 DB 에 저장.
+ * fire-and-forget — 사용자 응답 안 막음.
+ */
+async function maybeTakeSnapshotInBackground(region: string): Promise<void> {
+  try {
+    const last = await prisma.trendingSnapshot.findFirst({
+      where: { region },
+      orderBy: { capturedAt: 'desc' },
+      select: { capturedAt: true },
+    });
+    const isStale =
+      !last ||
+      Date.now() - last.capturedAt.getTime() > SNAPSHOT_STALE_HOURS * 3600_000;
+    if (!isStale) return;
+
+    const videos = await fetchTrending(region as TrendingRegion, 4);
+    if (videos.length === 0) return;
+
+    const capturedAt = new Date();
+    await prisma.trendingSnapshot.createMany({
+      data: videos.map((v) => ({
+        region,
+        videoId: v.videoId,
+        title: v.title,
+        channelId: v.channelId,
+        channelName: v.channelName,
+        thumbnailUrl: v.thumbnailUrl || null,
+        viewCount: BigInt(v.viewCount),
+        likeCount: v.likeCount != null ? BigInt(v.likeCount) : null,
+        commentCount: v.commentCount != null ? BigInt(v.commentCount) : null,
+        durationSeconds: v.durationSeconds,
+        isShorts: v.isShorts,
+        publishedAt: new Date(v.publishedAt),
+        capturedAt,
+      })),
+    });
+
+    // 30일 넘은 행 정리
+    const monthAgo = new Date(Date.now() - 30 * 86_400_000);
+    await prisma.trendingSnapshot.deleteMany({
+      where: { capturedAt: { lt: monthAgo } },
+    });
+  } catch (e) {
+    console.error('[snapshot bg]', (e as Error).message);
   }
 }
 
