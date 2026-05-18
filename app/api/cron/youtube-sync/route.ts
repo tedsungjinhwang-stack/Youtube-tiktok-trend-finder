@@ -20,8 +20,10 @@ export async function GET(req: Request) {
 
   const results: Array<{ channelId: string; count?: number; error?: string }> = [];
 
-  // 1) YouTube 연결된 채널: YouTube → DB
-  const oauths = await prisma.channelYouTubeOAuth.findMany();
+  // 1) YouTube 연결 + isActive 채널만: YouTube → DB
+  const oauths = await prisma.channelYouTubeOAuth.findMany({
+    where: { myChannel: { isActive: true } },
+  });
   for (const o of oauths) {
     try {
       const count = await syncChannelScheduled(o.id);

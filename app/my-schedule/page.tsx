@@ -28,6 +28,7 @@ type MyChannel = {
   category: string | null;
   url: string | null;
   sortOrder: number;
+  isActive: boolean;
   videos: ScheduledVideo[];
   youtubeOauth: YtOauth | null;
 };
@@ -336,10 +337,16 @@ export default function MySchedulePage() {
                   onClick={() => setSelectedChannelId(c.id)}
                   className={cn(
                     'mb-1 block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-accent',
-                    selectedChannelId === c.id && 'bg-accent font-semibold'
+                    selectedChannelId === c.id && 'bg-accent font-semibold',
+                    !c.isActive && 'opacity-50'
                   )}
                 >
-                  <div className="truncate">{c.name}</div>
+                  <div className="truncate">
+                    {c.name}
+                    {!c.isActive && (
+                      <span className="ml-1 text-[10px] text-muted-foreground">(비활성)</span>
+                    )}
+                  </div>
                   <div className="flex flex-wrap gap-x-2 text-[10.5px] text-muted-foreground">
                     {c.category && <span>{c.category}</span>}
                     <span>· {c.videos.length}개 예약</span>
@@ -476,11 +483,35 @@ export default function MySchedulePage() {
                   )}
                   <button
                     onClick={() => syncGcal(selected.id)}
-                    disabled={!google.connected}
+                    disabled={!google.connected || !selected.isActive}
                     className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-foreground/40 disabled:opacity-40"
-                    title={google.connected ? '구글캘린더 이벤트 강제 갱신' : 'Google 캘린더 미연결'}
+                    title={
+                      !selected.isActive
+                        ? '비활성 채널은 동기화 안 됨'
+                        : google.connected
+                          ? '구글캘린더 이벤트 강제 갱신'
+                          : 'Google 캘린더 미연결'
+                    }
                   >
                     🗓️ 캘린더 동기화
+                  </button>
+                  <button
+                    onClick={() =>
+                      updateChannel(selected.id, { isActive: !selected.isActive } as Partial<MyChannel>)
+                    }
+                    className={cn(
+                      'rounded-md border px-2.5 py-1 text-[11px]',
+                      selected.isActive
+                        ? 'bg-card hover:border-foreground/40'
+                        : 'border-amber-500/40 bg-amber-100/50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-200'
+                    )}
+                    title={
+                      selected.isActive
+                        ? '비활성화 — cron/캘린더 동기화에서 제외 (기존 이벤트는 그대로 유지)'
+                        : '활성화 — 동기화 재개'
+                    }
+                  >
+                    {selected.isActive ? '⏸️ 비활성화' : '▶️ 활성화'}
                   </button>
                   <button
                     onClick={() => removeChannel(selected.id)}
