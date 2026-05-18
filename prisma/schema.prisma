@@ -143,13 +143,15 @@ model ScrapeRun {
   @@index([startedAt])
 }
 
-/// YouTube 트렌딩 mostPopular 스냅샷 (KR only, 시간당 누적).
+/// YouTube/TikTok 트렌딩 스냅샷 (시간당 누적).
 /// 캡처 시점 별로 영상 메타·통계 저장. 같은 videoId 가 시간마다 반복 저장됨.
-/// 최근 N시간 누적해서 쇼츠 100+개 보장하는 용도.
+/// 최근 N시간 누적해서 100+개 보장하는 용도.
 model TrendingSnapshot {
   id              String   @id @default(cuid())
+  platform        String   @default("YOUTUBE")  // 'YOUTUBE' | 'TIKTOK'
   region          String   // 'KR' 등
-  videoId         String   // YouTube 11자
+  videoId         String   // YouTube 11자 / TikTok awemeId
+  url             String?  // TikTok 영상 풀 URL (YouTube 는 videoId 로 구성 가능해서 nullable)
   title           String
   channelId       String
   channelName     String
@@ -162,6 +164,7 @@ model TrendingSnapshot {
   publishedAt     DateTime
   capturedAt      DateTime @default(now())
 
+  @@index([platform, region, capturedAt])
   @@index([region, capturedAt])
   @@index([region, isShorts, capturedAt])
   @@index([videoId])
