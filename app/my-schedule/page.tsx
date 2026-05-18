@@ -409,14 +409,9 @@ export default function MySchedulePage() {
             >
               🔄 YouTube 전체 동기화
             </button>
-            <div className="ml-auto flex flex-col items-end gap-0.5 text-[11px]">
-              <span className="font-semibold text-foreground/80">
-                ⏰ 자동 동기화: 매일 KST 02:00
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                주기·시각 변경하려면 vercel.json 수정 후 재배포 (Hobby 플랜 제약)
-              </span>
-            </div>
+            <span className="ml-auto text-[11px] font-semibold text-foreground/80">
+              ⏰ 자동 동기화: 매일 KST 02:00
+            </span>
           </div>
         )}
         {channels.length === 0 ? (
