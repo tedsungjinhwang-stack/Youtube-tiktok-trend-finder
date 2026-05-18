@@ -121,23 +121,21 @@ export default function MySchedulePage() {
     return null;
   };
 
+  /** 채널 + YouTube 연결. 이름 비워둬도 OK — OAuth 후 자동 채움 */
   const addChannelWithYoutube = async () => {
-    const id = await addChannel();
-    if (id) await connectYoutube(id);
-  };
-
-  /** 이름 안 적고 YouTube 만 먼저 연결. 채널명/URL 은 OAuth 후 자동 채움 */
-  const addByYoutubeOnly = async () => {
     const r = await fetch('/api/v1/my-schedule/channels', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: '' }),
+      body: JSON.stringify({ name: newName, category: newCategory, url: newUrl }),
     });
     const j = await r.json();
     if (!j.success) {
       alert(j.error?.message ?? '실패');
       return;
     }
+    setNewName('');
+    setNewCategory('');
+    setNewUrl('');
     setSelectedChannelId(j.data.id);
     refresh();
     await connectYoutube(j.data.id);
@@ -311,18 +309,10 @@ export default function MySchedulePage() {
             </button>
             <button
               onClick={addChannelWithYoutube}
-              disabled={!newName.trim()}
-              className="h-8 w-full rounded-md border border-primary/40 bg-primary/10 text-[11px] font-semibold text-primary hover:bg-primary/20 disabled:opacity-40"
-              title="채널 생성 + YouTube OAuth 창 자동으로 띄움"
+              className="h-8 w-full rounded-md border border-primary/40 bg-primary/10 text-[11px] font-semibold text-primary hover:bg-primary/20"
+              title="채널 생성 + YouTube OAuth. 이름 비워두면 YouTube 채널명으로 자동 채움"
             >
               + 채널 추가 & ▶️ YouTube 연결
-            </button>
-            <button
-              onClick={addByYoutubeOnly}
-              className="h-8 w-full rounded-md border bg-card text-[11px] hover:border-foreground/40"
-              title="이름 안 적고 YouTube 만 먼저 연결. 채널명·URL 은 자동으로 채워짐"
-            >
-              ▶️ YouTube 부터 연결 (이름 자동)
             </button>
           </div>
         </div>
