@@ -8,8 +8,10 @@ const REGIONS: TrendingRegion[] = ['KR', 'US', 'JP', 'GB', 'DE', 'FR', 'IN', 'BR
 
 /** KR 만 캐시 사용. 다른 region 은 realtime fallback. */
 const CACHED_REGIONS = new Set(['KR']);
-/** 캐시에서 최근 N시간 데이터 누적 (쇼츠 100+개 보장 목적) */
-const CACHE_WINDOW_HOURS = 72;
+/** 캐시 윈도우 점진 확장 (결과 적으면 자동으로 더 긴 기간 조회) */
+const WINDOW_STEPS_HOURS = [72, 168, 336, 720]; // 3일 → 7일 → 14일 → 30일
+/** 이 개수 미만이면 다음 윈도우로 확장 + realtime 으로 보충 */
+const MIN_TARGET = 100;
 
 export async function GET(req: NextRequest) {
   const country = (req.nextUrl.searchParams.get('country') ?? req.nextUrl.searchParams.get('region') ?? 'KR').toUpperCase() as TrendingRegion;
@@ -23,16 +25,41 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // 1. 캐시 우선 조회 (KR 만)
+  // 1. 캐시 우선 조회 (KR 만). 100개 미만이면 realtime 으로 보충.
   if (CACHED_REGIONS.has(country)) {
     try {
       const cached = await fetchFromCache(country, type);
-      if (cached.length > 0) {
+      if (cached.length >= MIN_TARGET) {
         return NextResponse.json({
           success: true,
           data: cached,
           meta: { total: cached.length, country, type, source: 'cache' },
         });
+      }
+      if (cached.length > 0) {
+        try {
+          const live = await fetchTrending(country, pages);
+          const filtered = filterByType(live, type);
+          const merged = mergeUnique(cached, filtered);
+          return NextResponse.json({
+            success: true,
+            data: merged,
+            meta: {
+              total: merged.length,
+              country,
+              type,
+              source: 'cache+realtime',
+              cacheCount: cached.length,
+              liveCount: filtered.length,
+            },
+          });
+        } catch {
+          return NextResponse.json({
+            success: true,
+            data: cached,
+            meta: { total: cached.length, country, type, source: 'cache' },
+          });
+        }
       }
     } catch {
       /* table 미마이그레이션 등 → realtime fallback */
@@ -80,12 +107,27 @@ export async function GET(req: NextRequest) {
   }
 }
 
-async function fetchFromCache(
-  region: string,
-  type: string
-): Promise<TrendingVideo[]> {
-  const cutoff = new Date(Date.now() - CACHE_WINDOW_HOURS * 3600_000);
+function filterByType(items: TrendingVideo[], type: string): TrendingVideo[] {
+  if (type === 'short') return items.filter((v) => v.isShorts);
+  if (type === 'long') return items.filter((v) => !v.isShorts);
+  return items;
+}
 
+function mergeUnique(cached: TrendingVideo[], live: TrendingVideo[]): TrendingVideo[] {
+  const seen = new Set(cached.map((v) => v.videoId));
+  const merged = [...cached];
+  for (const v of live) {
+    if (seen.has(v.videoId)) continue;
+    seen.add(v.videoId);
+    merged.push(v);
+  }
+  merged.sort((a, b) => b.viewCount - a.viewCount);
+  merged.forEach((v, i) => (v.rank = i + 1));
+  return merged;
+}
+
+async function queryCacheRows(region: string, type: string, hours: number) {
+  const cutoff = new Date(Date.now() - hours * 3600_000);
   const where: { region: string; capturedAt: { gte: Date }; isShorts?: boolean } = {
     region,
     capturedAt: { gte: cutoff },
@@ -93,12 +135,10 @@ async function fetchFromCache(
   if (type === 'short') where.isShorts = true;
   else if (type === 'long') where.isShorts = false;
 
-  // 같은 videoId 가 시간마다 반복 저장됨 → 가장 최근 capturedAt 기준 dedupe.
-  // Postgres DISTINCT ON 흉내내기: 전부 가져온 뒤 JS 에서 dedupe (영상 수 작아서 OK).
   const rows = await prisma.trendingSnapshot.findMany({
     where,
     orderBy: [{ capturedAt: 'desc' }, { viewCount: 'desc' }],
-    take: 1000, // 안전 상한
+    take: 5000,
   });
 
   const seen = new Set<string>();
@@ -108,9 +148,20 @@ async function fetchFromCache(
     seen.add(r.videoId);
     dedupe.push(r);
   }
-
-  // viewCount 내림차순으로 최종 정렬
   dedupe.sort((a, b) => Number(b.viewCount) - Number(a.viewCount));
+  return dedupe;
+}
+
+async function fetchFromCache(
+  region: string,
+  type: string
+): Promise<TrendingVideo[]> {
+  // 결과 100개 못 채우면 윈도우 점진 확장 (3일 → 7일 → 14일 → 30일)
+  let dedupe: Awaited<ReturnType<typeof queryCacheRows>> = [];
+  for (const hours of WINDOW_STEPS_HOURS) {
+    dedupe = await queryCacheRows(region, type, hours);
+    if (dedupe.length >= MIN_TARGET) break;
+  }
 
   return dedupe.map((r, i) => ({
     rank: i + 1,
