@@ -63,17 +63,12 @@ export async function POST(req: Request) {
     category?: string;
     url?: string;
   };
-  if (!name?.trim()) {
-    return NextResponse.json(
-      { success: false, error: { code: 'BAD_INPUT', message: '채널명 필수' } },
-      { status: 400 }
-    );
-  }
+  // 이름 비어있어도 OK (YouTube 연결 시 자동 채움)
   try {
     const max = await prisma.myChannel.aggregate({ _max: { sortOrder: true } });
     const created = await prisma.myChannel.create({
       data: {
-        name: name.trim(),
+        name: name?.trim() || '(미설정)',
         category: category?.trim() || null,
         url: url?.trim() || null,
         sortOrder: (max._max.sortOrder ?? 0) + 1,

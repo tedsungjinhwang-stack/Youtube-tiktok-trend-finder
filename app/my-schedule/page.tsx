@@ -126,6 +126,23 @@ export default function MySchedulePage() {
     if (id) await connectYoutube(id);
   };
 
+  /** 이름 안 적고 YouTube 만 먼저 연결. 채널명/URL 은 OAuth 후 자동 채움 */
+  const addByYoutubeOnly = async () => {
+    const r = await fetch('/api/v1/my-schedule/channels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: '' }),
+    });
+    const j = await r.json();
+    if (!j.success) {
+      alert(j.error?.message ?? '실패');
+      return;
+    }
+    setSelectedChannelId(j.data.id);
+    refresh();
+    await connectYoutube(j.data.id);
+  };
+
   const removeChannel = async (id: string) => {
     if (!confirm('이 채널과 모든 예약 영상을 삭제할까요?')) return;
     await fetch(`/api/v1/my-schedule/channels/${id}`, { method: 'DELETE' });
@@ -299,6 +316,13 @@ export default function MySchedulePage() {
               title="채널 생성 + YouTube OAuth 창 자동으로 띄움"
             >
               + 채널 추가 & ▶️ YouTube 연결
+            </button>
+            <button
+              onClick={addByYoutubeOnly}
+              className="h-8 w-full rounded-md border bg-card text-[11px] hover:border-foreground/40"
+              title="이름 안 적고 YouTube 만 먼저 연결. 채널명·URL 은 자동으로 채워짐"
+            >
+              ▶️ YouTube 부터 연결 (이름 자동)
             </button>
           </div>
         </div>
