@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 const tabs = [
-  { href: '/popular-feed', label: '인기피드검색' },
+  { href: '/popular-feed', label: '해시태그검색' },
   { href: '/trending', label: '실시간 인기' },
   { href: '/', label: '통합' },
   { href: '/youtube', label: 'YouTube' },
