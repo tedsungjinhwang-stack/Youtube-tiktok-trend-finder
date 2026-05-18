@@ -110,6 +110,9 @@ export async function syncMyChannel(channelId: string): Promise<void> {
   });
   if (!ch) return;
 
+  // 비활성 채널: 기존 이벤트 그대로 두고 그냥 스킵 (다시 활성화하면 재개)
+  if (!ch.isActive) return;
+
   const count = ch._count.videos;
   const latest = ch.videos[0];
 

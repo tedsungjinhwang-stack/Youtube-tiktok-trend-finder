@@ -9,12 +9,21 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function PATCH(req: Request, { params }: Ctx) {
   const { id } = await params;
   const body = await req.json();
-  const data: { name?: string; category?: string | null; url?: string | null } = {};
+  const data: {
+    name?: string;
+    category?: string | null;
+    url?: string | null;
+    isActive?: boolean;
+  } = {};
   if (typeof body.name === 'string') data.name = body.name.trim();
   if ('category' in body) data.category = body.category?.trim() || null;
   if ('url' in body) data.url = body.url?.trim() || null;
+  if (typeof body.isActive === 'boolean') data.isActive = body.isActive;
   const updated = await prisma.myChannel.update({ where: { id }, data });
-  if (data.name) syncMyChannel(id).catch(() => {});
+  // 채널명 변경 또는 활성 상태 변경 → 캘린더 동기화 (비활성이면 syncMyChannel 안에서 스킵)
+  if (data.name !== undefined || data.isActive !== undefined) {
+    syncMyChannel(id).catch(() => {});
+  }
   return NextResponse.json({ success: true, data: updated });
 }
 
