@@ -1,8 +1,10 @@
 /**
- * Google Calendar API 헬퍼 — 이벤트 생성/수정/삭제.
+ * Google Calendar API 헬퍼.
  *
- * 이벤트 제목 정책: `{channelName}` (유저 요청대로 채널명만)
- * 시작=종료=scheduledAt (30분 짜리 이벤트로 생성)
+ * 정책: **채널당 1개 이벤트** (개별 영상마다 X).
+ *   - 이벤트 제목: `{channelName} ({videoCount})`
+ *   - 이벤트 시각: 그 채널의 가장 마지막 예약 영상의 scheduledAt
+ *   - 영상 0개면 이벤트 삭제
  */
 
 import { getValidAccessToken } from './oauth';
@@ -16,7 +18,7 @@ async function call(
   body?: unknown
 ): Promise<Response> {
   const token = await getValidAccessToken();
-  if (!token) throw new Error('Google 연결 안 됨');
+  if (!token) throw new Error('Google 캘린더 연결 없음');
   return fetch(`${API}${path}`, {
     method,
     headers: {
@@ -35,11 +37,8 @@ type EventInput = {
   calendarId: string;
   title: string;
   startISO: string;
-  /** 분 단위 (기본 30분) */
   durationMinutes?: number;
   notes?: string;
-  /** YouTube 등 채널 url */
-  link?: string;
 };
 
 function buildEventBody(e: EventInput) {
@@ -47,84 +46,131 @@ function buildEventBody(e: EventInput) {
   const end = new Date(start.getTime() + (e.durationMinutes ?? 30) * 60_000);
   return {
     summary: e.title,
-    description: [e.notes, e.link].filter(Boolean).join('\n\n') || undefined,
+    description: e.notes || undefined,
     start: { dateTime: start.toISOString(), timeZone: 'Asia/Seoul' },
     end: { dateTime: end.toISOString(), timeZone: 'Asia/Seoul' },
   };
 }
 
-export async function createEvent(e: EventInput): Promise<string> {
+async function createEvent(e: EventInput): Promise<string> {
   const r = await call('POST', calendarPath(e.calendarId), buildEventBody(e));
   if (!r.ok) throw new Error(`이벤트 생성 실패 (${r.status}): ${await r.text()}`);
   const j = (await r.json()) as { id: string };
   return j.id;
 }
 
-export async function updateEvent(eventId: string, e: EventInput): Promise<void> {
+async function updateEvent(eventId: string, e: EventInput): Promise<void> {
   const r = await call(
     'PATCH',
     `${calendarPath(e.calendarId)}/${encodeURIComponent(eventId)}`,
     buildEventBody(e)
   );
-  if (!r.ok) throw new Error(`이벤트 수정 실패 (${r.status}): ${await r.text()}`);
+  if (!r.ok) {
+    const txt = await r.text();
+    if (r.status === 404 || r.status === 410)
+      throw new Error(`404/410: ${txt.slice(0, 80)}`);
+    throw new Error(`이벤트 수정 실패 (${r.status}): ${txt}`);
+  }
 }
 
-export async function deleteEvent(eventId: string, calendarId: string): Promise<void> {
+async function deleteEvent(eventId: string, calendarId: string): Promise<void> {
   const r = await call(
     'DELETE',
     `${calendarPath(calendarId)}/${encodeURIComponent(eventId)}`
   );
-  // 404 (이미 삭제됨) 도 성공으로 처리
   if (!r.ok && r.status !== 404 && r.status !== 410)
     throw new Error(`이벤트 삭제 실패 (${r.status}): ${await r.text()}`);
 }
 
-/** ScheduledVideo 1건을 GCal 에 upsert. 호출 실패해도 throw 안 함 (best-effort). */
-export async function syncScheduledVideo(videoId: string): Promise<void> {
-  const v = await prisma.scheduledVideo.findUnique({
-    where: { id: videoId },
-    include: { channel: true },
-  });
-  if (!v) return;
+export async function syncMyChannel(channelId: string): Promise<void> {
   const auth = await prisma.googleOAuth.findUnique({ where: { id: 'default' } });
   if (!auth) return;
 
+  const ch = await prisma.myChannel.findUnique({
+    where: { id: channelId },
+    include: {
+      videos: { orderBy: { scheduledAt: 'desc' }, take: 1 },
+      _count: { select: { videos: true } },
+    },
+  });
+  if (!ch) return;
+
+  const count = ch._count.videos;
+  const latest = ch.videos[0];
+
+  if (count === 0 || !latest) {
+    if (ch.gcalEventId) {
+      try {
+        await deleteEvent(ch.gcalEventId, auth.calendarId);
+      } catch (e) {
+        console.error('[gcal channel event delete]', (e as Error).message);
+      }
+      await prisma.myChannel.update({
+        where: { id: channelId },
+        data: { gcalEventId: null, gcalSyncedAt: new Date() },
+      });
+    }
+    return;
+  }
+
   const input: EventInput = {
     calendarId: auth.calendarId,
-    title: v.channel.name,
-    startISO: v.scheduledAt.toISOString(),
-    notes: [v.title, v.notes].filter(Boolean).join('\n'),
-    link: v.channel.url ?? undefined,
+    title: `${ch.name} (${count})`,
+    startISO: latest.scheduledAt.toISOString(),
+    notes: `예약 영상 ${count}개. 마지막: ${latest.title}`,
   };
 
   try {
-    if (v.gcalEventId) {
-      await updateEvent(v.gcalEventId, input);
+    if (ch.gcalEventId) {
+      try {
+        await updateEvent(ch.gcalEventId, input);
+      } catch (e) {
+        const msg = (e as Error).message;
+        if (/404|410/.test(msg)) {
+          const id = await createEvent(input);
+          await prisma.myChannel.update({
+            where: { id: channelId },
+            data: { gcalEventId: id, gcalSyncedAt: new Date() },
+          });
+          return;
+        }
+        throw e;
+      }
     } else {
       const id = await createEvent(input);
-      await prisma.scheduledVideo.update({
-        where: { id: v.id },
+      await prisma.myChannel.update({
+        where: { id: channelId },
         data: { gcalEventId: id, gcalSyncedAt: new Date() },
       });
       return;
     }
-    await prisma.scheduledVideo.update({
-      where: { id: v.id },
+    await prisma.myChannel.update({
+      where: { id: channelId },
       data: { gcalSyncedAt: new Date() },
     });
   } catch (e) {
-    console.error('[gcal sync]', (e as Error).message);
+    console.error('[gcal channel sync]', (e as Error).message);
   }
+}
+
+export async function unsyncMyChannel(channelId: string): Promise<void> {
+  const auth = await prisma.googleOAuth.findUnique({ where: { id: 'default' } });
+  const ch = await prisma.myChannel.findUnique({ where: { id: channelId } });
+  if (!auth || !ch?.gcalEventId) return;
+  try {
+    await deleteEvent(ch.gcalEventId, auth.calendarId);
+  } catch (e) {
+    console.error('[gcal channel unsync]', (e as Error).message);
+  }
+}
+
+/** 하위 호환: video 단위 호출 → 채널 단위 sync 로 위임 */
+export async function syncScheduledVideo(videoId: string): Promise<void> {
+  const v = await prisma.scheduledVideo.findUnique({ where: { id: videoId } });
+  if (v) await syncMyChannel(v.channelId);
 }
 
 export async function unsyncScheduledVideo(videoId: string): Promise<void> {
   const v = await prisma.scheduledVideo.findUnique({ where: { id: videoId } });
-  if (!v?.gcalEventId) return;
-  const auth = await prisma.googleOAuth.findUnique({ where: { id: 'default' } });
-  if (!auth) return;
-  try {
-    await deleteEvent(v.gcalEventId, auth.calendarId);
-  } catch (e) {
-    console.error('[gcal unsync]', (e as Error).message);
-  }
+  if (v) await syncMyChannel(v.channelId);
 }

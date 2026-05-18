@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { syncMyChannel, unsyncMyChannel } from '@/lib/google/calendar';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,11 +14,13 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if ('category' in body) data.category = body.category?.trim() || null;
   if ('url' in body) data.url = body.url?.trim() || null;
   const updated = await prisma.myChannel.update({ where: { id }, data });
+  if (data.name) syncMyChannel(id).catch(() => {});
   return NextResponse.json({ success: true, data: updated });
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
   const { id } = await params;
+  await unsyncMyChannel(id).catch(() => {});
   await prisma.myChannel.delete({ where: { id } });
   return NextResponse.json({ success: true });
 }

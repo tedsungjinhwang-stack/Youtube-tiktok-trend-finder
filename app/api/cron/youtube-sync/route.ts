@@ -1,18 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { syncChannelScheduled } from '@/lib/google/youtube';
-import { syncScheduledVideo } from '@/lib/google/calendar';
+import { syncMyChannel } from '@/lib/google/calendar';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Daily cron — 모든 YouTube 연결된 채널의 예약 영상을 가져와
- * ScheduledVideo upsert + Google Calendar 푸시.
- *
- * Vercel cron 은 CRON_SECRET 헤더로 보호 (선택사항).
+ * Daily cron — 모든 YouTube 연결 채널의 예약 영상을 가져와 ScheduledVideo upsert
+ * + 채널 단위 1개 GCal 이벤트 upsert.
  */
 export async function GET(req: Request) {
-  // Vercel cron 인증 (옵션)
   const secret = process.env.CRON_SECRET;
   if (secret) {
     const auth = req.headers.get('authorization');
@@ -27,13 +24,7 @@ export async function GET(req: Request) {
   for (const o of oauths) {
     try {
       const count = await syncChannelScheduled(o.id);
-      // 새로 들어온/업데이트된 영상을 캘린더 동기화
-      const vids = await prisma.scheduledVideo.findMany({
-        where: { channelId: o.myChannelId, youtubeVideoId: { not: null } },
-      });
-      for (const v of vids) {
-        await syncScheduledVideo(v.id).catch(() => {});
-      }
+      await syncMyChannel(o.myChannelId).catch(() => {});
       results.push({ channelId: o.myChannelId, count });
     } catch (e) {
       const msg = (e as Error).message;
