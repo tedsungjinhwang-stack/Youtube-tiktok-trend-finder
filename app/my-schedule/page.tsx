@@ -143,7 +143,7 @@ export default function MySchedulePage() {
   };
 
   const addVideo = async () => {
-    if (!selected || !vTitle.trim() || !vWhen) return;
+    if (!selected || !vWhen) return;
     const r = await fetch('/api/v1/my-schedule/videos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -487,7 +487,7 @@ export default function MySchedulePage() {
                 <input
                   value={vTitle}
                   onChange={(e) => setVTitle(e.target.value)}
-                  placeholder="영상 제목 / 컨셉"
+                  placeholder="영상 제목 / 컨셉 (선택)"
                   className="col-span-5 h-9 rounded-md border bg-background px-3 text-sm"
                 />
                 <input
@@ -504,7 +504,7 @@ export default function MySchedulePage() {
                 />
                 <button
                   onClick={addVideo}
-                  disabled={!vTitle.trim() || !vWhen}
+                  disabled={!vWhen}
                   className="col-span-1 h-9 rounded-md bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
                 >
                   + 예약

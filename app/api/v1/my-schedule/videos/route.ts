@@ -12,16 +12,16 @@ export async function POST(req: Request) {
     scheduledAt?: string;
     notes?: string;
   };
-  if (!channelId || !title?.trim() || !scheduledAt) {
+  if (!channelId || !scheduledAt) {
     return NextResponse.json(
-      { success: false, error: { code: 'BAD_INPUT', message: 'channelId, title, scheduledAt 필수' } },
+      { success: false, error: { code: 'BAD_INPUT', message: 'channelId, scheduledAt 필수' } },
       { status: 400 }
     );
   }
   const created = await prisma.scheduledVideo.create({
     data: {
       channelId,
-      title: title.trim(),
+      title: title?.trim() || '',
       scheduledAt: new Date(scheduledAt),
       notes: notes?.trim() || null,
     },
