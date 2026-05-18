@@ -283,22 +283,35 @@ export default function MySchedulePage() {
               아직 채널이 없습니다
             </p>
           ) : (
-            channels.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setSelectedChannelId(c.id)}
-                className={cn(
-                  'mb-1 block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-accent',
-                  selectedChannelId === c.id && 'bg-accent font-semibold'
-                )}
-              >
-                <div className="truncate">{c.name}</div>
-                <div className="flex gap-2 text-[10.5px] text-muted-foreground">
-                  {c.category && <span>{c.category}</span>}
-                  <span>· {c.videos.length}개 예약</span>
-                </div>
-              </button>
-            ))
+            channels.map((c) => {
+              const sorted = [...c.videos].sort(
+                (a, b) =>
+                  new Date(b.scheduledAt).getTime() -
+                  new Date(a.scheduledAt).getTime()
+              );
+              const last = sorted[0];
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedChannelId(c.id)}
+                  className={cn(
+                    'mb-1 block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-accent',
+                    selectedChannelId === c.id && 'bg-accent font-semibold'
+                  )}
+                >
+                  <div className="truncate">{c.name}</div>
+                  <div className="flex flex-wrap gap-x-2 text-[10.5px] text-muted-foreground">
+                    {c.category && <span>{c.category}</span>}
+                    <span>· {c.videos.length}개 예약</span>
+                  </div>
+                  {last && (
+                    <div className="mt-0.5 text-[10px] text-muted-foreground/80">
+                      마지막: {fmt(last.scheduledAt)}
+                    </div>
+                  )}
+                </button>
+              );
+            })
           )}
         </div>
 
@@ -430,6 +443,27 @@ export default function MySchedulePage() {
                 </div>
               </div>
             </header>
+
+            {/* 요약: 총 N개 + 마지막 예약 일자 */}
+            {(() => {
+              const sorted = [...selected.videos].sort(
+                (a, b) =>
+                  new Date(b.scheduledAt).getTime() -
+                  new Date(a.scheduledAt).getTime()
+              );
+              const last = sorted[0];
+              return (
+                <div className="border-b bg-background px-6 py-2.5 text-xs">
+                  총 <span className="font-bold">{selected.videos.length}</span>개 예약
+                  {last && (
+                    <>
+                      <span className="text-muted-foreground"> · 마지막 예약: </span>
+                      <span className="font-semibold">{fmt(last.scheduledAt)}</span>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* 영상 추가 폼 */}
             <div className="border-b bg-secondary/30 p-4">

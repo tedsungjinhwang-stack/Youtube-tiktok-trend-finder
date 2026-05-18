@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { syncScheduledVideo } from '@/lib/google/calendar';
+import { syncMyChannel } from '@/lib/google/calendar';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +26,6 @@ export async function POST(req: Request) {
       notes: notes?.trim() || null,
     },
   });
-  // best-effort GCal 동기화
-  syncScheduledVideo(created.id).catch(() => {});
+  syncMyChannel(channelId).catch(() => {});
   return NextResponse.json({ success: true, data: created });
 }
