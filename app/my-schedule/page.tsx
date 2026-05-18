@@ -556,19 +556,17 @@ function DashRow({
         <td className="px-4 py-2.5">
           {last ? (
             <div className="truncate text-xs" title={last.title}>
-              <span className="mr-1.5 text-[10px] font-semibold text-muted-foreground">
-                ({c.videos.length})
-              </span>
               {last.title || (
                 <span className="italic text-muted-foreground">제목 없음</span>
               )}
+              <span className="ml-1.5 text-sm font-bold">
+                ({c.videos.length})
+              </span>
             </div>
           ) : (
             <span className="text-xs text-amber-700 dark:text-amber-300">
-              <span className="mr-1.5 text-[10px] font-semibold text-amber-900/60 dark:text-amber-200/60">
-                (0)
-              </span>
               ⚠️ 영상 없음 — 업로드 필요
+              <span className="ml-1.5 text-sm font-bold">(0)</span>
             </span>
           )}
         </td>
