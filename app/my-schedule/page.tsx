@@ -370,20 +370,6 @@ export default function MySchedulePage() {
                 ✓ 연결됨 {google.email ? `(${google.email})` : ''}
               </div>
               <button
-                onClick={syncGcalAll}
-                className="h-7 w-full rounded-md bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-                title="활성 채널 전체의 캘린더 이벤트 강제 갱신"
-              >
-                🗓️ 캘린더 전체 동기화
-              </button>
-              <button
-                onClick={syncYoutubeAll}
-                className="h-7 w-full rounded-md border bg-card text-xs hover:border-foreground/40"
-                title="YouTube 연결된 활성 채널 전체의 예약 영상 일괄 가져오기"
-              >
-                🔄 YouTube 전체 동기화
-              </button>
-              <button
                 onClick={disconnectGoogle}
                 className="h-7 w-full rounded-md border bg-background text-[11px] text-muted-foreground hover:border-destructive/40 hover:text-foreground"
               >
@@ -403,6 +389,31 @@ export default function MySchedulePage() {
 
       {/* 우측: 채널 대시보드 — 모든 채널의 마지막 예약 영상 한눈에 */}
       <main className="flex flex-1 flex-col overflow-hidden">
+        {/* 전체 적용 동기화 바 (Google 연결됨일 때만) */}
+        {google.connected && (
+          <div className="flex items-center gap-3 border-b bg-primary/5 px-6 py-3">
+            <span className="rounded bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+              전체 적용
+            </span>
+            <button
+              onClick={syncGcalAll}
+              className="flex h-10 items-center gap-2 rounded-lg border-2 border-primary/50 bg-primary/10 px-5 text-sm font-bold text-primary hover:bg-primary/20"
+              title="활성 채널 전체 캘린더 이벤트 강제 갱신"
+            >
+              🗓️ 캘린더 전체 동기화
+            </button>
+            <button
+              onClick={syncYoutubeAll}
+              className="flex h-10 items-center gap-2 rounded-lg border-2 border-primary/50 bg-primary/10 px-5 text-sm font-bold text-primary hover:bg-primary/20"
+              title="YouTube 연결된 활성 채널 전체 예약 영상 가져오기"
+            >
+              🔄 YouTube 전체 동기화
+            </button>
+            <span className="ml-auto text-[11px] text-muted-foreground">
+              매일 KST 02:00 자동 실행
+            </span>
+          </div>
+        )}
         {channels.length === 0 ? (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
             왼쪽에서 채널을 추가하세요
