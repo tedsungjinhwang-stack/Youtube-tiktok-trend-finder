@@ -81,6 +81,24 @@ export async function GET(req: Request) {
         },
       });
 
+      // MyChannel.name 비어있거나 '(미설정)' 이면 YouTube 채널명으로 자동 채움.
+      // url 비어있고 youtubeChannelId 있으면 채널 URL 도 채움.
+      if (ytChannelName || ytChannelId) {
+        const ch = await prisma.myChannel.findUnique({ where: { id: myChannelId } });
+        if (ch) {
+          const data: { name?: string; url?: string } = {};
+          if (ytChannelName && (!ch.name || ch.name === '(미설정)')) {
+            data.name = ytChannelName;
+          }
+          if (ytChannelId && !ch.url) {
+            data.url = `https://www.youtube.com/channel/${ytChannelId}`;
+          }
+          if (Object.keys(data).length > 0) {
+            await prisma.myChannel.update({ where: { id: myChannelId }, data });
+          }
+        }
+      }
+
       syncChannelScheduled(saved.id).catch((e) =>
         console.error('[yt initial sync]', e)
       );
