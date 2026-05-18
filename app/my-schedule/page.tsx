@@ -237,13 +237,14 @@ export default function MySchedulePage() {
     setTimeout(() => clearInterval(iv), 5 * 60_000);
   };
 
-  const syncYoutube = async (channelId: string) => {
-    const r = await fetch(`/api/v1/my-schedule/channels/${channelId}/yt`, {
-      method: 'POST',
-    });
+  const syncYoutubeAll = async () => {
+    const r = await fetch('/api/v1/my-schedule/sync-yt-all', { method: 'POST' });
     const j = await r.json();
-    if (!j.success) alert(j.error?.message ?? '동기화 실패');
-    else alert(`✓ ${j.data.count}개 예약 영상 동기화됨`);
+    if (!j.success) alert(j.error?.message ?? '실패');
+    else
+      alert(
+        `✓ YouTube 동기화 완료 (${j.data.synced}/${j.data.total} 채널, 총 ${j.data.totalVideos}개 영상)`
+      );
     refresh();
   };
 
@@ -253,13 +254,11 @@ export default function MySchedulePage() {
     refresh();
   };
 
-  const syncGcal = async (channelId: string) => {
-    const r = await fetch(`/api/v1/my-schedule/channels/${channelId}/sync-gcal`, {
-      method: 'POST',
-    });
+  const syncGcalAll = async () => {
+    const r = await fetch('/api/v1/my-schedule/sync-gcal-all', { method: 'POST' });
     const j = await r.json();
-    if (!j.success) alert(j.error?.message ?? '캘린더 동기화 실패');
-    else alert('✓ 구글캘린더 동기화 완료');
+    if (!j.success) alert(j.error?.message ?? '실패');
+    else alert(`✓ 캘린더 동기화 완료 (${j.data.synced}/${j.data.total} 채널)`);
     refresh();
   };
 
@@ -371,8 +370,22 @@ export default function MySchedulePage() {
                 ✓ 연결됨 {google.email ? `(${google.email})` : ''}
               </div>
               <button
+                onClick={syncGcalAll}
+                className="h-7 w-full rounded-md bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                title="활성 채널 전체의 캘린더 이벤트 강제 갱신"
+              >
+                🗓️ 캘린더 전체 동기화
+              </button>
+              <button
+                onClick={syncYoutubeAll}
+                className="h-7 w-full rounded-md border bg-card text-xs hover:border-foreground/40"
+                title="YouTube 연결된 활성 채널 전체의 예약 영상 일괄 가져오기"
+              >
+                🔄 YouTube 전체 동기화
+              </button>
+              <button
                 onClick={disconnectGoogle}
-                className="h-7 w-full rounded-md border bg-background text-xs hover:border-destructive/40"
+                className="h-7 w-full rounded-md border bg-background text-[11px] text-muted-foreground hover:border-destructive/40 hover:text-foreground"
               >
                 연결 해제
               </button>
@@ -448,25 +461,12 @@ export default function MySchedulePage() {
                       <div className="text-[10.5px] text-muted-foreground">
                         ▶️ {selected.youtubeOauth.youtubeChannelName ?? selected.youtubeOauth.accountEmail ?? '연결됨'}
                       </div>
-                      <div className="flex gap-1.5">
-                        <button
-                          onClick={() => syncYoutube(selected.id)}
-                          className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-foreground/40"
-                          title={
-                            selected.youtubeOauth.lastSyncedAt
-                              ? `마지막 동기화: ${fmt(selected.youtubeOauth.lastSyncedAt)}`
-                              : '아직 동기화 안 함'
-                          }
-                        >
-                          🔄 YouTube 동기화
-                        </button>
-                        <button
-                          onClick={() => disconnectYoutube(selected.id)}
-                          className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-destructive/40"
-                        >
-                          YT 연결 해제
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => disconnectYoutube(selected.id)}
+                        className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-destructive/40"
+                      >
+                        YT 연결 해제
+                      </button>
                       {selected.youtubeOauth.lastSyncError && (
                         <div className="max-w-[240px] text-right text-[10px] text-destructive">
                           ⚠️ {selected.youtubeOauth.lastSyncError}
@@ -481,20 +481,6 @@ export default function MySchedulePage() {
                       ▶️ YouTube 연결
                     </button>
                   )}
-                  <button
-                    onClick={() => syncGcal(selected.id)}
-                    disabled={!google.connected || !selected.isActive}
-                    className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-foreground/40 disabled:opacity-40"
-                    title={
-                      !selected.isActive
-                        ? '비활성 채널은 동기화 안 됨'
-                        : google.connected
-                          ? '구글캘린더 이벤트 강제 갱신'
-                          : 'Google 캘린더 미연결'
-                    }
-                  >
-                    🗓️ 캘린더 동기화
-                  </button>
                   <button
                     onClick={() =>
                       updateChannel(selected.id, { isActive: !selected.isActive } as Partial<MyChannel>)
