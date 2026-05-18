@@ -237,6 +237,16 @@ export default function MySchedulePage() {
     refresh();
   };
 
+  const syncGcal = async (channelId: string) => {
+    const r = await fetch(`/api/v1/my-schedule/channels/${channelId}/sync-gcal`, {
+      method: 'POST',
+    });
+    const j = await r.json();
+    if (!j.success) alert(j.error?.message ?? '캘린더 동기화 실패');
+    else alert('✓ 구글캘린더 동기화 완료');
+    refresh();
+  };
+
   if (loading) {
     return <div className="p-8 text-sm text-muted-foreground">로딩 중…</div>;
   }
@@ -450,6 +460,14 @@ export default function MySchedulePage() {
                       ▶️ YouTube 연결
                     </button>
                   )}
+                  <button
+                    onClick={() => syncGcal(selected.id)}
+                    disabled={!google.connected}
+                    className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-foreground/40 disabled:opacity-40"
+                    title={google.connected ? '구글캘린더 이벤트 강제 갱신' : 'Google 캘린더 미연결'}
+                  >
+                    🗓️ 캘린더 동기화
+                  </button>
                   <button
                     onClick={() => removeChannel(selected.id)}
                     className="rounded-md border bg-card px-2.5 py-1 text-xs hover:border-destructive/40"
