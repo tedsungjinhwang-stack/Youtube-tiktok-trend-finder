@@ -572,69 +572,56 @@ export default function MySchedulePage() {
                   예약된 영상이 없습니다
                 </p>
               ) : (
-                <ul className="space-y-2">
+                <ul className="space-y-1">
                   {selected.videos.map((v) => (
                     <li
                       key={v.id}
-                      className="rounded-lg border bg-card p-3 hover:border-foreground/30"
+                      className="flex items-center gap-2 rounded border bg-card px-2 py-1.5 text-xs hover:border-foreground/30"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <input
-                            value={v.title}
-                            onChange={(e) =>
-                              setChannels((prev) =>
-                                prev.map((c) =>
-                                  c.id === selected.id
-                                    ? {
-                                        ...c,
-                                        videos: c.videos.map((x) =>
-                                          x.id === v.id ? { ...x, title: e.target.value } : x
-                                        ),
-                                      }
-                                    : c
-                                )
-                              )
-                            }
-                            onBlur={(e) => updateVideo(v.id, { title: e.target.value })}
-                            className="w-full border-none bg-transparent text-sm font-semibold outline-none"
-                          />
-                          <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-                            <input
-                              type="datetime-local"
-                              value={toInputValue(v.scheduledAt)}
-                              onChange={(e) =>
-                                updateVideo(v.id, {
-                                  scheduledAt: new Date(e.target.value).toISOString(),
-                                })
-                              }
-                              className="h-6 rounded border bg-background px-1.5 text-[11px]"
-                            />
-                            <span>📅 {fmt(v.scheduledAt)}</span>
-                            {v.gcalEventId && <span>✓ 캘린더 동기화됨</span>}
-                          </div>
-                          {(v.notes ?? '') && (
-                            <p className="mt-1 text-xs text-muted-foreground">{v.notes}</p>
-                          )}
-                        </div>
-                        <div className="flex gap-1.5">
-                          <select
-                            value={v.status}
-                            onChange={(e) => updateVideo(v.id, { status: e.target.value })}
-                            className="h-7 rounded border bg-background px-1.5 text-[11px]"
-                          >
-                            <option value="planned">계획</option>
-                            <option value="in_progress">제작중</option>
-                            <option value="done">완료</option>
-                          </select>
-                          <button
-                            onClick={() => removeVideo(v.id)}
-                            className="rounded border bg-background px-2 text-[11px] hover:border-destructive/40"
-                          >
-                            삭제
-                          </button>
-                        </div>
-                      </div>
+                      <input
+                        type="datetime-local"
+                        value={toInputValue(v.scheduledAt)}
+                        onChange={(e) =>
+                          updateVideo(v.id, {
+                            scheduledAt: new Date(e.target.value).toISOString(),
+                          })
+                        }
+                        className="h-7 w-[160px] shrink-0 rounded border bg-background px-1.5 text-[11px]"
+                      />
+                      <input
+                        value={v.title}
+                        onChange={(e) =>
+                          setChannels((prev) =>
+                            prev.map((c) =>
+                              c.id === selected.id
+                                ? {
+                                    ...c,
+                                    videos: c.videos.map((x) =>
+                                      x.id === v.id ? { ...x, title: e.target.value } : x
+                                    ),
+                                  }
+                                : c
+                            )
+                          )
+                        }
+                        onBlur={(e) => updateVideo(v.id, { title: e.target.value })}
+                        placeholder="제목 (선택)"
+                        className="min-w-0 flex-1 border-none bg-transparent text-xs outline-none"
+                      />
+                      {v.notes && (
+                        <span
+                          className="truncate text-[10px] text-muted-foreground"
+                          title={v.notes}
+                        >
+                          {v.notes}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => removeVideo(v.id)}
+                        className="shrink-0 rounded border bg-background px-2 py-1 text-[10px] hover:border-destructive/40"
+                      >
+                        삭제
+                      </button>
                     </li>
                   ))}
                 </ul>
