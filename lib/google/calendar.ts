@@ -113,11 +113,14 @@ export async function syncMyChannel(channelId: string): Promise<void> {
     return;
   }
 
+  // 제목 포맷: "{채널명} / M/D HH:mm ({개수})" — KST 기준
+  const kst = new Date(latest.scheduledAt.getTime() + 9 * 60 * 60 * 1000);
+  const dateLabel = `${kst.getUTCMonth() + 1}/${kst.getUTCDate()} ${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
   const input: EventInput = {
     calendarId: auth.calendarId,
-    title: `${ch.name} (${count})`,
+    title: `${ch.name} / ${dateLabel} (${count})`,
     startISO: latest.scheduledAt.toISOString(),
-    notes: `예약 영상 ${count}개. 마지막: ${latest.title}`,
+    notes: `예약 영상 ${count}개${latest.title ? `. 마지막: ${latest.title}` : ''}`,
   };
 
   try {
