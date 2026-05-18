@@ -36,13 +36,28 @@ function calendarPath(calendarId: string) {
 type EventInput = {
   calendarId: string;
   title: string;
-  startISO: string;
+  /** 시각 기반 (영상 예약시) */
+  startISO?: string;
   durationMinutes?: number;
+  /** 종일 (YYYY-MM-DD, KST). 있으면 startISO 무시 */
+  allDayDate?: string;
   notes?: string;
 };
 
 function buildEventBody(e: EventInput) {
-  const start = new Date(e.startISO);
+  if (e.allDayDate) {
+    const startStr = e.allDayDate;
+    const endDate = new Date(`${startStr}T00:00:00Z`);
+    endDate.setUTCDate(endDate.getUTCDate() + 1);
+    const endStr = endDate.toISOString().slice(0, 10);
+    return {
+      summary: e.title,
+      description: e.notes || undefined,
+      start: { date: startStr },
+      end: { date: endStr },
+    };
+  }
+  const start = new Date(e.startISO!);
   const end = new Date(start.getTime() + (e.durationMinutes ?? 30) * 60_000);
   return {
     summary: e.title,
@@ -98,30 +113,28 @@ export async function syncMyChannel(channelId: string): Promise<void> {
   const count = ch._count.videos;
   const latest = ch.videos[0];
 
+  let input: EventInput;
   if (count === 0 || !latest) {
-    if (ch.gcalEventId) {
-      try {
-        await deleteEvent(ch.gcalEventId, auth.calendarId);
-      } catch (e) {
-        console.error('[gcal channel event delete]', (e as Error).message);
-      }
-      await prisma.myChannel.update({
-        where: { id: channelId },
-        data: { gcalEventId: null, gcalSyncedAt: new Date() },
-      });
-    }
-    return;
+    // 예약 영상 0개 → 오늘 종일로 "영상업로드 필요" 알림
+    const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const today = `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, '0')}-${String(kstNow.getUTCDate()).padStart(2, '0')}`;
+    input = {
+      calendarId: auth.calendarId,
+      title: `${ch.name}, 영상업로드 필요`,
+      allDayDate: today,
+      notes: '예약된 영상이 없습니다',
+    };
+  } else {
+    // 제목 포맷: "{채널명} / M/D HH:mm ({개수})" — KST 기준
+    const kst = new Date(latest.scheduledAt.getTime() + 9 * 60 * 60 * 1000);
+    const dateLabel = `${kst.getUTCMonth() + 1}/${kst.getUTCDate()} ${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
+    input = {
+      calendarId: auth.calendarId,
+      title: `${ch.name} / ${dateLabel} (${count})`,
+      startISO: latest.scheduledAt.toISOString(),
+      notes: `예약 영상 ${count}개${latest.title ? `. 마지막: ${latest.title}` : ''}`,
+    };
   }
-
-  // 제목 포맷: "{채널명} / M/D HH:mm ({개수})" — KST 기준
-  const kst = new Date(latest.scheduledAt.getTime() + 9 * 60 * 60 * 1000);
-  const dateLabel = `${kst.getUTCMonth() + 1}/${kst.getUTCDate()} ${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
-  const input: EventInput = {
-    calendarId: auth.calendarId,
-    title: `${ch.name} / ${dateLabel} (${count})`,
-    startISO: latest.scheduledAt.toISOString(),
-    notes: `예약 영상 ${count}개${latest.title ? `. 마지막: ${latest.title}` : ''}`,
-  };
 
   try {
     if (ch.gcalEventId) {
