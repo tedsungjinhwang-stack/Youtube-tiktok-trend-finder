@@ -260,26 +260,11 @@ export default function MySchedulePage() {
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {/* Google 캘린더 상태 + 동기화 */}
           {google.connected ? (
             <>
               <span className="text-[11px] text-muted-foreground">
                 📅 {google.email ?? '연결됨'}
               </span>
-              <button
-                onClick={syncGcalAll}
-                className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary hover:bg-primary/20"
-                title="활성 채널 전체 캘린더 이벤트 강제 갱신"
-              >
-                🗓️ 캘린더 동기화
-              </button>
-              <button
-                onClick={syncYoutubeAll}
-                className="rounded-md border bg-card px-3 py-1 text-xs hover:border-foreground/40"
-                title="활성 + YT 연결 채널 전체 예약 영상 가져오기"
-              >
-                🔄 YouTube 동기화
-              </button>
               <button
                 onClick={disconnectGoogle}
                 className="rounded-md border bg-background px-2 py-1 text-[11px] text-muted-foreground hover:border-destructive/40 hover:text-foreground"
@@ -308,6 +293,32 @@ export default function MySchedulePage() {
           </button>
         </div>
       </header>
+
+      {/* 전체 적용 동기화 바 — Google 연결돼있을 때만 */}
+      {google.connected && (
+        <div className="flex items-center gap-3 border-b bg-primary/5 px-6 py-3">
+          <span className="rounded bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+            전체 적용
+          </span>
+          <button
+            onClick={syncGcalAll}
+            className="flex h-10 items-center gap-2 rounded-lg border-2 border-primary/50 bg-primary/10 px-5 text-sm font-bold text-primary hover:bg-primary/20"
+            title="활성 채널 전체의 캘린더 이벤트 강제 갱신"
+          >
+            🗓️ 캘린더 전체 동기화
+          </button>
+          <button
+            onClick={syncYoutubeAll}
+            className="flex h-10 items-center gap-2 rounded-lg border-2 border-primary/50 bg-primary/10 px-5 text-sm font-bold text-primary hover:bg-primary/20"
+            title="YouTube 연결된 활성 채널 전체의 예약 영상 일괄 가져오기"
+          >
+            🔄 YouTube 전체 동기화
+          </button>
+          <span className="ml-auto text-[11px] text-muted-foreground">
+            매일 KST 02:00 에 자동 실행
+          </span>
+        </div>
+      )}
 
       {/* 채널 추가 폼 (토글) */}
       {showAddForm && (
@@ -359,15 +370,14 @@ export default function MySchedulePage() {
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-background text-[11px] uppercase text-muted-foreground">
               <tr className="border-b">
-                <th className="w-[26%] px-4 py-2 text-left font-semibold">채널</th>
-                <th className="w-[10%] px-4 py-2 text-left font-semibold">카테고리</th>
+                <th className="w-[28%] px-4 py-2 text-left font-semibold">채널</th>
+                <th className="w-[12%] px-4 py-2 text-left font-semibold">카테고리</th>
                 <th className="px-4 py-2 text-left font-semibold">
                   마지막 예약 영상
                 </th>
-                <th className="w-[14%] px-4 py-2 text-left font-semibold">
+                <th className="w-[16%] px-4 py-2 text-left font-semibold">
                   예약일시
                 </th>
-                <th className="w-[18%] px-4 py-2 text-right font-semibold">액션</th>
               </tr>
             </thead>
             <tbody>
@@ -465,14 +475,11 @@ function ChannelRow({
                   </span>
                 )}
               </div>
-              <div className="flex gap-2 text-[10px] text-muted-foreground">
-                {c.youtubeOauth && (
-                  <span title={c.youtubeOauth.accountEmail ?? ''}>
-                    ▶️ {c.youtubeOauth.youtubeChannelName ?? 'YT 연결됨'}
-                  </span>
-                )}
-                <span>· {c.videos.length}개 예약</span>
-              </div>
+              {c.youtubeOauth && (
+                <div className="text-[10px] text-muted-foreground" title={c.youtubeOauth.accountEmail ?? ''}>
+                  ▶️ {c.youtubeOauth.youtubeChannelName ?? 'YT 연결됨'}
+                </div>
+              )}
             </div>
           </div>
         </td>
@@ -482,10 +489,16 @@ function ChannelRow({
         <td className="px-4 py-2.5">
           {last ? (
             <div className="truncate text-xs" title={last.title}>
+              <span className="mr-1.5 text-[10px] font-semibold text-muted-foreground">
+                ({c.videos.length})
+              </span>
               {last.title || <span className="italic text-muted-foreground">제목 없음</span>}
             </div>
           ) : (
             <span className="text-xs text-amber-700 dark:text-amber-300">
+              <span className="mr-1.5 text-[10px] font-semibold text-amber-900/60 dark:text-amber-200/60">
+                (0)
+              </span>
               ⚠️ 영상 없음 — 업로드 필요
             </span>
           )}
@@ -493,43 +506,10 @@ function ChannelRow({
         <td className="px-4 py-2.5 text-xs">
           {last ? <span className="font-semibold">{fmt(last.scheduledAt)}</span> : '—'}
         </td>
-        <td className="px-4 py-2.5">
-          <div className="flex justify-end gap-1">
-            {!c.youtubeOauth && (
-              <button
-                onClick={onConnectYt}
-                className="rounded border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary hover:bg-primary/20"
-              >
-                ▶️ YT
-              </button>
-            )}
-            <button
-              onClick={() =>
-                onUpdate(c.id, { isActive: !c.isActive } as Partial<MyChannel>)
-              }
-              className={cn(
-                'rounded border px-2 py-1 text-[10px]',
-                c.isActive
-                  ? 'bg-card hover:border-foreground/40'
-                  : 'border-amber-500/40 bg-amber-100/50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200'
-              )}
-              title={c.isActive ? '비활성화' : '활성화'}
-            >
-              {c.isActive ? '⏸️' : '▶️'}
-            </button>
-            <button
-              onClick={onRemove}
-              className="rounded border bg-card px-2 py-1 text-[10px] hover:border-destructive/40"
-              title="채널 삭제"
-            >
-              🗑️
-            </button>
-          </div>
-        </td>
       </tr>
       {isExpanded && (
         <tr className="border-b bg-secondary/20">
-          <td colSpan={5} className="px-6 py-3">
+          <td colSpan={4} className="px-6 py-3">
             {/* 채널 메타 인라인 편집 */}
             <div className="mb-3 grid grid-cols-12 gap-2">
               <input
@@ -561,16 +541,45 @@ function ChannelRow({
                   onUpdate(c.id, { url: e.target.value } as Partial<MyChannel>)
                 }
                 placeholder="URL"
-                className="col-span-4 h-8 rounded border bg-background px-2 text-xs"
+                className="col-span-6 h-8 rounded border bg-background px-2 text-xs"
               />
-              {c.youtubeOauth && (
+            </div>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {c.youtubeOauth ? (
                 <button
                   onClick={onDisconnectYt}
-                  className="col-span-2 h-8 rounded border bg-card text-[10.5px] hover:border-destructive/40"
+                  className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-destructive/40"
                 >
-                  YT 연결 해제
+                  ▶️ YT 연결 해제
+                </button>
+              ) : (
+                <button
+                  onClick={onConnectYt}
+                  className="rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20"
+                >
+                  ▶️ YouTube 연결
                 </button>
               )}
+              <button
+                onClick={() =>
+                  onUpdate(c.id, { isActive: !c.isActive } as Partial<MyChannel>)
+                }
+                className={cn(
+                  'rounded-md border px-2.5 py-1 text-[11px]',
+                  c.isActive
+                    ? 'bg-card hover:border-foreground/40'
+                    : 'border-amber-500/40 bg-amber-100/50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-200'
+                )}
+                title={c.isActive ? '비활성화 — 동기화 제외' : '활성화 — 동기화 재개'}
+              >
+                {c.isActive ? '⏸️ 비활성화' : '▶️ 활성화'}
+              </button>
+              <button
+                onClick={onRemove}
+                className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-destructive/40"
+              >
+                🗑️ 채널 삭제
+              </button>
             </div>
 
             {/* 영상 추가 폼 */}
