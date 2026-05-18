@@ -364,7 +364,7 @@ export default function MySchedulePage() {
       <div className="flex-1 overflow-auto">
         {channels.length === 0 ? (
           <div className="p-12 text-center text-sm text-muted-foreground">
-            아직 채널이 없습니다. 우측 상단 "+ 채널 추가" 로 시작하세요.
+            아직 채널이 없습니다. 우측 상단 &ldquo;+ 채널 추가&rdquo; 로 시작하세요.
           </div>
         ) : (
           <table className="w-full text-sm">
