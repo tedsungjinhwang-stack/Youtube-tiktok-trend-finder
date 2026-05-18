@@ -97,6 +97,46 @@ async function deleteEvent(eventId: string, calendarId: string): Promise<void> {
     throw new Error(`이벤트 삭제 실패 (${r.status}): ${await r.text()}`);
 }
 
+/**
+ * 채널명으로 캘린더에서 기존 이벤트 검색. 우리 포맷
+ * ("{채널명} / ..." 또는 "{채널명}, 영상업로드 필요") 만 매칭.
+ * 최근 60일 ~ 이후 1년 범위에서 검색.
+ */
+async function findExistingChannelEvents(
+  calendarId: string,
+  channelName: string
+): Promise<string[]> {
+  const token = await getValidAccessToken();
+  if (!token) return [];
+  const timeMin = new Date(Date.now() - 60 * 86_400_000).toISOString();
+  const timeMax = new Date(Date.now() + 365 * 86_400_000).toISOString();
+  const params = new URLSearchParams({
+    q: channelName,
+    timeMin,
+    timeMax,
+    singleEvents: 'true',
+    maxResults: '50',
+  });
+  const r = await fetch(
+    `${API}${calendarPath(calendarId)}?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!r.ok) return [];
+  const j = (await r.json()) as { items?: Array<{ id: string; summary?: string }> };
+  const items = j.items ?? [];
+  return items
+    .filter((it) => {
+      const s = it.summary ?? '';
+      return (
+        s.startsWith(`${channelName} / `) ||
+        s.startsWith(`${channelName}, `) ||
+        s === channelName ||
+        s.startsWith(`${channelName} (`)
+      );
+    })
+    .map((it) => it.id);
+}
+
 export async function syncMyChannel(channelId: string): Promise<void> {
   const auth = await prisma.googleOAuth.findUnique({ where: { id: 'default' } });
   if (!auth) return;
@@ -140,22 +180,20 @@ export async function syncMyChannel(channelId: string): Promise<void> {
   }
 
   try {
-    if (ch.gcalEventId) {
-      try {
-        await updateEvent(ch.gcalEventId, input);
-      } catch (e) {
-        const msg = (e as Error).message;
-        if (/404|410/.test(msg)) {
-          const id = await createEvent(input);
-          await prisma.myChannel.update({
-            where: { id: channelId },
-            data: { gcalEventId: id, gcalSyncedAt: new Date() },
-          });
-          return;
-        }
-        throw e;
-      }
-    } else {
+    // 중복 정리: 캘린더에서 이 채널명으로 시작하는 기존 이벤트 모두 찾아냄
+    let existingIds: string[] = [];
+    try {
+      existingIds = await findExistingChannelEvents(auth.calendarId, ch.name);
+    } catch {
+      /* search 실패해도 sync 는 계속 */
+    }
+    // ch.gcalEventId 가 검색 결과에 없으면 추가 (확실히 우리 이벤트)
+    if (ch.gcalEventId && !existingIds.includes(ch.gcalEventId)) {
+      existingIds.unshift(ch.gcalEventId);
+    }
+
+    if (existingIds.length === 0) {
+      // 없음 → 신규 생성
       const id = await createEvent(input);
       await prisma.myChannel.update({
         where: { id: channelId },
@@ -163,9 +201,36 @@ export async function syncMyChannel(channelId: string): Promise<void> {
       });
       return;
     }
+
+    // 1개 이상 → 첫번째 것을 reuse, 나머지는 삭제
+    const keepId = existingIds[0];
+    const dupIds = existingIds.slice(1);
+    try {
+      await updateEvent(keepId, input);
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (/404|410/.test(msg)) {
+        // 첫번째도 사라짐 → 신규 생성
+        const id = await createEvent(input);
+        // 잔여 중복도 정리
+        for (const did of dupIds) {
+          await deleteEvent(did, auth.calendarId).catch(() => {});
+        }
+        await prisma.myChannel.update({
+          where: { id: channelId },
+          data: { gcalEventId: id, gcalSyncedAt: new Date() },
+        });
+        return;
+      }
+      throw e;
+    }
+    // 중복 정리
+    for (const did of dupIds) {
+      await deleteEvent(did, auth.calendarId).catch(() => {});
+    }
     await prisma.myChannel.update({
       where: { id: channelId },
-      data: { gcalSyncedAt: new Date() },
+      data: { gcalEventId: keepId, gcalSyncedAt: new Date() },
     });
   } catch (e) {
     console.error('[gcal channel sync]', (e as Error).message);
