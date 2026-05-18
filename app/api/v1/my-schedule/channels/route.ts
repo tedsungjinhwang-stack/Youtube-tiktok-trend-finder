@@ -63,12 +63,30 @@ export async function POST(req: Request) {
     category?: string;
     url?: string;
   };
-  // 이름 비어있어도 OK (YouTube 연결 시 자동 채움)
+  const trimmedName = name?.trim() || '';
   try {
+    // 이름 중복 체크 (대소문자 무시). 비어있으면 패스 (YouTube 가 자동 채움)
+    if (trimmedName) {
+      const existing = await prisma.myChannel.findFirst({
+        where: { name: { equals: trimmedName, mode: 'insensitive' } },
+      });
+      if (existing) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'DUPLICATE_NAME',
+              message: `같은 이름의 채널이 이미 있습니다: "${existing.name}"`,
+            },
+          },
+          { status: 409 }
+        );
+      }
+    }
     const max = await prisma.myChannel.aggregate({ _max: { sortOrder: true } });
     const created = await prisma.myChannel.create({
       data: {
-        name: name?.trim() || '(미설정)',
+        name: trimmedName || '(미설정)',
         category: category?.trim() || null,
         url: url?.trim() || null,
         sortOrder: (max._max.sortOrder ?? 0) + 1,

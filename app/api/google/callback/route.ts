@@ -60,6 +60,31 @@ export async function GET(req: Request) {
         /* skip */
       }
 
+      // 같은 YouTube 채널이 이미 다른 MyChannel 에 연결돼있으면 거부
+      if (ytChannelId) {
+        const dup = await prisma.channelYouTubeOAuth.findFirst({
+          where: { youtubeChannelId: ytChannelId, myChannelId: { not: myChannelId } },
+          include: { myChannel: true },
+        });
+        if (dup) {
+          // 새로 만든 placeholder 채널이면 정리
+          const ch = await prisma.myChannel.findUnique({ where: { id: myChannelId } });
+          if (ch && ch.name === '(미설정)' && !ch.url) {
+            await prisma.myChannel
+              .delete({ where: { id: myChannelId } })
+              .catch(() => {});
+          }
+          return html(
+            `<h2>중복된 YouTube 채널</h2>
+             <p>이 YouTube 채널 (<b>${ytChannelName ?? ytChannelId}</b>) 은 이미
+             "<b>${dup.myChannel?.name ?? ''}</b>" 에 연결되어 있습니다.</p>
+             <p>이 창을 닫고 기존 채널을 사용해주세요.</p>
+             <script>setTimeout(()=>window.close(), 2500);</script>`,
+            409
+          );
+        }
+      }
+
       const saved = await prisma.channelYouTubeOAuth.upsert({
         where: { myChannelId },
         create: {
