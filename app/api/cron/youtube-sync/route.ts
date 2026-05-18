@@ -18,13 +18,13 @@ export async function GET(req: Request) {
     }
   }
 
-  const oauths = await prisma.channelYouTubeOAuth.findMany();
   const results: Array<{ channelId: string; count?: number; error?: string }> = [];
 
+  // 1) YouTube 연결된 채널: YouTube → DB
+  const oauths = await prisma.channelYouTubeOAuth.findMany();
   for (const o of oauths) {
     try {
       const count = await syncChannelScheduled(o.id);
-      await syncMyChannel(o.myChannelId).catch(() => {});
       results.push({ channelId: o.myChannelId, count });
     } catch (e) {
       const msg = (e as Error).message;
@@ -36,8 +36,14 @@ export async function GET(req: Request) {
     }
   }
 
+  // 2) 모든 채널: DB → Google Calendar (영상 없는 채널은 오늘 "영상업로드 필요" 갱신)
+  const allChannels = await prisma.myChannel.findMany({ select: { id: true } });
+  for (const c of allChannels) {
+    await syncMyChannel(c.id).catch(() => {});
+  }
+
   return NextResponse.json({
     success: true,
-    data: { channels: oauths.length, results },
+    data: { ytChannels: oauths.length, allChannels: allChannels.length, results },
   });
 }
