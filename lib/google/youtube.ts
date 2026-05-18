@@ -118,6 +118,26 @@ export async function syncChannelScheduled(rowId: string): Promise<number> {
   const scheduled = items.filter(
     (v) => v.status.privacyStatus === 'private' && v.status.publishAt
   );
+  const scheduledIds = new Set(scheduled.map((v) => v.id));
+
+  // 게시되었거나 예약 해제된 영상은 DB 에서 제거.
+  // 우리가 이번에 본 ids 안에 있던 것만 — 더 오래된 건 건드리지 않음.
+  const knownIds = new Set(ids);
+  const existingRows = await prisma.scheduledVideo.findMany({
+    where: { channelId: row.myChannelId, youtubeVideoId: { not: null } },
+    select: { id: true, youtubeVideoId: true },
+  });
+  const toDelete = existingRows.filter(
+    (e) =>
+      e.youtubeVideoId &&
+      knownIds.has(e.youtubeVideoId) &&
+      !scheduledIds.has(e.youtubeVideoId)
+  );
+  if (toDelete.length > 0) {
+    await prisma.scheduledVideo.deleteMany({
+      where: { id: { in: toDelete.map((x) => x.id) } },
+    });
+  }
 
   let count = 0;
   for (const v of scheduled) {
