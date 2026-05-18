@@ -14,17 +14,40 @@ export async function GET() {
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
       include: {
         videos: { orderBy: { scheduledAt: 'asc' } },
+        youtubeOauth: {
+          select: {
+            id: true,
+            youtubeChannelName: true,
+            accountEmail: true,
+            lastSyncedAt: true,
+            lastSyncError: true,
+          },
+        },
       },
     });
     return NextResponse.json({ success: true, data: channels });
   } catch (e) {
     if (isMissingTable(e)) {
-      return NextResponse.json({
-        success: true,
-        data: [],
-        warning:
-          'DB 마이그레이션 미실행: MyChannel 테이블이 없습니다. Supabase SQL Editor 에서 마이그레이션 SQL 을 실행해주세요.',
-      });
+      // ChannelYouTubeOAuth 만 없는 경우 → include 없이 재시도
+      try {
+        const channels = await prisma.myChannel.findMany({
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          include: { videos: { orderBy: { scheduledAt: 'asc' } } },
+        });
+        return NextResponse.json({
+          success: true,
+          data: channels.map((c) => ({ ...c, youtubeOauth: null })),
+          warning:
+            'YouTube 동기화 테이블 (ChannelYouTubeOAuth) 미생성. 새 마이그레이션 SQL 을 실행해주세요.',
+        });
+      } catch {
+        return NextResponse.json({
+          success: true,
+          data: [],
+          warning:
+            'DB 마이그레이션 미실행: MyChannel 테이블이 없습니다. Supabase SQL Editor 에서 마이그레이션 SQL 을 실행해주세요.',
+        });
+      }
     }
     return NextResponse.json(
       { success: false, error: { code: 'DB_ERROR', message: (e as Error).message } },

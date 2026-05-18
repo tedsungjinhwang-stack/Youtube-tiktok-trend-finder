@@ -191,30 +191,33 @@ model OpenAIOAuth {
 
 /// 내 채널 스케줄 관리 — 채널 메타.
 model MyChannel {
-  id        String           @id @default(cuid())
-  name      String
-  category  String?
-  url       String?
-  sortOrder Int              @default(0)
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  videos    ScheduledVideo[]
+  id           String                @id @default(cuid())
+  name         String
+  category     String?
+  url          String?
+  sortOrder    Int                   @default(0)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  videos       ScheduledVideo[]
+  youtubeOauth ChannelYouTubeOAuth?
 }
 
 /// 내 채널의 예약 영상.
 model ScheduledVideo {
-  id           String    @id @default(cuid())
-  channelId    String
-  channel      MyChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  title        String
-  notes        String?
-  scheduledAt  DateTime
-  status       String    @default("planned")
-  gcalEventId  String?
-  gcalSyncedAt DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  channelId      String
+  channel        MyChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  title          String
+  notes          String?
+  scheduledAt    DateTime
+  status         String    @default("planned")
+  youtubeVideoId String?
+  gcalEventId    String?
+  gcalSyncedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
+  @@unique([channelId, youtubeVideoId])
   @@index([channelId])
   @@index([scheduledAt])
 }
@@ -229,4 +232,21 @@ model GoogleOAuth {
   calendarId   String   @default("primary")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+/// 채널별 YouTube OAuth 토큰 (예약 영상 자동 가져오기).
+model ChannelYouTubeOAuth {
+  id                 String    @id @default(cuid())
+  myChannelId        String    @unique
+  myChannel          MyChannel @relation(fields: [myChannelId], references: [id], onDelete: Cascade)
+  accessToken        String
+  refreshToken       String
+  expiresAt          DateTime
+  youtubeChannelId   String?
+  youtubeChannelName String?
+  accountEmail       String?
+  lastSyncedAt       DateTime?
+  lastSyncError      String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }

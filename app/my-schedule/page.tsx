@@ -14,6 +14,14 @@ type ScheduledVideo = {
   gcalSyncedAt: string | null;
 };
 
+type YtOauth = {
+  id: string;
+  youtubeChannelName: string | null;
+  accountEmail: string | null;
+  lastSyncedAt: string | null;
+  lastSyncError: string | null;
+};
+
 type MyChannel = {
   id: string;
   name: string;
@@ -21,6 +29,7 @@ type MyChannel = {
   url: string | null;
   sortOrder: number;
   videos: ScheduledVideo[];
+  youtubeOauth: YtOauth | null;
 };
 
 type GoogleStatus = {
@@ -185,6 +194,41 @@ export default function MySchedulePage() {
     refresh();
   };
 
+  const connectYoutube = async (channelId: string) => {
+    const r = await fetch(`/api/google/auth/start?kind=youtube&channelId=${channelId}`);
+    const j = await r.json();
+    if (!j.success) {
+      alert(j.error?.message ?? '실패');
+      return;
+    }
+    window.open(j.data.url, '_blank', 'width=520,height=640');
+    const iv = setInterval(async () => {
+      const s = await fetch('/api/v1/my-schedule/channels').then((r) => r.json());
+      const ch = (s.data ?? []).find((c: MyChannel) => c.id === channelId);
+      if (ch?.youtubeOauth) {
+        clearInterval(iv);
+        refresh();
+      }
+    }, 1500);
+    setTimeout(() => clearInterval(iv), 5 * 60_000);
+  };
+
+  const syncYoutube = async (channelId: string) => {
+    const r = await fetch(`/api/v1/my-schedule/channels/${channelId}/yt`, {
+      method: 'POST',
+    });
+    const j = await r.json();
+    if (!j.success) alert(j.error?.message ?? '동기화 실패');
+    else alert(`✓ ${j.data.count}개 예약 영상 동기화됨`);
+    refresh();
+  };
+
+  const disconnectYoutube = async (channelId: string) => {
+    if (!confirm('이 채널의 YouTube 연결을 해제할까요? (이미 가져온 영상은 남음)')) return;
+    await fetch(`/api/v1/my-schedule/channels/${channelId}/yt`, { method: 'DELETE' });
+    refresh();
+  };
+
   if (loading) {
     return <div className="p-8 text-sm text-muted-foreground">로딩 중…</div>;
   }
@@ -338,12 +382,52 @@ export default function MySchedulePage() {
                     />
                   </div>
                 </div>
-                <button
-                  onClick={() => removeChannel(selected.id)}
-                  className="rounded-md border bg-card px-2.5 py-1 text-xs hover:border-destructive/40"
-                >
-                  채널 삭제
-                </button>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  {selected.youtubeOauth ? (
+                    <>
+                      <div className="text-[10.5px] text-muted-foreground">
+                        ▶️ {selected.youtubeOauth.youtubeChannelName ?? selected.youtubeOauth.accountEmail ?? '연결됨'}
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => syncYoutube(selected.id)}
+                          className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-foreground/40"
+                          title={
+                            selected.youtubeOauth.lastSyncedAt
+                              ? `마지막 동기화: ${fmt(selected.youtubeOauth.lastSyncedAt)}`
+                              : '아직 동기화 안 함'
+                          }
+                        >
+                          🔄 YouTube 동기화
+                        </button>
+                        <button
+                          onClick={() => disconnectYoutube(selected.id)}
+                          className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-destructive/40"
+                        >
+                          YT 연결 해제
+                        </button>
+                      </div>
+                      {selected.youtubeOauth.lastSyncError && (
+                        <div className="max-w-[240px] text-right text-[10px] text-destructive">
+                          ⚠️ {selected.youtubeOauth.lastSyncError}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => connectYoutube(selected.id)}
+                      className="rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20"
+                    >
+                      ▶️ YouTube 연결
+                    </button>
+                  )}
+                  <button
+                    onClick={() => removeChannel(selected.id)}
+                    className="rounded-md border bg-card px-2.5 py-1 text-xs hover:border-destructive/40"
+                  >
+                    채널 삭제
+                  </button>
+                </div>
               </div>
             </header>
 
