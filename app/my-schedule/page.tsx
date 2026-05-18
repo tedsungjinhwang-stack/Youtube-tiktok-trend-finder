@@ -401,236 +401,332 @@ export default function MySchedulePage() {
         </div>
       </aside>
 
-      {/* 우측: 선택된 채널의 영상 일정 */}
+      {/* 우측: 채널 대시보드 — 모든 채널의 마지막 예약 영상 한눈에 */}
       <main className="flex flex-1 flex-col overflow-hidden">
-        {!selected ? (
+        {channels.length === 0 ? (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            왼쪽에서 채널을 선택하거나 새로 추가하세요
+            왼쪽에서 채널을 추가하세요
           </div>
         ) : (
-          <>
-            <header className="border-b px-6 py-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <input
-                    value={selected.name}
-                    onChange={(e) =>
-                      setChannels((prev) =>
-                        prev.map((x) => (x.id === selected.id ? { ...x, name: e.target.value } : x))
-                      )
-                    }
-                    onBlur={(e) => updateChannel(selected.id, { name: e.target.value } as Partial<MyChannel>)}
-                    className="w-full border-none bg-transparent text-xl font-bold outline-none"
-                  />
-                  <div className="mt-1 flex gap-3 text-xs text-muted-foreground">
-                    <input
-                      value={selected.category ?? ''}
-                      onChange={(e) =>
-                        setChannels((prev) =>
-                          prev.map((x) =>
-                            x.id === selected.id ? { ...x, category: e.target.value } : x
-                          )
+          <div className="flex-1 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-background text-[11px] uppercase text-muted-foreground">
+                <tr className="border-b">
+                  <th className="w-[28%] px-4 py-2 text-left font-semibold">채널</th>
+                  <th className="w-[12%] px-4 py-2 text-left font-semibold">카테고리</th>
+                  <th className="px-4 py-2 text-left font-semibold">마지막 예약 영상</th>
+                  <th className="w-[16%] px-4 py-2 text-left font-semibold">예약일시</th>
+                </tr>
+              </thead>
+              <tbody>
+                {channels.map((c) => {
+                  const sorted = [...c.videos].sort(
+                    (a, b) =>
+                      new Date(b.scheduledAt).getTime() -
+                      new Date(a.scheduledAt).getTime()
+                  );
+                  const last = sorted[0];
+                  const isExpanded = selectedChannelId === c.id;
+                  return (
+                    <DashRow
+                      key={c.id}
+                      c={c}
+                      last={last}
+                      isExpanded={isExpanded}
+                      onToggle={() =>
+                        setSelectedChannelId(isExpanded ? null : c.id)
+                      }
+                      onUpdate={updateChannel}
+                      onRemove={() => removeChannel(c.id)}
+                      onConnectYt={() => connectYoutube(c.id)}
+                      onDisconnectYt={async () => {
+                        if (
+                          !confirm('이 채널의 YouTube 연결을 해제할까요?')
                         )
-                      }
-                      onBlur={(e) =>
-                        updateChannel(selected.id, { category: e.target.value } as Partial<MyChannel>)
-                      }
-                      placeholder="카테고리"
-                      className="border-none bg-transparent outline-none"
+                          return;
+                        await fetch(
+                          `/api/v1/my-schedule/channels/${c.id}/yt`,
+                          { method: 'DELETE' }
+                        );
+                        refresh();
+                      }}
+                      onAddVideo={async (t, w, n) => {
+                        if (!w) return;
+                        await fetch('/api/v1/my-schedule/videos', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            channelId: c.id,
+                            title: t,
+                            scheduledAt: new Date(w).toISOString(),
+                            notes: n,
+                          }),
+                        });
+                        refresh();
+                      }}
+                      onUpdateVideo={updateVideo}
+                      onRemoveVideo={removeVideo}
                     />
-                    <input
-                      value={selected.url ?? ''}
-                      onChange={(e) =>
-                        setChannels((prev) =>
-                          prev.map((x) =>
-                            x.id === selected.id ? { ...x, url: e.target.value } : x
-                          )
-                        )
-                      }
-                      onBlur={(e) =>
-                        updateChannel(selected.id, { url: e.target.value } as Partial<MyChannel>)
-                      }
-                      placeholder="URL"
-                      className="flex-1 border-none bg-transparent outline-none"
-                    />
-                  </div>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  {selected.youtubeOauth ? (
-                    <>
-                      <div className="text-[10.5px] text-muted-foreground">
-                        ▶️ {selected.youtubeOauth.youtubeChannelName ?? selected.youtubeOauth.accountEmail ?? '연결됨'}
-                      </div>
-                      <button
-                        onClick={() => disconnectYoutube(selected.id)}
-                        className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-destructive/40"
-                      >
-                        YT 연결 해제
-                      </button>
-                      {selected.youtubeOauth.lastSyncError && (
-                        <div className="max-w-[240px] text-right text-[10px] text-destructive">
-                          ⚠️ {selected.youtubeOauth.lastSyncError}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => connectYoutube(selected.id)}
-                      className="rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20"
-                    >
-                      ▶️ YouTube 연결
-                    </button>
-                  )}
-                  <button
-                    onClick={() =>
-                      updateChannel(selected.id, { isActive: !selected.isActive } as Partial<MyChannel>)
-                    }
-                    className={cn(
-                      'rounded-md border px-2.5 py-1 text-[11px]',
-                      selected.isActive
-                        ? 'bg-card hover:border-foreground/40'
-                        : 'border-amber-500/40 bg-amber-100/50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-200'
-                    )}
-                    title={
-                      selected.isActive
-                        ? '비활성화 — cron/캘린더 동기화에서 제외 (기존 이벤트는 그대로 유지)'
-                        : '활성화 — 동기화 재개'
-                    }
-                  >
-                    {selected.isActive ? '⏸️ 비활성화' : '▶️ 활성화'}
-                  </button>
-                  <button
-                    onClick={() => removeChannel(selected.id)}
-                    className="rounded-md border bg-card px-2.5 py-1 text-xs hover:border-destructive/40"
-                  >
-                    채널 삭제
-                  </button>
-                </div>
-              </div>
-            </header>
-
-            {/* 요약: 총 N개 + 마지막 예약 일자 */}
-            {(() => {
-              const sorted = [...selected.videos].sort(
-                (a, b) =>
-                  new Date(b.scheduledAt).getTime() -
-                  new Date(a.scheduledAt).getTime()
-              );
-              const last = sorted[0];
-              return (
-                <div className="border-b bg-background px-6 py-2.5 text-xs">
-                  총 <span className="font-bold">{selected.videos.length}</span>개 예약
-                  {last && (
-                    <>
-                      <span className="text-muted-foreground"> · 마지막 예약: </span>
-                      <span className="font-semibold">{fmt(last.scheduledAt)}</span>
-                    </>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* 영상 추가 폼 */}
-            <div className="border-b bg-secondary/30 p-4">
-              <div className="grid grid-cols-12 gap-2">
-                <input
-                  value={vTitle}
-                  onChange={(e) => setVTitle(e.target.value)}
-                  placeholder="영상 제목 / 컨셉 (선택)"
-                  className="col-span-5 h-9 rounded-md border bg-background px-3 text-sm"
-                />
-                <input
-                  type="datetime-local"
-                  value={vWhen}
-                  onChange={(e) => setVWhen(e.target.value)}
-                  className="col-span-3 h-9 rounded-md border bg-background px-3 text-sm"
-                />
-                <input
-                  value={vNotes}
-                  onChange={(e) => setVNotes(e.target.value)}
-                  placeholder="메모 (선택)"
-                  className="col-span-3 h-9 rounded-md border bg-background px-3 text-sm"
-                />
-                <button
-                  onClick={addVideo}
-                  disabled={!vWhen}
-                  className="col-span-1 h-9 rounded-md bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
-                >
-                  + 예약
-                </button>
-              </div>
-              {!google.connected && (
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  ※ Google 캘린더 미연결 — 추가해도 캘린더에 안 올라감. 좌측 하단에서 연결하세요.
-                </p>
-              )}
-            </div>
-
-            <div className="flex-1 overflow-auto p-4">
-              {selected.videos.length === 0 ? (
-                <p className="p-8 text-center text-sm text-muted-foreground">
-                  예약된 영상이 없습니다
-                </p>
-              ) : (
-                <ul className="space-y-1">
-                  {selected.videos.map((v) => (
-                    <li
-                      key={v.id}
-                      className="flex items-center gap-2 rounded border bg-card px-2 py-1.5 text-xs hover:border-foreground/30"
-                    >
-                      <input
-                        type="datetime-local"
-                        value={toInputValue(v.scheduledAt)}
-                        onChange={(e) =>
-                          updateVideo(v.id, {
-                            scheduledAt: new Date(e.target.value).toISOString(),
-                          })
-                        }
-                        className="h-7 w-[160px] shrink-0 rounded border bg-background px-1.5 text-[11px]"
-                      />
-                      <input
-                        value={v.title}
-                        onChange={(e) =>
-                          setChannels((prev) =>
-                            prev.map((c) =>
-                              c.id === selected.id
-                                ? {
-                                    ...c,
-                                    videos: c.videos.map((x) =>
-                                      x.id === v.id ? { ...x, title: e.target.value } : x
-                                    ),
-                                  }
-                                : c
-                            )
-                          )
-                        }
-                        onBlur={(e) => updateVideo(v.id, { title: e.target.value })}
-                        placeholder="제목 (선택)"
-                        className="min-w-0 flex-1 border-none bg-transparent text-xs outline-none"
-                      />
-                      {v.notes && (
-                        <span
-                          className="truncate text-[10px] text-muted-foreground"
-                          title={v.notes}
-                        >
-                          {v.notes}
-                        </span>
-                      )}
-                      <button
-                        onClick={() => removeVideo(v.id)}
-                        className="shrink-0 rounded border bg-background px-2 py-1 text-[10px] hover:border-destructive/40"
-                      >
-                        삭제
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </main>
       </div>
     </div>
+  );
+}
+
+function DashRow({
+  c,
+  last,
+  isExpanded,
+  onToggle,
+  onUpdate,
+  onRemove,
+  onConnectYt,
+  onDisconnectYt,
+  onAddVideo,
+  onUpdateVideo,
+  onRemoveVideo,
+}: {
+  c: MyChannel;
+  last?: ScheduledVideo;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onUpdate: (id: string, patch: Partial<MyChannel>) => void;
+  onRemove: () => void;
+  onConnectYt: () => void;
+  onDisconnectYt: () => void;
+  onAddVideo: (title: string, when: string, notes: string) => void;
+  onUpdateVideo: (id: string, patch: Record<string, unknown>) => void;
+  onRemoveVideo: (id: string) => void;
+}) {
+  const [vTitle, setVTitle] = useState('');
+  const [vWhen, setVWhen] = useState('');
+  const [vNotes, setVNotes] = useState('');
+
+  const sortedAsc = [...c.videos].sort(
+    (a, b) =>
+      new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+  );
+
+  return (
+    <>
+      <tr
+        className={cn(
+          'border-b hover:bg-accent/30',
+          !c.isActive && 'opacity-50',
+          isExpanded && 'bg-accent/40'
+        )}
+      >
+        <td className="px-4 py-2.5">
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={onToggle}
+              className="grid h-5 w-5 place-items-center rounded text-muted-foreground hover:bg-accent"
+            >
+              {isExpanded ? '▾' : '▸'}
+            </button>
+            <div className="min-w-0">
+              <div className="truncate font-semibold">
+                {c.name}
+                {!c.isActive && (
+                  <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                    (비활성)
+                  </span>
+                )}
+              </div>
+              {c.youtubeOauth && (
+                <div
+                  className="text-[10px] text-muted-foreground"
+                  title={c.youtubeOauth.accountEmail ?? ''}
+                >
+                  ▶️ {c.youtubeOauth.youtubeChannelName ?? 'YT 연결됨'}
+                </div>
+              )}
+            </div>
+          </div>
+        </td>
+        <td className="px-4 py-2.5 text-xs text-muted-foreground">
+          {c.category ?? '—'}
+        </td>
+        <td className="px-4 py-2.5">
+          {last ? (
+            <div className="truncate text-xs" title={last.title}>
+              <span className="mr-1.5 text-[10px] font-semibold text-muted-foreground">
+                ({c.videos.length})
+              </span>
+              {last.title || (
+                <span className="italic text-muted-foreground">제목 없음</span>
+              )}
+            </div>
+          ) : (
+            <span className="text-xs text-amber-700 dark:text-amber-300">
+              <span className="mr-1.5 text-[10px] font-semibold text-amber-900/60 dark:text-amber-200/60">
+                (0)
+              </span>
+              ⚠️ 영상 없음 — 업로드 필요
+            </span>
+          )}
+        </td>
+        <td className="px-4 py-2.5 text-xs">
+          {last ? (
+            <span className="font-semibold">{fmt(last.scheduledAt)}</span>
+          ) : (
+            '—'
+          )}
+        </td>
+      </tr>
+      {isExpanded && (
+        <tr className="border-b bg-secondary/20">
+          <td colSpan={4} className="px-6 py-3">
+            {/* 채널 메타 인라인 편집 */}
+            <div className="mb-3 grid grid-cols-12 gap-2">
+              <input
+                value={c.name}
+                onChange={(e) => onUpdate(c.id, { name: e.target.value } as Partial<MyChannel>)}
+                onBlur={(e) => onUpdate(c.id, { name: e.target.value } as Partial<MyChannel>)}
+                placeholder="채널명"
+                className="col-span-4 h-8 rounded border bg-background px-2 text-xs"
+              />
+              <input
+                value={c.category ?? ''}
+                onChange={(e) => onUpdate(c.id, { category: e.target.value } as Partial<MyChannel>)}
+                onBlur={(e) => onUpdate(c.id, { category: e.target.value } as Partial<MyChannel>)}
+                placeholder="카테고리"
+                className="col-span-2 h-8 rounded border bg-background px-2 text-xs"
+              />
+              <input
+                value={c.url ?? ''}
+                onChange={(e) => onUpdate(c.id, { url: e.target.value } as Partial<MyChannel>)}
+                onBlur={(e) => onUpdate(c.id, { url: e.target.value } as Partial<MyChannel>)}
+                placeholder="URL"
+                className="col-span-6 h-8 rounded border bg-background px-2 text-xs"
+              />
+            </div>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {c.youtubeOauth ? (
+                <button
+                  onClick={onDisconnectYt}
+                  className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-destructive/40"
+                >
+                  ▶️ YT 연결 해제
+                </button>
+              ) : (
+                <button
+                  onClick={onConnectYt}
+                  className="rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20"
+                >
+                  ▶️ YouTube 연결
+                </button>
+              )}
+              <button
+                onClick={() =>
+                  onUpdate(c.id, { isActive: !c.isActive } as Partial<MyChannel>)
+                }
+                className={cn(
+                  'rounded-md border px-2.5 py-1 text-[11px]',
+                  c.isActive
+                    ? 'bg-card hover:border-foreground/40'
+                    : 'border-amber-500/40 bg-amber-100/50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-200'
+                )}
+              >
+                {c.isActive ? '⏸️ 비활성화' : '▶️ 활성화'}
+              </button>
+              <button
+                onClick={onRemove}
+                className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-destructive/40"
+              >
+                🗑️ 채널 삭제
+              </button>
+            </div>
+
+            {/* 영상 추가 폼 */}
+            <div className="mb-3 grid grid-cols-12 gap-2">
+              <input
+                value={vTitle}
+                onChange={(e) => setVTitle(e.target.value)}
+                placeholder="영상 제목 (선택)"
+                className="col-span-5 h-8 rounded border bg-background px-2 text-xs"
+              />
+              <input
+                type="datetime-local"
+                value={vWhen}
+                onChange={(e) => setVWhen(e.target.value)}
+                className="col-span-3 h-8 rounded border bg-background px-2 text-xs"
+              />
+              <input
+                value={vNotes}
+                onChange={(e) => setVNotes(e.target.value)}
+                placeholder="메모 (선택)"
+                className="col-span-3 h-8 rounded border bg-background px-2 text-xs"
+              />
+              <button
+                onClick={() => {
+                  onAddVideo(vTitle, vWhen, vNotes);
+                  setVTitle('');
+                  setVWhen('');
+                  setVNotes('');
+                }}
+                disabled={!vWhen}
+                className="col-span-1 h-8 rounded bg-primary text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
+              >
+                + 예약
+              </button>
+            </div>
+
+            {/* 영상 리스트 — 컴팩트 한 줄 */}
+            {sortedAsc.length === 0 ? (
+              <p className="py-2 text-center text-[11px] text-muted-foreground">
+                예약 영상 없음
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {sortedAsc.map((v) => (
+                  <li
+                    key={v.id}
+                    className="flex items-center gap-2 rounded border bg-background px-2 py-1.5 text-xs"
+                  >
+                    <input
+                      type="datetime-local"
+                      value={toInputValue(v.scheduledAt)}
+                      onChange={(e) =>
+                        onUpdateVideo(v.id, {
+                          scheduledAt: new Date(e.target.value).toISOString(),
+                        })
+                      }
+                      className="h-6 w-[150px] rounded border bg-background px-1 text-[11px]"
+                    />
+                    <input
+                      value={v.title}
+                      onChange={(e) => onUpdateVideo(v.id, { title: e.target.value })}
+                      placeholder="제목 (선택)"
+                      className="flex-1 border-none bg-transparent outline-none"
+                    />
+                    {v.notes && (
+                      <span
+                        className="truncate text-[10px] text-muted-foreground"
+                        title={v.notes}
+                      >
+                        {v.notes}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => onRemoveVideo(v.id)}
+                      className="rounded border bg-background px-1.5 text-[10px] hover:border-destructive/40"
+                    >
+                      삭제
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
