@@ -101,8 +101,8 @@ export default function MySchedulePage() {
 
   const selected = channels.find((c) => c.id === selectedChannelId) ?? null;
 
-  const addChannel = async () => {
-    if (!newName.trim()) return;
+  const addChannel = async (): Promise<string | null> => {
+    if (!newName.trim()) return null;
     const r = await fetch('/api/v1/my-schedule/channels', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -115,7 +115,15 @@ export default function MySchedulePage() {
       setNewUrl('');
       setSelectedChannelId(j.data.id);
       refresh();
-    } else alert(j.error?.message ?? '실패');
+      return j.data.id as string;
+    }
+    alert(j.error?.message ?? '실패');
+    return null;
+  };
+
+  const addChannelWithYoutube = async () => {
+    const id = await addChannel();
+    if (id) await connectYoutube(id);
   };
 
   const removeChannel = async (id: string) => {
@@ -268,11 +276,19 @@ export default function MySchedulePage() {
               className="h-8 w-full rounded-md border bg-background px-2 text-xs"
             />
             <button
-              onClick={addChannel}
+              onClick={() => addChannel()}
               disabled={!newName.trim()}
               className="h-8 w-full rounded-md bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
             >
-              + 채널 추가
+              + 채널만 추가
+            </button>
+            <button
+              onClick={addChannelWithYoutube}
+              disabled={!newName.trim()}
+              className="h-8 w-full rounded-md border border-primary/40 bg-primary/10 text-[11px] font-semibold text-primary hover:bg-primary/20 disabled:opacity-40"
+              title="채널 생성 + YouTube OAuth 창 자동으로 띄움"
+            >
+              + 채널 추가 & ▶️ YouTube 연결
             </button>
           </div>
         </div>
