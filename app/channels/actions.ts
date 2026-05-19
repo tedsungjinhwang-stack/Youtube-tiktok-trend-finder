@@ -55,7 +55,7 @@ export async function scrapeChannelAction(id: string): Promise<ActionResult> {
     if (!channel) return { ok: false, error: '채널 없음' };
     await scrapeChannel(channel);
     revalidatePath('/channels');
-    revalidatePath('/');
+    revalidatePath('/all');
     revalidatePath('/youtube');
     revalidatePath('/social');
     return { ok: true };

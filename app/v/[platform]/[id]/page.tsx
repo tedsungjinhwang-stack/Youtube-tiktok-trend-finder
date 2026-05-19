@@ -58,7 +58,7 @@ export default async function VideoDetailPage({
   return (
     <div className="mx-auto max-w-3xl px-4 py-5">
       <Link
-        href="/"
+        href="/all"
         className="mb-4 inline-flex items-center gap-1 text-[14px] text-muted-foreground hover:text-foreground"
       >
         ← 목록으로

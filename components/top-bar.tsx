@@ -3,7 +3,7 @@ import Link from 'next/link';
 const tabs = [
   { href: '/popular-feed', label: '해시태그검색' },
   { href: '/trending', label: '실시간 인기' },
-  { href: '/', label: '통합' },
+  { href: '/all', label: '통합' },
   { href: '/youtube', label: 'YouTube' },
   { href: '/social', label: 'TikTok / Insta' },
   { href: '/xiaohongshu', label: '샤오홍수' },

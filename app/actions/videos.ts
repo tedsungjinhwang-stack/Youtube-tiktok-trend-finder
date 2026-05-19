@@ -15,7 +15,7 @@ export async function toggleStarVideoAction(id: string): Promise<StarResult> {
     if (!v) return { ok: false, error: '영상 없음' };
     const next = !v.isStarred;
     await prisma.video.update({ where: { id }, data: { isStarred: next } });
-    revalidatePath('/');
+    revalidatePath('/all');
     revalidatePath('/youtube');
     revalidatePath('/social');
     revalidatePath('/popular-feed');
@@ -28,7 +28,7 @@ export async function toggleStarVideoAction(id: string): Promise<StarResult> {
 export async function deleteVideoAction(id: string): Promise<ActionResult> {
   try {
     await prisma.video.delete({ where: { id } });
-    revalidatePath('/');
+    revalidatePath('/all');
     revalidatePath('/youtube');
     revalidatePath('/social');
     revalidatePath('/popular-feed');
@@ -42,7 +42,7 @@ export async function deleteVideosAction(ids: string[]): Promise<ActionResult> {
   if (ids.length === 0) return { ok: true, count: 0 };
   try {
     const result = await prisma.video.deleteMany({ where: { id: { in: ids } } });
-    revalidatePath('/');
+    revalidatePath('/all');
     revalidatePath('/youtube');
     revalidatePath('/social');
     revalidatePath('/popular-feed');
