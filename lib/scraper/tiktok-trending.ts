@@ -51,11 +51,11 @@ export async function fetchTiktokTrending(
   const client = new ApifyClient({ token });
 
   const run = await client.actor('apidojo/tiktok-scraper').call({
-    keywords: KR_TRENDING_KEYWORDS,
-    location: region,
+    startUrls: KR_TRENDING_KEYWORDS.map((tag) => ({
+      url: `https://www.tiktok.com/tag/${tag}`,
+    })),
     maxItems,
     sortType: 'MOST_LIKED',
-    dateRange: 'THIS_WEEK',
   });
 
   const { items } = await client.dataset(run.defaultDatasetId).listItems();
