@@ -31,15 +31,7 @@ const FORMATS: { code: FormatTab; label: string }[] = [
   { code: 'short', label: '쇼츠' },
 ];
 
-type Platform = 'youtube' | 'tiktok';
-
-const PLATFORMS: { code: Platform; label: string }[] = [
-  { code: 'youtube', label: '▶ YouTube' },
-  { code: 'tiktok', label: '🎵 TikTok' },
-];
-
 export default function TrendingPage() {
-  const [platform, setPlatform] = useState<Platform>('youtube');
   const [country, setCountry] = useState('KR');
   const [type, setType] = useState<FormatTab>('all');
   const [items, setItems] = useState<TrendingItem[]>([]);
@@ -54,11 +46,7 @@ export default function TrendingPage() {
     setKeyMissing(false);
     setKeyExpired(false);
     try {
-      const url =
-        platform === 'tiktok'
-          ? `/api/v1/tiktok/trending?country=${country}`
-          : `/api/v1/youtube/trending?country=${country}&type=${type}&pages=4`;
-      const r = await fetch(url);
+      const r = await fetch(`/api/v1/youtube/trending?country=${country}&type=${type}&pages=4`);
       const j = await r.json();
       if (!j.success) {
         if (j.error?.code === 'NO_KEY') setKeyMissing(true);
@@ -77,7 +65,7 @@ export default function TrendingPage() {
 
   useEffect(() => {
     load();
-  }, [platform, country, type]);
+  }, [country, type]);
 
   return (
     <div className="px-4 py-4 md:px-6">
@@ -95,26 +83,6 @@ export default function TrendingPage() {
         >
           {loading ? '불러오는 중…' : '↻ 새로고침'}
         </button>
-      </div>
-
-      <div className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[13px]">
-        <span className="mr-1 text-[11.5px] uppercase tracking-wider text-muted-foreground/80">
-          플랫폼
-        </span>
-        {PLATFORMS.map((p) => (
-          <button
-            key={p.code}
-            onClick={() => setPlatform(p.code)}
-            className={cn(
-              'rounded-full px-3 py-1',
-              platform === p.code
-                ? 'bg-foreground text-background'
-                : 'border border-border/60 bg-background/40 text-muted-foreground hover:border-foreground/40 hover:text-foreground'
-            )}
-          >
-            {p.label}
-          </button>
-        ))}
       </div>
 
       <div className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[13px]">
@@ -137,27 +105,25 @@ export default function TrendingPage() {
         ))}
       </div>
 
-      {platform === 'youtube' && (
-        <div className="mb-4 flex flex-wrap items-center gap-1.5 text-[13px]">
-          <span className="mr-1 text-[11.5px] uppercase tracking-wider text-muted-foreground/80">
-            형식
-          </span>
-          {FORMATS.map((f) => (
-            <button
-              key={f.code}
-              onClick={() => setType(f.code)}
-              className={cn(
-                'rounded-full px-3 py-1',
-                type === f.code
-                  ? 'bg-foreground text-background'
-                  : 'border border-border/60 bg-background/40 text-muted-foreground hover:border-foreground/40 hover:text-foreground'
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="mb-4 flex flex-wrap items-center gap-1.5 text-[13px]">
+        <span className="mr-1 text-[11.5px] uppercase tracking-wider text-muted-foreground/80">
+          형식
+        </span>
+        {FORMATS.map((f) => (
+          <button
+            key={f.code}
+            onClick={() => setType(f.code)}
+            className={cn(
+              'rounded-full px-3 py-1',
+              type === f.code
+                ? 'bg-foreground text-background'
+                : 'border border-border/60 bg-background/40 text-muted-foreground hover:border-foreground/40 hover:text-foreground'
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
 
       {keyMissing && (
         <div className="mb-4 rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 text-[13.5px]">
