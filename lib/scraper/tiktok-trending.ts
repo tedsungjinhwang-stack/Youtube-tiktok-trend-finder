@@ -1,22 +1,16 @@
 /**
- * TikTok 트렌딩 (KR) — clockworks/tiktok-scraper actor 로
- * 한국 트렌딩 해시태그 모음의 인기 영상을 묶어서 가져옴.
+ * TikTok 트렌딩 (KR) — apidojo/tiktok-scraper actor 사용.
  *
- * TikTok 은 공식 글로벌 trending API 가 없어, 한국 관련 인기 태그들에서
- * 가장 조회수 높은 영상들을 모은 뒤 dedupe + 정렬.
+ * 진짜 country trending API 가 TikTok 에 없어, location=KR + sortType=MOST_LIKED +
+ * 트렌딩 키워드 조합으로 KR 인기 영상을 가져옴.
+ *
+ * 비용: $0.30 / 1k posts.
  */
 
 import { ApifyClient } from 'apify-client';
 import { getCred } from '@/lib/credentials';
 
-const KR_TRENDING_HASHTAGS = [
-  'fyp',
-  'kpop',
-  'koreatiktok',
-  'korea',
-  'kdrama',
-  'kfood',
-];
+const KR_TRENDING_KEYWORDS = ['fyp', 'kpop', 'korea', 'kdrama', 'kfood', '한국'];
 
 export type TiktokTrendingVideo = {
   videoId: string;
@@ -35,44 +29,42 @@ export type TiktokTrendingVideo = {
 
 export async function fetchTiktokTrending(
   region: string = 'KR',
-  resultsPerTag = 30
+  maxItems = 200
 ): Promise<TiktokTrendingVideo[]> {
   const token = await getCred('APIFY_API_TOKEN');
-  if (!token) throw new Error('APIFY_TOKEN 미설정 — /settings/api-keys 에서 등록');
+  if (!token) throw new Error('APIFY_API_TOKEN 미설정 — /settings/api-keys 에서 등록');
   const client = new ApifyClient({ token });
 
-  // KR 외 region 도 일단 같은 태그 모음으로 (확장 시 region 별 태그 분기 가능)
-  const tags = region === 'KR' ? KR_TRENDING_HASHTAGS : ['fyp', 'foryou', 'viral'];
-
-  const run = await client.actor('clockworks/tiktok-scraper').call({
-    hashtags: tags,
-    resultsPerPage: resultsPerTag,
-    shouldDownloadVideos: false,
-    shouldDownloadCovers: false,
-    shouldDownloadAvatars: false,
-    shouldDownloadSubtitles: false,
-    shouldDownloadSlideshowImages: false,
-    shouldDownloadMusicCovers: false,
+  const run = await client.actor('apidojo/tiktok-scraper').call({
+    keywords: KR_TRENDING_KEYWORDS,
+    sortType: 'MOST_LIKED',
+    location: region, // ISO 3166-1 alpha-2 (KR)
+    maxItems,
   });
 
   const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
-  // dedupe by videoId, sort by viewCount desc
+  // apidojo/tiktok-scraper 응답 필드 매핑 (clockworks 와 비슷하지만 일부 다를 수 있음)
   const seen = new Set<string>();
   const out: TiktokTrendingVideo[] = [];
-  for (const it of items) {
-    const i = it as Record<string, unknown> & {
+  for (const raw of items) {
+    const i = raw as Record<string, unknown> & {
       id?: string;
       aweme_id?: string;
       webVideoUrl?: string;
       videoUrl?: string;
+      url?: string;
       text?: string;
+      desc?: string;
       videoMeta?: { coverUrl?: string; duration?: number };
       coverUrl?: string;
+      cover?: string;
       playCount?: number;
+      stats?: { playCount?: number; diggCount?: number; commentCount?: number };
       diggCount?: number;
       commentCount?: number;
       authorMeta?: { id?: string; name?: string; uniqueId?: string; nickName?: string };
+      author?: { id?: string; uniqueId?: string; nickname?: string };
       createTimeISO?: string;
       createTime?: number;
     };
@@ -80,16 +72,29 @@ export async function fetchTiktokTrending(
     if (!videoId || seen.has(videoId)) continue;
     seen.add(videoId);
 
+    const viewCount =
+      i.playCount ?? i.stats?.playCount ?? 0;
+    const likeCount =
+      i.diggCount ?? i.stats?.diggCount ?? null;
+    const commentCount =
+      i.commentCount ?? i.stats?.commentCount ?? null;
+
     out.push({
       videoId,
-      url: i.webVideoUrl ?? i.videoUrl ?? '',
-      title: i.text ?? '',
-      channelId: i.authorMeta?.id ?? i.authorMeta?.uniqueId ?? '',
-      channelName: i.authorMeta?.nickName ?? i.authorMeta?.name ?? i.authorMeta?.uniqueId ?? '',
-      thumbnailUrl: i.videoMeta?.coverUrl ?? i.coverUrl ?? null,
-      viewCount: Number(i.playCount ?? 0),
-      likeCount: i.diggCount != null ? Number(i.diggCount) : null,
-      commentCount: i.commentCount != null ? Number(i.commentCount) : null,
+      url: i.webVideoUrl ?? i.videoUrl ?? i.url ?? '',
+      title: i.text ?? i.desc ?? '',
+      channelId: i.authorMeta?.id ?? i.author?.id ?? i.authorMeta?.uniqueId ?? i.author?.uniqueId ?? '',
+      channelName:
+        i.authorMeta?.nickName ??
+        i.author?.nickname ??
+        i.authorMeta?.name ??
+        i.authorMeta?.uniqueId ??
+        i.author?.uniqueId ??
+        '',
+      thumbnailUrl: i.videoMeta?.coverUrl ?? i.coverUrl ?? i.cover ?? null,
+      viewCount: Number(viewCount),
+      likeCount: likeCount != null ? Number(likeCount) : null,
+      commentCount: commentCount != null ? Number(commentCount) : null,
       durationSeconds: i.videoMeta?.duration ?? 0,
       publishedAt:
         i.createTimeISO ??
