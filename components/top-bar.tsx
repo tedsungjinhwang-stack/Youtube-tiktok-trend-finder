@@ -11,8 +11,6 @@ const tabs = [
   { href: '/channels', label: '에셋 채널' },
   { href: '/folders', label: '폴더' },
   { href: '/comment-generator', label: '댓글생성기' },
-  { href: '/insta-video', label: '인스타영상' },
-  { href: '/audio-shorts', label: '군림보형' },
   { href: '/my-schedule', label: '채널 스케줄' },
 ];
 
