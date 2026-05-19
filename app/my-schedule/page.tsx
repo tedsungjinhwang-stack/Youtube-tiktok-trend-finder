@@ -83,7 +83,6 @@ export default function MySchedulePage() {
       ]);
       if (c.success) {
         setChannels(c.data ?? []);
-        if (!selectedChannelId && c.data?.length > 0) setSelectedChannelId(c.data[0].id);
         setSetupWarning(c.warning ?? null);
       } else {
         setSetupWarning(c.error?.message ?? '채널 목록 로드 실패');
