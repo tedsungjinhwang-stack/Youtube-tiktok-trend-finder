@@ -157,6 +157,13 @@ export default function TrendingPage() {
         </div>
       )}
 
+      {loading && (
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-muted-foreground">
+          <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span>실시간 인기 불러오는 중…</span>
+        </div>
+      )}
+
       {!loading && items.length === 0 && !keyMissing && !error && (
         <div className="rounded-xl border border-dashed py-12 text-center text-[13.5px] text-muted-foreground">
           결과 없음.
