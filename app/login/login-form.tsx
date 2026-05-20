@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/';
+  const next = searchParams.get('next') ?? '/my-schedule';
 
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -27,8 +26,9 @@ export function LoginForm() {
           setError(j.error ?? '로그인 실패');
           return;
         }
-        router.replace(j.next ?? '/');
-        router.refresh();
+        // full page reload — server-side redirect (/ → /my-schedule) 도 안정적으로 따라감
+        const dest = j.next && j.next !== '/' ? j.next : '/my-schedule';
+        window.location.href = dest;
       } catch (e: any) {
         setError(e?.message ?? '네트워크 오류');
       }
