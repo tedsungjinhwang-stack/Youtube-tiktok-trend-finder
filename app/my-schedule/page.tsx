@@ -247,7 +247,9 @@ export default function MySchedulePage() {
       if (!j.success) alert(j.error?.message ?? '실패');
       else
         alert(
-          `✓ YouTube 동기화 완료 (${j.data.synced}/${j.data.total} 채널, 총 ${j.data.totalVideos}개 영상)`
+          `✓ YouTube 동기화 완료\n` +
+            `· YT 채널 ${j.data.ytSynced ?? j.data.synced}/${j.data.ytChannels ?? j.data.total} (영상 ${j.data.totalVideos}개)\n` +
+            `· 캘린더 반영 ${j.data.calSynced ?? 0}/${j.data.calChannels ?? 0} 채널`
         );
       refresh();
     } finally {
