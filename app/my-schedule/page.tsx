@@ -236,15 +236,36 @@ export default function MySchedulePage() {
     setTimeout(() => clearInterval(iv), 5 * 60_000);
   };
 
+  const [syncingGcal, setSyncingGcal] = useState(false);
+  const [syncingYt, setSyncingYt] = useState(false);
+
   const syncYoutubeAll = async () => {
-    const r = await fetch('/api/v1/my-schedule/sync-yt-all', { method: 'POST' });
-    const j = await r.json();
-    if (!j.success) alert(j.error?.message ?? '실패');
-    else
-      alert(
-        `✓ YouTube 동기화 완료 (${j.data.synced}/${j.data.total} 채널, 총 ${j.data.totalVideos}개 영상)`
-      );
-    refresh();
+    setSyncingYt(true);
+    try {
+      const r = await fetch('/api/v1/my-schedule/sync-yt-all', { method: 'POST' });
+      const j = await r.json();
+      if (!j.success) alert(j.error?.message ?? '실패');
+      else
+        alert(
+          `✓ YouTube 동기화 완료 (${j.data.synced}/${j.data.total} 채널, 총 ${j.data.totalVideos}개 영상)`
+        );
+      refresh();
+    } finally {
+      setSyncingYt(false);
+    }
+  };
+
+  const syncGcalAll = async () => {
+    setSyncingGcal(true);
+    try {
+      const r = await fetch('/api/v1/my-schedule/sync-gcal-all', { method: 'POST' });
+      const j = await r.json();
+      if (!j.success) alert(j.error?.message ?? '실패');
+      else alert(`✓ 캘린더 동기화 완료 (${j.data.synced}/${j.data.total} 채널)`);
+      refresh();
+    } finally {
+      setSyncingGcal(false);
+    }
   };
 
   const disconnectYoutube = async (channelId: string) => {
@@ -253,13 +274,6 @@ export default function MySchedulePage() {
     refresh();
   };
 
-  const syncGcalAll = async () => {
-    const r = await fetch('/api/v1/my-schedule/sync-gcal-all', { method: 'POST' });
-    const j = await r.json();
-    if (!j.success) alert(j.error?.message ?? '실패');
-    else alert(`✓ 캘린더 동기화 완료 (${j.data.synced}/${j.data.total} 채널)`);
-    refresh();
-  };
 
   if (loading) {
     return <div className="p-8 text-sm text-muted-foreground">로딩 중…</div>;
@@ -270,6 +284,13 @@ export default function MySchedulePage() {
       {setupWarning && (
         <div className="border-b border-amber-500/30 bg-amber-50 px-4 py-2.5 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
           ⚠️ {setupWarning}
+        </div>
+      )}
+      {(syncingGcal || syncingYt) && (
+        <div className="flex items-center gap-2 border-b border-primary/30 bg-primary/10 px-4 py-2.5 text-xs font-semibold text-primary">
+          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          {syncingGcal && 'Google 캘린더 전체 동기화 진행 중… (활성 채널 모두 처리)'}
+          {syncingYt && 'YouTube 전체 동기화 진행 중… (영상 가져오기 + 캘린더 반영, 채널당 5~15초 소요)'}
         </div>
       )}
       <div className="flex flex-1 overflow-hidden">
@@ -396,17 +417,33 @@ export default function MySchedulePage() {
             </span>
             <button
               onClick={syncGcalAll}
-              className="flex h-10 items-center gap-2 rounded-lg border-2 border-primary/50 bg-primary/10 px-5 text-sm font-bold text-primary hover:bg-primary/20"
+              disabled={syncingGcal || syncingYt}
+              className="flex h-10 items-center gap-2 rounded-lg border-2 border-primary/50 bg-primary/10 px-5 text-sm font-bold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               title="활성 채널 전체 캘린더 이벤트 강제 갱신"
             >
-              🗓️ 캘린더 전체 동기화
+              {syncingGcal ? (
+                <>
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  캘린더 동기화 중…
+                </>
+              ) : (
+                <>🗓️ 캘린더 전체 동기화</>
+              )}
             </button>
             <button
               onClick={syncYoutubeAll}
-              className="flex h-10 items-center gap-2 rounded-lg border-2 border-primary/50 bg-primary/10 px-5 text-sm font-bold text-primary hover:bg-primary/20"
+              disabled={syncingGcal || syncingYt}
+              className="flex h-10 items-center gap-2 rounded-lg border-2 border-primary/50 bg-primary/10 px-5 text-sm font-bold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               title="YouTube 연결된 활성 채널 전체 예약 영상 가져오기"
             >
-              🔄 YouTube 전체 동기화
+              {syncingYt ? (
+                <>
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  YouTube 동기화 중…
+                </>
+              ) : (
+                <>🔄 YouTube 전체 동기화</>
+              )}
             </button>
             <span className="ml-auto text-[11px] font-semibold text-foreground/80">
               ⏰ 자동 동기화: 매일 KST 02:00
