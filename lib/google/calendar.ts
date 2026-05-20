@@ -192,45 +192,14 @@ export async function syncMyChannel(channelId: string): Promise<void> {
       existingIds.unshift(ch.gcalEventId);
     }
 
-    if (existingIds.length === 0) {
-      // 없음 → 신규 생성
-      const id = await createEvent(input);
-      await prisma.myChannel.update({
-        where: { id: channelId },
-        data: { gcalEventId: id, gcalSyncedAt: new Date() },
-      });
-      return;
+    // 기존 이벤트 있으면 모두 삭제하고 신규 생성 (PATCH 가 시각↔종일 전환 불안정해서).
+    for (const eid of existingIds) {
+      await deleteEvent(eid, auth.calendarId).catch(() => {});
     }
-
-    // 1개 이상 → 첫번째 것을 reuse, 나머지는 삭제
-    const keepId = existingIds[0];
-    const dupIds = existingIds.slice(1);
-    try {
-      await updateEvent(keepId, input);
-    } catch (e) {
-      const msg = (e as Error).message;
-      if (/404|410/.test(msg)) {
-        // 첫번째도 사라짐 → 신규 생성
-        const id = await createEvent(input);
-        // 잔여 중복도 정리
-        for (const did of dupIds) {
-          await deleteEvent(did, auth.calendarId).catch(() => {});
-        }
-        await prisma.myChannel.update({
-          where: { id: channelId },
-          data: { gcalEventId: id, gcalSyncedAt: new Date() },
-        });
-        return;
-      }
-      throw e;
-    }
-    // 중복 정리
-    for (const did of dupIds) {
-      await deleteEvent(did, auth.calendarId).catch(() => {});
-    }
+    const id = await createEvent(input);
     await prisma.myChannel.update({
       where: { id: channelId },
-      data: { gcalEventId: keepId, gcalSyncedAt: new Date() },
+      data: { gcalEventId: id, gcalSyncedAt: new Date() },
     });
   } catch (e) {
     console.error('[gcal channel sync]', (e as Error).message);
