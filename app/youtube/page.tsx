@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { CategoryTabs } from '@/components/category-tabs';
 import { PageFilters } from '@/components/page-filters';
 import { SelectableVideoGrid } from '@/components/selectable-video-grid';
+import { ScrapeButton } from '@/components/scrape-button';
 import { queryVideos } from '@/lib/queries/videos';
 import { prisma } from '@/lib/db';
 import {
@@ -56,11 +57,14 @@ export default async function YoutubePage({
       <CategoryTabs folders={folders} />
 
       <div className="px-4 py-4">
-        <div className="mb-4">
-          <h1 className="text-lg font-bold tracking-tight">YouTube</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            에셋 채널 YT 영상 · 폴더·기간·임계치 필터링
-          </p>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-lg font-bold tracking-tight">YouTube</h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              에셋 채널 YT 영상 · 폴더·기간·임계치 필터링
+            </p>
+          </div>
+          <ScrapeButton platforms={['YOUTUBE']} label="YT 채널 조회" />
         </div>
 
         <div className="mb-4">
