@@ -147,7 +147,20 @@ export async function scrapeAllActive(): Promise<{
   ok: number;
   failed: number;
 }> {
-  const channels = await prisma.channel.findMany({ where: { isActive: true } });
+  return scrapeByPlatforms();
+}
+
+export async function scrapeByPlatforms(
+  platforms?: Channel['platform'][],
+  folderId?: string
+): Promise<{ dispatched: number; ok: number; failed: number }> {
+  const channels = await prisma.channel.findMany({
+    where: {
+      isActive: true,
+      ...(platforms && platforms.length > 0 ? { platform: { in: platforms } } : {}),
+      ...(folderId ? { folderId } : {}),
+    },
+  });
   let ok = 0,
     failed = 0;
   for (const c of channels) {
