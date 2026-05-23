@@ -1,12 +1,14 @@
 import { prisma } from '@/lib/db';
+import { getScrapeSettings } from '@/lib/scrape-settings';
 import { ChannelsClient } from './channels-client';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ChannelsPage() {
-  const [channels, folders] = await Promise.all([
+  const [channels, folders, settings] = await Promise.all([
     safeChannels(),
     safeFolders(),
+    getScrapeSettings(),
   ]);
 
   return (
@@ -18,7 +20,7 @@ export default async function ChannelsPage() {
         </p>
       </div>
 
-      <ChannelsClient channels={channels} folders={folders} />
+      <ChannelsClient channels={channels} folders={folders} settings={settings} />
     </div>
   );
 }

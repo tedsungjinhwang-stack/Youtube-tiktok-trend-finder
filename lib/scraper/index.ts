@@ -14,6 +14,7 @@ import {
   type ScrapeResult,
 } from './apify';
 import { inferFormat } from '@/lib/format';
+import { getScrapeSettings } from '@/lib/scrape-settings';
 
 export async function scrapeChannel(c: Channel): Promise<ScrapeResult> {
   const start = Date.now();
@@ -67,12 +68,13 @@ export async function scrapeChannel(c: Channel): Promise<ScrapeResult> {
   }
 }
 
-/** 자동 스크래핑 정책: 최근 48시간 이내 게시 + DB에 없는 영상만 신규로 저장 */
-const SCRAPE_RECENCY_HOURS = 48;
-
+/** 자동 스크래핑 정책: ScrapeSettings(최근 N일 + 조회수 ≥ M) 통과한 신규 영상만 저장 */
 async function persistVideos(c: Channel, videos: ScrapedVideo[]) {
-  const cutoff = new Date(Date.now() - SCRAPE_RECENCY_HOURS * 60 * 60 * 1000);
-  const recent = videos.filter((v) => v.publishedAt >= cutoff);
+  const { recencyDays, minViews } = await getScrapeSettings();
+  const cutoff = new Date(Date.now() - recencyDays * 24 * 60 * 60 * 1000);
+  const recent = videos.filter(
+    (v) => v.publishedAt >= cutoff && Number(v.viewCount) >= minViews
+  );
   if (recent.length === 0) return;
 
   const externalIds = recent.map((v) => v.externalId);

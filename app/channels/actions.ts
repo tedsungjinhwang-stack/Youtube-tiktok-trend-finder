@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { parseChannelInput } from '@/lib/url-parser';
 import { scrapeChannel } from '@/lib/scraper';
+import { setScrapeSettings } from '@/lib/scrape-settings';
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -46,6 +47,19 @@ export async function deleteChannelAction(id: string): Promise<ActionResult> {
     return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e?.message ?? '삭제 실패' };
+  }
+}
+
+export async function updateScrapeSettingsAction(
+  recencyDays: number,
+  minViews: number
+): Promise<ActionResult> {
+  try {
+    await setScrapeSettings({ recencyDays, minViews });
+    revalidatePath('/channels');
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? '설정 저장 실패' };
   }
 }
 
