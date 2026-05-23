@@ -180,6 +180,14 @@ model TrendingSettings {
   updatedAt     DateTime @updatedAt
 }
 
+/// 에셋 채널 스크래핑 필터 (싱글톤). 최근 N일 + 조회수 최소값 이상만 DB 저장.
+model ScrapeSettings {
+  id          String   @id @default("default")
+  recencyDays Int      @default(10)
+  minViews    Int      @default(50000)
+  updatedAt   DateTime @updatedAt
+}
+
 /// OpenAI OAuth (Codex CLI 방식 우회 — Sign in with ChatGPT, device flow).
 /// 싱글톤 (id='default'). ⚠️ TOS 회색지대 — OpenAI가 차단할 가능성 있음.
 model OpenAIOAuth {
