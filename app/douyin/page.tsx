@@ -4,7 +4,7 @@ import { PageFilters } from '@/components/page-filters';
 import { SelectableVideoGrid } from '@/components/selectable-video-grid';
 import { ScrapeButton } from '@/components/scrape-button';
 import { queryVideos } from '@/lib/queries/videos';
-import { prisma } from '@/lib/db';
+import { getFoldersWithChannelCount } from '@/lib/queries/folders';
 import {
   BUILTIN_DEFAULTS,
   COOKIE_KEY_MIN_VIEWS,
@@ -27,7 +27,7 @@ export default async function DouyinPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const folders = await safeFolders();
+  const folders = await getFoldersWithChannelCount(['DOUYIN']);
   const c = cookies();
   const defaults = {
     minViews: numFromCookie(
@@ -107,24 +107,6 @@ function numOpt(s?: string): number | undefined {
   if (!s) return undefined;
   const n = Number(s);
   return Number.isFinite(n) ? n : undefined;
-}
-
-async function safeFolders() {
-  try {
-    const folders = await prisma.folder.findMany({
-      orderBy: { sortOrder: 'asc' },
-      select: { id: true, name: true, _count: { select: { channels: true } } },
-    });
-    return folders
-      .filter((f) => !f.name.startsWith('__'))
-      .map((f) => ({
-        id: f.id,
-        name: f.name,
-        channelCount: f._count.channels,
-      }));
-  } catch {
-    return [];
-  }
 }
 
 async function safeQuery(filters: Parameters<typeof queryVideos>[0]) {
