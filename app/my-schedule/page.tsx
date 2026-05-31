@@ -49,14 +49,6 @@ function fmt(iso: string): string {
   return `${y}-${m}-${day} ${hh}:${mm}`;
 }
 
-function todayKstLabel(): string {
-  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
-  const y = kst.getUTCFullYear();
-  const m = String(kst.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(kst.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
 function toInputValue(iso: string): string {
   // datetime-local input 형식: YYYY-MM-DDTHH:mm (로컬 타임존)
   const d = new Date(iso);
@@ -631,9 +623,7 @@ function DashRow({
           {last ? (
             <span className="font-semibold">{fmt(last.scheduledAt)}</span>
           ) : (
-            <span className="font-semibold text-amber-700 dark:text-amber-300">
-              {todayKstLabel()} <span className="text-[10.5px] font-normal">(오늘)</span>
-            </span>
+            '—'
           )}
         </td>
       </tr>
