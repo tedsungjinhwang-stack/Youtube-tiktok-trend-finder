@@ -188,6 +188,23 @@ model ScrapeSettings {
   updatedAt   DateTime @updatedAt
 }
 
+/// 크론 실행 로그 — 도는지/언제 도는지 확인용.
+model CronRun {
+  id          String    @id @default(cuid())
+  name        String
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  status      String    // RUNNING / OK / FAILED
+  ytChannels  Int?
+  ytSynced    Int?
+  calChannels Int?
+  calSynced   Int?
+  error       String?
+  meta        String?   // JSON 문자열 (상세)
+
+  @@index([name, startedAt])
+}
+
 /// OpenAI OAuth (Codex CLI 방식 우회 — Sign in with ChatGPT, device flow).
 /// 싱글톤 (id='default'). ⚠️ TOS 회색지대 — OpenAI가 차단할 가능성 있음.
 model OpenAIOAuth {
