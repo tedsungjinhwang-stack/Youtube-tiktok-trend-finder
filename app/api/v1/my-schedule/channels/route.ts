@@ -25,7 +25,7 @@ export async function GET() {
         },
       },
     });
-    return NextResponse.json({ success: true, data: channels });
+    return NextResponse.json({ success: true, data: channels }, { headers: NO_STORE });
   } catch (e) {
     if (isMissingTable(e)) {
       // ChannelYouTubeOAuth 만 없는 경우 → include 없이 재시도
@@ -39,22 +39,24 @@ export async function GET() {
           data: channels.map((c) => ({ ...c, youtubeOauth: null })),
           warning:
             'YouTube 동기화 테이블 (ChannelYouTubeOAuth) 미생성. 새 마이그레이션 SQL 을 실행해주세요.',
-        });
+        }, { headers: NO_STORE });
       } catch {
         return NextResponse.json({
           success: true,
           data: [],
           warning:
             'DB 마이그레이션 미실행: MyChannel 테이블이 없습니다. Supabase SQL Editor 에서 마이그레이션 SQL 을 실행해주세요.',
-        });
+        }, { headers: NO_STORE });
       }
     }
     return NextResponse.json(
       { success: false, error: { code: 'DB_ERROR', message: (e as Error).message } },
-      { status: 500 }
+      { status: 500, headers: NO_STORE }
     );
   }
 }
+
+const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' } as const;
 
 export async function POST(req: Request) {
   const body = await req.json();

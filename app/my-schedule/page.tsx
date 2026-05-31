@@ -76,8 +76,8 @@ export default function MySchedulePage() {
   const refresh = async () => {
     try {
       const [c, g] = await Promise.all([
-        fetch('/api/v1/my-schedule/channels').then((r) => r.json()),
-        fetch('/api/google/status')
+        fetch('/api/v1/my-schedule/channels', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/google/status', { cache: 'no-store' })
           .then((r) => r.json())
           .catch(() => ({ success: false })),
       ]);
