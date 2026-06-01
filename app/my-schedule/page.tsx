@@ -96,7 +96,15 @@ export default function MySchedulePage() {
   };
 
   useEffect(() => {
-    refresh();
+    // 1차: DB 그대로 즉시 표시
+    refresh().then(() => {
+      // 2차: 백그라운드로 YT → DB 동기화 후 한 번 더 refresh (사용자 인지 X)
+      fetch('/api/v1/my-schedule/sync-yt-all', { method: 'POST', cache: 'no-store' })
+        .then((r) => {
+          if (r.ok) refresh();
+        })
+        .catch(() => {});
+    });
   }, []);
 
   const selected = channels.find((c) => c.id === selectedChannelId) ?? null;
