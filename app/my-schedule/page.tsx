@@ -611,28 +611,19 @@ function DashRow({
           {c.category ?? '—'}
         </td>
         <td className="px-4 py-2.5">
-          {last ? (
-            <div className="truncate text-xs" title={last.title}>
-              {last.title || (
-                <span className="italic text-muted-foreground">제목 없음</span>
-              )}
-              <span className="ml-1.5 text-sm font-bold">
-                ({c.videos.length})
-              </span>
-            </div>
-          ) : (
-            <span className="text-xs text-amber-700 dark:text-amber-300">
-              ⚠️ 영상 없음 — 업로드 필요
-              <span className="ml-1.5 text-sm font-bold">(0)</span>
-            </span>
-          )}
+          <InlineTitleCell
+            last={last}
+            count={c.videos.length}
+            onSaveExisting={(id, title) => onUpdateVideo(id, { title })}
+            onCreate={(title) => onAddVideo(title, todayKstInputValue(), '')}
+          />
         </td>
         <td className="px-4 py-2.5 text-xs">
-          {last ? (
-            <span className="font-semibold">{fmt(last.scheduledAt)}</span>
-          ) : (
-            '—'
-          )}
+          <InlineDateCell
+            last={last}
+            onSaveExisting={(id, iso) => onUpdateVideo(id, { scheduledAt: iso })}
+            onCreate={(localStr) => onAddVideo('', localStr, '')}
+          />
         </td>
       </tr>
       {isExpanded && (
@@ -784,4 +775,153 @@ function DashRow({
       )}
     </>
   );
+}
+
+function InlineTitleCell({
+  last,
+  count,
+  onSaveExisting,
+  onCreate,
+}: {
+  last?: ScheduledVideo;
+  count: number;
+  onSaveExisting: (id: string, title: string) => void;
+  onCreate: (title: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const start = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDraft(last?.title ?? '');
+    setEditing(true);
+  };
+  const commit = () => {
+    setEditing(false);
+    const v = draft.trim();
+    if (last) {
+      if (v !== last.title) onSaveExisting(last.id, v);
+    } else if (v) {
+      onCreate(v);
+    }
+  };
+  const cancel = () => setEditing(false);
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          } else if (e.key === 'Escape') {
+            cancel();
+          }
+        }}
+        onClick={(e) => e.stopPropagation()}
+        placeholder="제목"
+        className="h-7 w-full rounded border bg-background px-2 text-xs"
+      />
+    );
+  }
+
+  return (
+    <div
+      onClick={start}
+      className="cursor-text rounded px-1 py-0.5 hover:bg-accent/40"
+      title="클릭해서 수정"
+    >
+      {last ? (
+        <div className="truncate text-xs">
+          {last.title || (
+            <span className="italic text-muted-foreground">제목 없음</span>
+          )}
+          <span className="ml-1.5 text-sm font-bold">({count})</span>
+        </div>
+      ) : (
+        <span className="text-xs text-amber-700 dark:text-amber-300">
+          ⚠️ 영상 없음 — 업로드 필요
+          <span className="ml-1.5 text-sm font-bold">(0)</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+function InlineDateCell({
+  last,
+  onSaveExisting,
+  onCreate,
+}: {
+  last?: ScheduledVideo;
+  onSaveExisting: (id: string, iso: string) => void;
+  onCreate: (localStr: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const start = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDraft(last ? toInputValue(last.scheduledAt) : todayKstInputValue());
+    setEditing(true);
+  };
+  const commit = () => {
+    setEditing(false);
+    if (!draft) return;
+    if (last) {
+      const iso = new Date(draft).toISOString();
+      if (iso !== new Date(last.scheduledAt).toISOString()) {
+        onSaveExisting(last.id, iso);
+      }
+    } else {
+      onCreate(draft); // datetime-local 포맷 그대로 — addVideo 가 new Date() 로 로컬 해석
+    }
+  };
+  const cancel = () => setEditing(false);
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="datetime-local"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          } else if (e.key === 'Escape') {
+            cancel();
+          }
+        }}
+        onClick={(e) => e.stopPropagation()}
+        className="h-7 rounded border bg-background px-2 text-xs"
+      />
+    );
+  }
+
+  return (
+    <div
+      onClick={start}
+      className="cursor-text rounded px-1 py-0.5 hover:bg-accent/40"
+      title="클릭해서 수정"
+    >
+      {last ? (
+        <span className="font-semibold">{fmt(last.scheduledAt)}</span>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      )}
+    </div>
+  );
+}
+
+function todayKstInputValue(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
