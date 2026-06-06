@@ -347,9 +347,8 @@ export default function CommentGeneratorPage() {
     // 그대로 보존한다 (html2canvas 는 filter 를 무시했음).
     const { toBlob } = await import('html-to-image');
     const blob = await toBlob(node, {
-      pixelRatio: 2,
+      pixelRatio: 1.5,
       backgroundColor: undefined,
-      cacheBust: true,
     });
     if (!blob) throw new Error('blob 생성 실패');
     return blob;
@@ -539,9 +538,6 @@ export default function CommentGeneratorPage() {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        if (i < list.length - 1) {
-          await new Promise((r) => setTimeout(r, 250));
-        }
       }
     } catch (e) {
       alert('내보내기 실패: ' + (e as Error).message);
