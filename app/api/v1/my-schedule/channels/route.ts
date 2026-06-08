@@ -11,7 +11,12 @@ function isMissingTable(e: unknown): boolean {
 export async function GET() {
   try {
     const channels = await prisma.myChannel.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [
+        { adsense: { sort: 'asc', nulls: 'last' } },
+        { email: { sort: 'asc', nulls: 'last' } },
+        { sortOrder: 'asc' },
+        { createdAt: 'asc' },
+      ],
       include: {
         videos: { orderBy: { scheduledAt: 'asc' } },
         youtubeOauth: {
@@ -31,7 +36,12 @@ export async function GET() {
       // ChannelYouTubeOAuth 만 없는 경우 → include 없이 재시도
       try {
         const channels = await prisma.myChannel.findMany({
-          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          orderBy: [
+        { adsense: { sort: 'asc', nulls: 'last' } },
+        { email: { sort: 'asc', nulls: 'last' } },
+        { sortOrder: 'asc' },
+        { createdAt: 'asc' },
+      ],
           include: { videos: { orderBy: { scheduledAt: 'asc' } } },
         });
         return NextResponse.json({

@@ -27,6 +27,8 @@ type MyChannel = {
   name: string;
   category: string | null;
   url: string | null;
+  adsense: string | null;
+  email: string | null;
   sortOrder: number;
   isActive: boolean;
   videos: ScheduledVideo[];
@@ -492,10 +494,12 @@ export default function MySchedulePage() {
                       className="h-3.5 w-3.5"
                     />
                   </th>
-                  <th className="w-[28%] px-4 py-2 text-left font-semibold">채널</th>
-                  <th className="w-[12%] px-4 py-2 text-left font-semibold">카테고리</th>
+                  <th className="w-[22%] px-4 py-2 text-left font-semibold">채널</th>
+                  <th className="w-[10%] px-4 py-2 text-left font-semibold">카테고리</th>
+                  <th className="w-[10%] px-4 py-2 text-left font-semibold">애드센스</th>
+                  <th className="w-[14%] px-4 py-2 text-left font-semibold">이메일</th>
                   <th className="px-4 py-2 text-left font-semibold">마지막 예약 영상</th>
-                  <th className="w-[16%] px-4 py-2 text-left font-semibold">예약일시</th>
+                  <th className="w-[14%] px-4 py-2 text-left font-semibold">예약일시</th>
                 </tr>
               </thead>
               <tbody>
@@ -625,6 +629,20 @@ function DashRow({
         <td className="px-4 py-2.5 text-xs text-muted-foreground">
           {c.category ?? '—'}
         </td>
+        <td className="px-4 py-2.5 text-xs">
+          <InlineTextCell
+            value={c.adsense}
+            placeholder="애드센스"
+            onSave={(v) => onUpdate(c.id, { adsense: v } as Partial<MyChannel>)}
+          />
+        </td>
+        <td className="px-4 py-2.5 text-xs">
+          <InlineTextCell
+            value={c.email}
+            placeholder="이메일"
+            onSave={(v) => onUpdate(c.id, { email: v } as Partial<MyChannel>)}
+          />
+        </td>
         <td className="px-4 py-2.5">
           <InlineTitleCell
             last={last}
@@ -643,7 +661,7 @@ function DashRow({
       </tr>
       {isExpanded && (
         <tr className="border-b bg-secondary/20">
-          <td colSpan={4} className="px-6 py-3">
+          <td colSpan={7} className="px-6 py-3">
             {/* 채널 메타 인라인 편집 */}
             <div className="mb-3 grid grid-cols-12 gap-2">
               <input
@@ -924,4 +942,64 @@ function todayKstInputValue(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function InlineTextCell({
+  value,
+  placeholder,
+  onSave,
+}: {
+  value: string | null;
+  placeholder: string;
+  onSave: (v: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const start = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDraft(value ?? '');
+    setEditing(true);
+  };
+  const commit = () => {
+    setEditing(false);
+    const v = draft.trim();
+    if ((value ?? '') !== v) onSave(v || null);
+  };
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          } else if (e.key === 'Escape') {
+            setEditing(false);
+          }
+        }}
+        onClick={(e) => e.stopPropagation()}
+        placeholder={placeholder}
+        className="h-7 w-full rounded border bg-background px-2 text-xs"
+      />
+    );
+  }
+
+  return (
+    <div
+      onClick={start}
+      className="cursor-text truncate rounded px-1 py-0.5 hover:bg-accent/40"
+      title={value ?? `${placeholder} (클릭해서 입력)`}
+    >
+      {value ? (
+        <span className="font-medium">{value}</span>
+      ) : (
+        <span className="text-muted-foreground/60">—</span>
+      )}
+    </div>
+  );
 }

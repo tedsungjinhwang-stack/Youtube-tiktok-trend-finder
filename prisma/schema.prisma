@@ -206,6 +206,8 @@ model MyChannel {
   name         String
   category     String?
   url          String?
+  adsense      String?
+  email        String?
   sortOrder    Int                   @default(0)
   /// 비활성화하면 cron/캘린더 동기화에서 제외. 기존 GCal 이벤트는 건드리지 않음.
   isActive     Boolean               @default(true)
@@ -216,6 +218,8 @@ model MyChannel {
   updatedAt    DateTime              @updatedAt
   videos       ScheduledVideo[]
   youtubeOauth ChannelYouTubeOAuth?
+
+  @@index([adsense])
 }
 
 /// 내 채널의 예약 영상.
