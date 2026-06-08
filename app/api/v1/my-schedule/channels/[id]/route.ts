@@ -6,11 +6,14 @@ export const dynamic = 'force-dynamic';
 
 type Ctx = { params: Promise<{ id: string }> };
 
+const ALLOWED_PLATFORMS = new Set(['YOUTUBE', 'INSTAGRAM', 'THREADS', 'NAVER_CLIP']);
+
 export async function PATCH(req: Request, { params }: Ctx) {
   const { id } = await params;
   const body = await req.json();
   const data: {
     name?: string;
+    platform?: string;
     category?: string | null;
     url?: string | null;
     adsense?: string | null;
@@ -18,6 +21,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
     isActive?: boolean;
   } = {};
   if (typeof body.name === 'string') data.name = body.name.trim();
+  if (typeof body.platform === 'string' && ALLOWED_PLATFORMS.has(body.platform)) {
+    data.platform = body.platform;
+  }
   if ('category' in body) data.category = body.category?.trim() || null;
   if ('url' in body) data.url = body.url?.trim() || null;
   if ('adsense' in body) data.adsense = body.adsense?.trim() || null;

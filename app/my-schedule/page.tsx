@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 type ScheduledVideo = {
@@ -30,9 +30,20 @@ type ChannelMaterial = {
   createdAt: string;
 };
 
+type Platform = 'YOUTUBE' | 'INSTAGRAM' | 'THREADS' | 'NAVER_CLIP';
+
+const PLATFORM_LABEL: Record<Platform, string> = {
+  YOUTUBE: 'YouTube',
+  INSTAGRAM: 'Instagram',
+  THREADS: 'Threads',
+  NAVER_CLIP: '네이버클립',
+};
+const PLATFORM_ORDER: Platform[] = ['YOUTUBE', 'INSTAGRAM', 'THREADS', 'NAVER_CLIP'];
+
 type MyChannel = {
   id: string;
   name: string;
+  platform: Platform;
   category: string | null;
   url: string | null;
   adsense: string | null;
@@ -76,6 +87,7 @@ export default function MySchedulePage() {
 
   // 채널 추가 폼
   const [newName, setNewName] = useState('');
+  const [newPlatform, setNewPlatform] = useState<Platform>('YOUTUBE');
   const [newCategory, setNewCategory] = useState('');
   const [newUrl, setNewUrl] = useState('');
 
@@ -131,7 +143,12 @@ export default function MySchedulePage() {
     const r = await fetch('/api/v1/my-schedule/channels', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName, category: newCategory, url: newUrl }),
+      body: JSON.stringify({
+        name: newName,
+        platform: newPlatform,
+        category: newCategory,
+        url: newUrl,
+      }),
     });
     const j = await r.json();
     if (j.success) {
@@ -331,6 +348,17 @@ export default function MySchedulePage() {
             <span className="text-xs text-muted-foreground">{channels.length}개</span>
           </div>
           <div className="space-y-1.5">
+            <select
+              value={newPlatform}
+              onChange={(e) => setNewPlatform(e.target.value as Platform)}
+              className="h-8 w-full rounded-md border bg-background px-2 text-xs"
+            >
+              {PLATFORM_ORDER.map((p) => (
+                <option key={p} value={p}>
+                  {PLATFORM_LABEL[p]}
+                </option>
+              ))}
+            </select>
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
@@ -491,9 +519,6 @@ export default function MySchedulePage() {
             >
               {syncingGcal ? '동기화 중…' : '🗓️ 캘린더 전체 동기화'}
             </button>
-            <span className="ml-auto text-[11px] text-muted-foreground">
-              채널 행의 체크박스로 다중 선택 → 일괄 예약 추가/비우기
-            </span>
           </div>
         )}
         {channels.length === 0 ? (
@@ -529,7 +554,7 @@ export default function MySchedulePage() {
                 </tr>
               </thead>
               <tbody>
-                {channels.map((c) => {
+                {channels.map((c, idx) => {
                   const sorted = [...c.videos].sort(
                     (a, b) =>
                       new Date(b.scheduledAt).getTime() -
@@ -537,38 +562,58 @@ export default function MySchedulePage() {
                   );
                   const last = sorted[0];
                   const isExpanded = selectedChannelId === c.id;
+                  const prev = channels[idx - 1];
+                  const showHeader =
+                    !prev || (prev.platform ?? 'YOUTUBE') !== (c.platform ?? 'YOUTUBE');
+                  const countInGroup = channels.filter(
+                    (x) => (x.platform ?? 'YOUTUBE') === (c.platform ?? 'YOUTUBE'),
+                  ).length;
                   return (
-                    <DashRow
-                      key={c.id}
-                      c={c}
-                      last={last}
-                      isExpanded={isExpanded}
-                      checked={bulkIds.has(c.id)}
-                      onCheck={() => toggleBulk(c.id)}
-                      onToggle={() =>
-                        setSelectedChannelId(isExpanded ? null : c.id)
-                      }
-                      onUpdate={updateChannel}
-                      onRemove={() => removeChannel(c.id)}
-                      onAddVideo={async (t, w, n) => {
-                        if (!w) return;
-                        await fetch('/api/v1/my-schedule/videos', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            channelId: c.id,
-                            title: t,
-                            scheduledAt: new Date(w).toISOString(),
-                            notes: n,
-                          }),
-                        });
-                        refresh();
-                      }}
-                      onUpdateVideo={updateVideo}
-                      onRemoveVideo={removeVideo}
-                      onAddMaterial={(url) => addMaterial(c.id, url)}
-                      onRemoveMaterial={removeMaterial}
-                    />
+                    <Fragment key={c.id}>
+                      {showHeader && (
+                        <tr className="bg-secondary/40">
+                          <td
+                            colSpan={6}
+                            className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
+                          >
+                            {PLATFORM_LABEL[(c.platform ?? 'YOUTUBE') as Platform]}
+                            <span className="ml-1.5 text-[10px] font-normal text-muted-foreground/70">
+                              ({countInGroup})
+                            </span>
+                          </td>
+                        </tr>
+                      )}
+                      <DashRow
+                        c={c}
+                        last={last}
+                        isExpanded={isExpanded}
+                        checked={bulkIds.has(c.id)}
+                        onCheck={() => toggleBulk(c.id)}
+                        onToggle={() =>
+                          setSelectedChannelId(isExpanded ? null : c.id)
+                        }
+                        onUpdate={updateChannel}
+                        onRemove={() => removeChannel(c.id)}
+                        onAddVideo={async (t, w, n) => {
+                          if (!w) return;
+                          await fetch('/api/v1/my-schedule/videos', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              channelId: c.id,
+                              title: t,
+                              scheduledAt: new Date(w).toISOString(),
+                              notes: n,
+                            }),
+                          });
+                          refresh();
+                        }}
+                        onUpdateVideo={updateVideo}
+                        onRemoveVideo={removeVideo}
+                        onAddMaterial={(url) => addMaterial(c.id, url)}
+                        onRemoveMaterial={removeMaterial}
+                      />
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -704,12 +749,25 @@ function DashRow({
           <td colSpan={6} className="px-6 py-3">
             {/* 채널 메타 인라인 편집 */}
             <div className="mb-3 grid grid-cols-12 gap-2">
+              <select
+                value={c.platform ?? 'YOUTUBE'}
+                onChange={(e) =>
+                  onUpdate(c.id, { platform: e.target.value as Platform } as Partial<MyChannel>)
+                }
+                className="col-span-2 h-8 rounded border bg-background px-2 text-xs"
+              >
+                {PLATFORM_ORDER.map((p) => (
+                  <option key={p} value={p}>
+                    {PLATFORM_LABEL[p]}
+                  </option>
+                ))}
+              </select>
               <input
                 value={c.name}
                 onChange={(e) => onUpdate(c.id, { name: e.target.value } as Partial<MyChannel>)}
                 onBlur={(e) => onUpdate(c.id, { name: e.target.value } as Partial<MyChannel>)}
                 placeholder="채널명"
-                className="col-span-4 h-8 rounded border bg-background px-2 text-xs"
+                className="col-span-3 h-8 rounded border bg-background px-2 text-xs"
               />
               <input
                 value={c.category ?? ''}
@@ -723,7 +781,7 @@ function DashRow({
                 onChange={(e) => onUpdate(c.id, { url: e.target.value } as Partial<MyChannel>)}
                 onBlur={(e) => onUpdate(c.id, { url: e.target.value } as Partial<MyChannel>)}
                 placeholder="URL"
-                className="col-span-6 h-8 rounded border bg-background px-2 text-xs"
+                className="col-span-5 h-8 rounded border bg-background px-2 text-xs"
               />
             </div>
             <div className="mb-3 flex flex-wrap gap-2">

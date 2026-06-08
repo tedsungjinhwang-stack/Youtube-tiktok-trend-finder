@@ -3,6 +3,24 @@ import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+// 플랫폼 표시 순서 (1차 정렬용)
+const PLATFORM_ORDER: Record<string, number> = {
+  YOUTUBE: 0,
+  INSTAGRAM: 1,
+  THREADS: 2,
+  NAVER_CLIP: 3,
+};
+const ALLOWED_PLATFORMS = new Set(Object.keys(PLATFORM_ORDER));
+
+function sortByPlatform<T extends { platform?: string | null }>(rows: T[]): T[] {
+  // 안정적 정렬 + 알 수 없는 플랫폼은 뒤로
+  return [...rows].sort((a, b) => {
+    const ai = PLATFORM_ORDER[a.platform ?? 'YOUTUBE'] ?? 99;
+    const bi = PLATFORM_ORDER[b.platform ?? 'YOUTUBE'] ?? 99;
+    return ai - bi;
+  });
+}
+
 function isMissingTable(e: unknown): boolean {
   const msg = (e as Error)?.message ?? '';
   return /relation .* does not exist|P2021|table .* does not exist/i.test(msg);
@@ -31,7 +49,7 @@ export async function GET() {
         materials: { orderBy: { createdAt: 'asc' } },
       },
     });
-    return NextResponse.json({ success: true, data: channels }, { headers: NO_STORE });
+    return NextResponse.json({ success: true, data: sortByPlatform(channels) }, { headers: NO_STORE });
   } catch (e) {
     if (isMissingTable(e)) {
       // ChannelYouTubeOAuth 만 없는 경우 → include 없이 재시도
@@ -50,7 +68,7 @@ export async function GET() {
         });
         return NextResponse.json({
           success: true,
-          data: channels.map((c) => ({ ...c, youtubeOauth: null })),
+          data: sortByPlatform(channels).map((c) => ({ ...c, youtubeOauth: null })),
           warning:
             'YouTube 동기화 테이블 (ChannelYouTubeOAuth) 미생성. 새 마이그레이션 SQL 을 실행해주세요.',
         }, { headers: NO_STORE });
@@ -74,12 +92,15 @@ const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' } as const;
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { name, category, url } = body as {
+  const { name, category, url, platform } = body as {
     name?: string;
     category?: string;
     url?: string;
+    platform?: string;
   };
   const trimmedName = name?.trim() || '';
+  const normalizedPlatform =
+    platform && ALLOWED_PLATFORMS.has(platform) ? platform : 'YOUTUBE';
   try {
     // 이름 중복 체크 (대소문자 무시). 비어있으면 패스 (YouTube 가 자동 채움)
     if (trimmedName) {
@@ -103,6 +124,7 @@ export async function POST(req: Request) {
     const created = await prisma.myChannel.create({
       data: {
         name: trimmedName || '(미설정)',
+        platform: normalizedPlatform,
         category: category?.trim() || null,
         url: url?.trim() || null,
         sortOrder: (max._max.sortOrder ?? 0) + 1,

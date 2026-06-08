@@ -204,6 +204,8 @@ model OpenAIOAuth {
 model MyChannel {
   id           String                @id @default(cuid())
   name         String
+  /// 대분류 플랫폼: 'YOUTUBE' | 'INSTAGRAM' | 'THREADS' | 'NAVER_CLIP'
+  platform     String                @default("YOUTUBE")
   category     String?
   url          String?
   adsense      String?
@@ -221,6 +223,7 @@ model MyChannel {
   materials    ChannelMaterial[]
 
   @@index([adsense])
+  @@index([platform])
 }
 
 /// 채널별 소재 (영상 URL) 풀. 체크 = 사용 완료 → 삭제해서 목록에서 사라지게 함.
