@@ -1120,7 +1120,11 @@ function MaterialsCell({
               setAdding(false);
             }
           }}
-          placeholder="https://..."
+          placeholder={
+            materials.length >= 3
+              ? '추가 시 가장 오래된 소재가 삭제됩니다'
+              : 'https://...'
+          }
           className="h-6 w-full rounded border bg-background px-1.5 text-[11px]"
         />
       ) : (
@@ -1128,8 +1132,13 @@ function MaterialsCell({
           <button
             onClick={() => setAdding(true)}
             className="text-[10.5px] text-muted-foreground/70 hover:text-foreground"
+            title={
+              materials.length >= 3
+                ? '최대 3개 — 추가하면 가장 오래된 소재가 삭제됩니다'
+                : '소재 URL 추가'
+            }
           >
-            + 추가
+            + 추가{materials.length >= 3 && ' (오래된 것 자동 삭제)'}
           </button>
         )
       )}
