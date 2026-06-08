@@ -1,10 +1,15 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { TopBar } from '@/components/top-bar';
 
 export const metadata: Metadata = {
   title: 'Trend Finder',
   description: 'TikTok / Instagram / YouTube 에셋 채널 트렌드 영상 파인더',
+  manifest: '/manifest.webmanifest',
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0a0a0a',
 };
 
 export default function RootLayout({
@@ -28,6 +33,11 @@ export default function RootLayout({
       <body className="min-h-screen antialiased">
         <TopBar />
         <main className="min-h-[calc(100vh-3.5rem)]">{children}</main>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));}`,
+          }}
+        />
       </body>
     </html>
   );
