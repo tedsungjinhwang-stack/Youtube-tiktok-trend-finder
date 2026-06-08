@@ -22,6 +22,14 @@ type YtOauth = {
   lastSyncError: string | null;
 };
 
+type ChannelMaterial = {
+  id: string;
+  channelId: string;
+  url: string;
+  note: string | null;
+  createdAt: string;
+};
+
 type MyChannel = {
   id: string;
   name: string;
@@ -33,6 +41,7 @@ type MyChannel = {
   isActive: boolean;
   videos: ScheduledVideo[];
   youtubeOauth: YtOauth | null;
+  materials: ChannelMaterial[];
 };
 
 type GoogleStatus = {
@@ -180,6 +189,24 @@ export default function MySchedulePage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
     });
+    refresh();
+  };
+
+  const addMaterial = async (channelId: string, url: string) => {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    const r = await fetch(`/api/v1/my-schedule/channels/${channelId}/materials`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: trimmed }),
+    });
+    const j = await r.json();
+    if (j.success) refresh();
+    else alert(j.error?.message ?? '실패');
+  };
+
+  const removeMaterial = async (id: string) => {
+    await fetch(`/api/v1/my-schedule/materials/${id}`, { method: 'DELETE' });
     refresh();
   };
 
@@ -495,9 +522,9 @@ export default function MySchedulePage() {
                     />
                   </th>
                   <th className="w-[22%] px-4 py-2 text-left font-semibold">채널</th>
-                  <th className="w-[10%] px-4 py-2 text-left font-semibold">카테고리</th>
+                  <th className="w-[8%] px-4 py-2 text-left font-semibold">카테고리</th>
+                  <th className="w-[18%] px-4 py-2 text-left font-semibold">소재</th>
                   <th className="w-[10%] px-4 py-2 text-left font-semibold">애드센스</th>
-                  <th className="w-[14%] px-4 py-2 text-left font-semibold">이메일</th>
                   <th className="px-4 py-2 text-left font-semibold">마지막 예약 영상</th>
                   <th className="w-[14%] px-4 py-2 text-left font-semibold">예약일시</th>
                 </tr>
@@ -540,6 +567,8 @@ export default function MySchedulePage() {
                       }}
                       onUpdateVideo={updateVideo}
                       onRemoveVideo={removeVideo}
+                      onAddMaterial={(url) => addMaterial(c.id, url)}
+                      onRemoveMaterial={removeMaterial}
                     />
                   );
                 })}
@@ -565,6 +594,8 @@ function DashRow({
   onAddVideo,
   onUpdateVideo,
   onRemoveVideo,
+  onAddMaterial,
+  onRemoveMaterial,
 }: {
   c: MyChannel;
   last?: ScheduledVideo;
@@ -577,6 +608,8 @@ function DashRow({
   onAddVideo: (title: string, when: string, notes: string) => void;
   onUpdateVideo: (id: string, patch: Record<string, unknown>) => void;
   onRemoveVideo: (id: string) => void;
+  onAddMaterial: (url: string) => void;
+  onRemoveMaterial: (id: string) => void;
 }) {
   const [vTitle, setVTitle] = useState('');
   const [vWhen, setVWhen] = useState('');
@@ -615,14 +648,20 @@ function DashRow({
               {isExpanded ? '▾' : '▸'}
             </button>
             <div className="min-w-0">
-              <div className="truncate font-semibold">
-                {c.name}
+              <div className="flex items-center gap-1.5 truncate">
+                <span className="truncate font-semibold">{c.name}</span>
                 {!c.isActive && (
-                  <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                  <span className="text-[10px] font-normal text-muted-foreground">
                     (비활성)
                   </span>
                 )}
               </div>
+              <InlineTextCell
+                value={c.email}
+                placeholder="이메일"
+                onSave={(v) => onUpdate(c.id, { email: v } as Partial<MyChannel>)}
+                small
+              />
             </div>
           </div>
         </td>
@@ -630,17 +669,17 @@ function DashRow({
           {c.category ?? '—'}
         </td>
         <td className="px-4 py-2.5 text-xs">
-          <InlineTextCell
-            value={c.adsense}
-            placeholder="애드센스"
-            onSave={(v) => onUpdate(c.id, { adsense: v } as Partial<MyChannel>)}
+          <MaterialsCell
+            materials={c.materials}
+            onAdd={onAddMaterial}
+            onRemove={onRemoveMaterial}
           />
         </td>
         <td className="px-4 py-2.5 text-xs">
           <InlineTextCell
-            value={c.email}
-            placeholder="이메일"
-            onSave={(v) => onUpdate(c.id, { email: v } as Partial<MyChannel>)}
+            value={c.adsense}
+            placeholder="애드센스"
+            onSave={(v) => onUpdate(c.id, { adsense: v } as Partial<MyChannel>)}
           />
         </td>
         <td className="px-4 py-2.5">
@@ -948,10 +987,12 @@ function InlineTextCell({
   value,
   placeholder,
   onSave,
+  small,
 }: {
   value: string | null;
   placeholder: string;
   onSave: (v: string | null) => void;
+  small?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -984,7 +1025,10 @@ function InlineTextCell({
         }}
         onClick={(e) => e.stopPropagation()}
         placeholder={placeholder}
-        className="h-7 w-full rounded border bg-background px-2 text-xs"
+        className={cn(
+          'w-full rounded border bg-background px-2',
+          small ? 'h-5 text-[10px]' : 'h-7 text-xs'
+        )}
       />
     );
   }
@@ -992,13 +1036,102 @@ function InlineTextCell({
   return (
     <div
       onClick={start}
-      className="cursor-text truncate rounded px-1 py-0.5 hover:bg-accent/40"
+      className={cn(
+        'cursor-text truncate rounded hover:bg-accent/40',
+        small ? 'px-1 text-[10px] leading-tight text-muted-foreground' : 'px-1 py-0.5'
+      )}
       title={value ?? `${placeholder} (클릭해서 입력)`}
     >
       {value ? (
-        <span className="font-medium">{value}</span>
+        <span className={small ? '' : 'font-medium'}>{value}</span>
       ) : (
-        <span className="text-muted-foreground/60">—</span>
+        <span className="text-muted-foreground/60">
+          {small ? placeholder : '—'}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function MaterialsCell({
+  materials,
+  onAdd,
+  onRemove,
+}: {
+  materials: ChannelMaterial[];
+  onAdd: (url: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [draft, setDraft] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  const commit = () => {
+    const v = draft.trim();
+    if (v) onAdd(v);
+    setDraft('');
+    setAdding(false);
+  };
+
+  return (
+    <div onClick={(e) => e.stopPropagation()} className="space-y-1">
+      {materials.length === 0 && !adding && (
+        <button
+          onClick={() => setAdding(true)}
+          className="text-[11px] text-muted-foreground/70 hover:text-foreground"
+        >
+          + 소재 URL
+        </button>
+      )}
+      {materials.map((m) => (
+        <label
+          key={m.id}
+          className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-accent/40"
+        >
+          <input
+            type="checkbox"
+            checked={false}
+            onChange={() => onRemove(m.id)}
+            className="h-3 w-3 shrink-0"
+            title="체크하면 사용 완료 처리되어 사라집니다"
+          />
+          <a
+            href={m.url}
+            target="_blank"
+            rel="noreferrer"
+            className="truncate text-[11px] text-blue-600 hover:underline dark:text-blue-400"
+            title={m.url}
+          >
+            {m.url}
+          </a>
+        </label>
+      ))}
+      {adding ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commit();
+            } else if (e.key === 'Escape') {
+              setDraft('');
+              setAdding(false);
+            }
+          }}
+          placeholder="https://..."
+          className="h-6 w-full rounded border bg-background px-1.5 text-[11px]"
+        />
+      ) : (
+        materials.length > 0 && (
+          <button
+            onClick={() => setAdding(true)}
+            className="text-[10.5px] text-muted-foreground/70 hover:text-foreground"
+          >
+            + 추가
+          </button>
+        )
       )}
     </div>
   );

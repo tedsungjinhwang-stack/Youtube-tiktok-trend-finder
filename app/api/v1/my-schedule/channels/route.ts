@@ -28,6 +28,7 @@ export async function GET() {
             lastSyncError: true,
           },
         },
+        materials: { orderBy: { createdAt: 'asc' } },
       },
     });
     return NextResponse.json({ success: true, data: channels }, { headers: NO_STORE });
@@ -42,7 +43,10 @@ export async function GET() {
         { sortOrder: 'asc' },
         { createdAt: 'asc' },
       ],
-          include: { videos: { orderBy: { scheduledAt: 'asc' } } },
+          include: {
+            videos: { orderBy: { scheduledAt: 'asc' } },
+            materials: { orderBy: { createdAt: 'asc' } },
+          },
         });
         return NextResponse.json({
           success: true,

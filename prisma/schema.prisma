@@ -218,8 +218,22 @@ model MyChannel {
   updatedAt    DateTime              @updatedAt
   videos       ScheduledVideo[]
   youtubeOauth ChannelYouTubeOAuth?
+  materials    ChannelMaterial[]
 
   @@index([adsense])
+}
+
+/// 채널별 소재 (영상 URL) 풀. 체크 = 사용 완료 → 삭제해서 목록에서 사라지게 함.
+model ChannelMaterial {
+  id        String    @id @default(cuid())
+  channelId String
+  channel   MyChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  url       String
+  note      String?
+  createdAt DateTime  @default(now())
+
+  @@index([channelId])
+  @@index([createdAt])
 }
 
 /// 내 채널의 예약 영상.
