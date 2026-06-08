@@ -1,0 +1,27 @@
+{
+  "name": "Trend Finder",
+  "short_name": "Trend Finder",
+  "description": "TikTok / Instagram / YouTube 트렌드 영상 파인더",
+  "start_url": "/my-schedule",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/my-schedule/share",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}
