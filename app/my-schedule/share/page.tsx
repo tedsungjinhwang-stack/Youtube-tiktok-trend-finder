@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 type MyChannel = {
@@ -17,6 +17,20 @@ function extractUrl(text: string): string {
 }
 
 export default function SharePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-md p-5 text-sm text-muted-foreground">
+          로딩 중…
+        </div>
+      }
+    >
+      <ShareInner />
+    </Suspense>
+  );
+}
+
+function ShareInner() {
   const router = useRouter();
   const params = useSearchParams();
   const [channels, setChannels] = useState<MyChannel[]>([]);
