@@ -5,11 +5,10 @@ import { syncMyChannel } from '@/lib/google/calendar';
 export const dynamic = 'force-dynamic';
 
 /**
- * Daily cron (KST 02:00 = UTC 17:00) — 캘린더 동기화 전용.
+ * Daily cron (KST 02:00 = UTC 17:00) — Google Calendar 동기화 전용.
  *
- * YT 자동 동기화는 사용자의 수기 수정을 덮어쓰는 문제 때문에 제거.
- * 이 cron 은 활성 채널의 DB 예약 데이터를 그대로 Google Calendar 에 반영만 함.
- * (영상 0개 채널은 오늘 종일 "영상업로드 필요" 이벤트로 갱신)
+ * 활성 채널의 DB 예약 데이터를 그대로 Google Calendar 이벤트로 반영.
+ * 예약 영상 0개 채널은 오늘 종일 "영상업로드 필요" 이벤트로 갱신.
  */
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;

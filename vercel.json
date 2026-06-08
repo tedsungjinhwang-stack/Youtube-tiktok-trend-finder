@@ -5,7 +5,7 @@
   "regions": ["icn1"],
   "crons": [
     {
-      "path": "/api/cron/youtube-sync",
+      "path": "/api/cron/calendar-sync",
       "schedule": "0 17 * * *"
     }
   ]
