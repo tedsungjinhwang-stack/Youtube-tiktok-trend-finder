@@ -521,10 +521,9 @@ export default function MySchedulePage() {
                       className="h-3.5 w-3.5"
                     />
                   </th>
-                  <th className="w-[22%] px-4 py-2 text-left font-semibold">채널</th>
-                  <th className="w-[8%] px-4 py-2 text-left font-semibold">카테고리</th>
-                  <th className="w-[18%] px-4 py-2 text-left font-semibold">소재</th>
-                  <th className="w-[10%] px-4 py-2 text-left font-semibold">애드센스</th>
+                  <th className="w-[28%] px-4 py-2 text-left font-semibold">채널</th>
+                  <th className="w-[10%] px-4 py-2 text-left font-semibold">카테고리</th>
+                  <th className="w-[20%] px-4 py-2 text-left font-semibold">소재</th>
                   <th className="px-4 py-2 text-left font-semibold">마지막 예약 영상</th>
                   <th className="w-[14%] px-4 py-2 text-left font-semibold">예약일시</th>
                 </tr>
@@ -647,7 +646,7 @@ function DashRow({
             >
               {isExpanded ? '▾' : '▸'}
             </button>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 truncate">
                 <span className="truncate font-semibold">{c.name}</span>
                 {!c.isActive && (
@@ -656,12 +655,21 @@ function DashRow({
                   </span>
                 )}
               </div>
-              <InlineTextCell
-                value={c.email}
-                placeholder="이메일"
-                onSave={(v) => onUpdate(c.id, { email: v } as Partial<MyChannel>)}
-                small
-              />
+              <div className="mt-0.5 flex items-center gap-2 text-[10px] leading-tight text-muted-foreground">
+                <InlineTextCell
+                  value={c.adsense}
+                  placeholder="애드센스"
+                  onSave={(v) => onUpdate(c.id, { adsense: v } as Partial<MyChannel>)}
+                  small
+                />
+                <span className="text-muted-foreground/40">·</span>
+                <InlineTextCell
+                  value={c.email}
+                  placeholder="이메일"
+                  onSave={(v) => onUpdate(c.id, { email: v } as Partial<MyChannel>)}
+                  small
+                />
+              </div>
             </div>
           </div>
         </td>
@@ -673,13 +681,6 @@ function DashRow({
             materials={c.materials}
             onAdd={onAddMaterial}
             onRemove={onRemoveMaterial}
-          />
-        </td>
-        <td className="px-4 py-2.5 text-xs">
-          <InlineTextCell
-            value={c.adsense}
-            placeholder="애드센스"
-            onSave={(v) => onUpdate(c.id, { adsense: v } as Partial<MyChannel>)}
           />
         </td>
         <td className="px-4 py-2.5">
@@ -700,7 +701,7 @@ function DashRow({
       </tr>
       {isExpanded && (
         <tr className="border-b bg-secondary/20">
-          <td colSpan={7} className="px-6 py-3">
+          <td colSpan={6} className="px-6 py-3">
             {/* 채널 메타 인라인 편집 */}
             <div className="mb-3 grid grid-cols-12 gap-2">
               <input
