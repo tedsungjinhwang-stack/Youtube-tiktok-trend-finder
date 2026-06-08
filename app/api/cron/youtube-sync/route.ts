@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { syncChannelScheduled } from '@/lib/google/youtube';
 import { syncMyChannel } from '@/lib/google/calendar';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Daily cron — 모든 YouTube 연결 채널의 예약 영상을 가져와 ScheduledVideo upsert
- * + 채널 단위 1개 GCal 이벤트 upsert.
+ * Daily cron (KST 02:00 = UTC 17:00) — 캘린더 동기화 전용.
+ *
+ * YT 자동 동기화는 사용자의 수기 수정을 덮어쓰는 문제 때문에 제거.
+ * 이 cron 은 활성 채널의 DB 예약 데이터를 그대로 Google Calendar 에 반영만 함.
+ * (영상 0개 채널은 오늘 종일 "영상업로드 필요" 이벤트로 갱신)
  */
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
@@ -18,34 +20,24 @@ export async function GET(req: Request) {
     }
   }
 
-  const results: Array<{ channelId: string; count?: number; error?: string }> = [];
-
-  // 1) YouTube 연결 + isActive 채널만: YouTube → DB
-  const oauths = await prisma.channelYouTubeOAuth.findMany({
-    where: { myChannel: { isActive: true } },
+  const channels = await prisma.myChannel.findMany({
+    where: { isActive: true },
+    select: { id: true },
   });
-  for (const o of oauths) {
+  let ok = 0;
+  let failed = 0;
+  for (const c of channels) {
     try {
-      const count = await syncChannelScheduled(o.id);
-      results.push({ channelId: o.myChannelId, count });
+      await syncMyChannel(c.id);
+      ok++;
     } catch (e) {
-      const msg = (e as Error).message;
-      await prisma.channelYouTubeOAuth.update({
-        where: { id: o.id },
-        data: { lastSyncError: msg },
-      }).catch(() => {});
-      results.push({ channelId: o.myChannelId, error: msg });
+      failed++;
+      console.error('[gcal cron]', c.id, (e as Error).message);
     }
-  }
-
-  // 2) 모든 채널: DB → Google Calendar (영상 없는 채널은 오늘 "영상업로드 필요" 갱신)
-  const allChannels = await prisma.myChannel.findMany({ select: { id: true } });
-  for (const c of allChannels) {
-    await syncMyChannel(c.id).catch(() => {});
   }
 
   return NextResponse.json({
     success: true,
-    data: { ytChannels: oauths.length, allChannels: allChannels.length, results },
+    data: { allChannels: channels.length, calSynced: ok, calFailed: failed },
   });
 }

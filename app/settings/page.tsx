@@ -35,7 +35,9 @@ export default async function SettingsPage() {
   };
   const autoScrapeEnabled = await getAutoScrapeEnabled();
   const trendingSnap = await getTrendingSnapshotEnabled();
-  const cronSchedules = parseCronSchedules(vercelConfig.crons ?? []);
+  const cronSchedules = parseCronSchedules(
+    (vercelConfig as { crons?: { path: string; schedule: string }[] }).crons ?? []
+  );
   const ownerEmail = process.env.OWNER_EMAIL;
   const openclawSet = !!process.env.OPENCLAW_API_KEY;
   const cronSecretSet = !!process.env.CRON_SECRET;
