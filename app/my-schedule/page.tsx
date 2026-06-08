@@ -73,6 +73,20 @@ export default function MySchedulePage() {
   const [vWhen, setVWhen] = useState('');
   const [vNotes, setVNotes] = useState('');
 
+  // 일괄 선택 (체크박스)
+  const [bulkIds, setBulkIds] = useState<Set<string>>(new Set());
+  const [bulkTitle, setBulkTitle] = useState('');
+  const [bulkWhen, setBulkWhen] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const toggleBulk = (id: string) =>
+    setBulkIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const clearBulk = () => setBulkIds(new Set());
+
   const refresh = async () => {
     try {
       const [c, g] = await Promise.all([
@@ -96,15 +110,7 @@ export default function MySchedulePage() {
   };
 
   useEffect(() => {
-    // 1차: DB 그대로 즉시 표시
-    refresh().then(() => {
-      // 2차: 백그라운드로 YT → DB 동기화 후 한 번 더 refresh (사용자 인지 X)
-      fetch('/api/v1/my-schedule/sync-yt-all', { method: 'POST', cache: 'no-store' })
-        .then((r) => {
-          if (r.ok) refresh();
-        })
-        .catch(() => {});
-    });
+    refresh();
   }, []);
 
   const selected = channels.find((c) => c.id === selectedChannelId) ?? null;
@@ -127,26 +133,6 @@ export default function MySchedulePage() {
     }
     alert(j.error?.message ?? '실패');
     return null;
-  };
-
-  /** 채널 + YouTube 연결. 이름 비워둬도 OK — OAuth 후 자동 채움 */
-  const addChannelWithYoutube = async () => {
-    const r = await fetch('/api/v1/my-schedule/channels', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName, category: newCategory, url: newUrl }),
-    });
-    const j = await r.json();
-    if (!j.success) {
-      alert(j.error?.message ?? '실패');
-      return;
-    }
-    setNewName('');
-    setNewCategory('');
-    setNewUrl('');
-    setSelectedChannelId(j.data.id);
-    refresh();
-    await connectYoutube(j.data.id);
   };
 
   const removeChannel = async (id: string) => {
@@ -201,6 +187,55 @@ export default function MySchedulePage() {
     refresh();
   };
 
+  const bulkAdd = async () => {
+    const ids = [...bulkIds];
+    if (ids.length === 0 || !bulkWhen) return;
+    setBulkBusy(true);
+    try {
+      const r = await fetch('/api/v1/my-schedule/videos/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelIds: ids,
+          title: bulkTitle,
+          scheduledAt: new Date(bulkWhen).toISOString(),
+        }),
+      });
+      const j = await r.json();
+      if (j.success) {
+        setBulkTitle('');
+        setBulkWhen('');
+        clearBulk();
+        refresh();
+      } else alert(j.error?.message ?? '실패');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const bulkClear = async () => {
+    const ids = [...bulkIds];
+    if (ids.length === 0) return;
+    if (
+      !confirm(
+        `${ids.length}개 채널의 예약 영상을 모두 삭제하고 "업로드 필요" 상태로 만들까요?`
+      )
+    )
+      return;
+    setBulkBusy(true);
+    try {
+      await fetch('/api/v1/my-schedule/videos/bulk', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelIds: ids }),
+      });
+      clearBulk();
+      refresh();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const connectGoogle = async () => {
     const r = await fetch('/api/google/auth/start');
     const j = await r.json();
@@ -225,45 +260,7 @@ export default function MySchedulePage() {
     refresh();
   };
 
-  const connectYoutube = async (channelId: string) => {
-    const r = await fetch(`/api/google/auth/start?kind=youtube&channelId=${channelId}`);
-    const j = await r.json();
-    if (!j.success) {
-      alert(j.error?.message ?? '실패');
-      return;
-    }
-    window.open(j.data.url, '_blank', 'width=520,height=640');
-    const iv = setInterval(async () => {
-      const s = await fetch('/api/v1/my-schedule/channels').then((r) => r.json());
-      const ch = (s.data ?? []).find((c: MyChannel) => c.id === channelId);
-      if (ch?.youtubeOauth) {
-        clearInterval(iv);
-        refresh();
-      }
-    }, 1500);
-    setTimeout(() => clearInterval(iv), 5 * 60_000);
-  };
-
   const [syncingGcal, setSyncingGcal] = useState(false);
-  const [syncingYt, setSyncingYt] = useState(false);
-
-  const syncYoutubeAll = async () => {
-    setSyncingYt(true);
-    try {
-      const r = await fetch('/api/v1/my-schedule/sync-yt-all', { method: 'POST' });
-      const j = await r.json();
-      if (!j.success) alert(j.error?.message ?? '실패');
-      else
-        alert(
-          `✓ YouTube 동기화 완료\n` +
-            `· YT 채널 ${j.data.ytSynced ?? j.data.synced}/${j.data.ytChannels ?? j.data.total} (영상 ${j.data.totalVideos}개)\n` +
-            `· 캘린더 반영 ${j.data.calSynced ?? 0}/${j.data.calChannels ?? 0} 채널`
-        );
-      refresh();
-    } finally {
-      setSyncingYt(false);
-    }
-  };
 
   const syncGcalAll = async () => {
     setSyncingGcal(true);
@@ -278,12 +275,6 @@ export default function MySchedulePage() {
     }
   };
 
-  const disconnectYoutube = async (channelId: string) => {
-    if (!confirm('이 채널의 YouTube 연결을 해제할까요? (이미 가져온 영상은 남음)')) return;
-    await fetch(`/api/v1/my-schedule/channels/${channelId}/yt`, { method: 'DELETE' });
-    refresh();
-  };
-
 
   if (loading) {
     return <div className="p-8 text-sm text-muted-foreground">로딩 중…</div>;
@@ -296,11 +287,10 @@ export default function MySchedulePage() {
           ⚠️ {setupWarning}
         </div>
       )}
-      {(syncingGcal || syncingYt) && (
+      {syncingGcal && (
         <div className="flex items-center gap-2 border-b border-primary/30 bg-primary/10 px-4 py-2.5 text-xs font-semibold text-primary">
           <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          {syncingGcal && 'Google 캘린더 전체 동기화 진행 중… (활성 채널 모두 처리)'}
-          {syncingYt && 'YouTube 전체 동기화 진행 중… (영상 가져오기 + 캘린더 반영, 채널당 5~15초 소요)'}
+          Google 캘린더 전체 동기화 진행 중… (활성 채널 모두 처리)
         </div>
       )}
       <div className="flex flex-1 overflow-hidden">
@@ -335,14 +325,7 @@ export default function MySchedulePage() {
               disabled={!newName.trim()}
               className="h-8 w-full rounded-md bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
             >
-              + 채널만 추가
-            </button>
-            <button
-              onClick={addChannelWithYoutube}
-              className="h-8 w-full rounded-md border border-primary/40 bg-primary/10 text-[11px] font-semibold text-primary hover:bg-primary/20"
-              title="채널 생성 + YouTube OAuth. 이름 비워두면 YouTube 채널명으로 자동 채움"
-            >
-              + 채널 추가 & ▶️ YouTube 연결
+              + 채널 추가
             </button>
           </div>
         </div>
@@ -417,46 +400,70 @@ export default function MySchedulePage() {
         </div>
       </aside>
 
-      {/* 우측: 채널 대시보드 — 모든 채널의 마지막 예약 영상 한눈에 */}
+      {/* 우측: 채널 대시보드 */}
       <main className="flex flex-1 flex-col overflow-hidden">
-        {/* 전체 적용 동기화 바 (Google 연결됨일 때만) */}
-        {google.connected && (
-          <div className="flex items-center gap-3 border-b bg-primary/5 px-6 py-3">
-            <span className="rounded bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
-              전체 적용
+        {/* 일괄 작업 툴바 — 채널 1개 이상 선택 시 노출 */}
+        {bulkIds.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-primary/40 bg-primary/10 px-4 py-2.5 text-xs">
+            <span className="rounded bg-primary px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-primary-foreground">
+              {bulkIds.size}개 선택됨
             </span>
             <button
-              onClick={syncGcalAll}
-              disabled={syncingGcal || syncingYt}
-              className="flex h-10 items-center gap-2 rounded-lg border-2 border-primary/50 bg-primary/10 px-5 text-sm font-bold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-              title="활성 채널 전체 캘린더 이벤트 강제 갱신"
+              onClick={clearBulk}
+              className="rounded border bg-card px-2 py-1 text-[11px] text-muted-foreground hover:border-foreground/40"
             >
-              {syncingGcal ? (
-                <>
-                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  캘린더 동기화 중…
-                </>
-              ) : (
-                <>🗓️ 캘린더 전체 동기화</>
-              )}
+              ✕ 선택 해제
             </button>
+            <input
+              value={bulkTitle}
+              onChange={(e) => setBulkTitle(e.target.value)}
+              placeholder="제목 (선택)"
+              className="h-7 w-48 rounded border bg-background px-2 text-xs"
+            />
+            <input
+              type="datetime-local"
+              value={bulkWhen}
+              onChange={(e) => setBulkWhen(e.target.value)}
+              className="h-7 rounded border bg-background px-2 text-xs"
+            />
             <button
-              onClick={syncYoutubeAll}
-              disabled={syncingGcal || syncingYt}
-              className="flex h-10 items-center gap-2 rounded-lg border-2 border-primary/50 bg-primary/10 px-5 text-sm font-bold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-              title="YouTube 연결된 활성 채널 전체 예약 영상 가져오기"
+              onClick={bulkAdd}
+              disabled={!bulkWhen || bulkBusy}
+              className="h-7 rounded-md bg-primary px-3 text-[11.5px] font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
             >
-              {syncingYt ? (
-                <>
-                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  YouTube 동기화 중…
-                </>
-              ) : (
-                <>🔄 YouTube 전체 동기화</>
-              )}
+              + 일괄 예약 추가
             </button>
-            <span className="ml-auto text-[11px] font-semibold text-foreground/80">
-              ⏰ 자동 동기화: 매일 KST 02:00
+            <span className="text-muted-foreground">|</span>
+            <button
+              onClick={bulkClear}
+              disabled={bulkBusy}
+              className="h-7 rounded-md border border-amber-500/60 bg-amber-500/10 px-3 text-[11.5px] font-bold text-amber-700 hover:bg-amber-500/20 disabled:opacity-40 dark:text-amber-300"
+            >
+              ⚠️ 업로드 필요로 변경 (예약 비우기)
+            </button>
+            {google.connected && (
+              <button
+                onClick={syncGcalAll}
+                disabled={syncingGcal || bulkBusy}
+                className="ml-auto h-7 rounded-md border bg-card px-3 text-[11.5px] hover:border-foreground/40 disabled:opacity-40"
+                title="캘린더 전체 동기화"
+              >
+                {syncingGcal ? '동기화 중…' : '🗓️ 캘린더 동기화'}
+              </button>
+            )}
+          </div>
+        )}
+        {bulkIds.size === 0 && google.connected && (
+          <div className="flex items-center gap-3 border-b bg-secondary/30 px-6 py-2.5 text-xs">
+            <button
+              onClick={syncGcalAll}
+              disabled={syncingGcal}
+              className="rounded-md border bg-card px-3 py-1 hover:border-foreground/40 disabled:opacity-40"
+            >
+              {syncingGcal ? '동기화 중…' : '🗓️ 캘린더 전체 동기화'}
+            </button>
+            <span className="ml-auto text-[11px] text-muted-foreground">
+              채널 행의 체크박스로 다중 선택 → 일괄 예약 추가/비우기
             </span>
           </div>
         )}
@@ -469,6 +476,22 @@ export default function MySchedulePage() {
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-background text-[11px] uppercase text-muted-foreground">
                 <tr className="border-b">
+                  <th className="w-9 px-2 py-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        channels.length > 0 && bulkIds.size === channels.length
+                      }
+                      onChange={(e) =>
+                        setBulkIds(
+                          e.target.checked
+                            ? new Set(channels.map((c) => c.id))
+                            : new Set()
+                        )
+                      }
+                      className="h-3.5 w-3.5"
+                    />
+                  </th>
                   <th className="w-[28%] px-4 py-2 text-left font-semibold">채널</th>
                   <th className="w-[12%] px-4 py-2 text-left font-semibold">카테고리</th>
                   <th className="px-4 py-2 text-left font-semibold">마지막 예약 영상</th>
@@ -490,23 +513,13 @@ export default function MySchedulePage() {
                       c={c}
                       last={last}
                       isExpanded={isExpanded}
+                      checked={bulkIds.has(c.id)}
+                      onCheck={() => toggleBulk(c.id)}
                       onToggle={() =>
                         setSelectedChannelId(isExpanded ? null : c.id)
                       }
                       onUpdate={updateChannel}
                       onRemove={() => removeChannel(c.id)}
-                      onConnectYt={() => connectYoutube(c.id)}
-                      onDisconnectYt={async () => {
-                        if (
-                          !confirm('이 채널의 YouTube 연결을 해제할까요?')
-                        )
-                          return;
-                        await fetch(
-                          `/api/v1/my-schedule/channels/${c.id}/yt`,
-                          { method: 'DELETE' }
-                        );
-                        refresh();
-                      }}
                       onAddVideo={async (t, w, n) => {
                         if (!w) return;
                         await fetch('/api/v1/my-schedule/videos', {
@@ -540,11 +553,11 @@ function DashRow({
   c,
   last,
   isExpanded,
+  checked,
+  onCheck,
   onToggle,
   onUpdate,
   onRemove,
-  onConnectYt,
-  onDisconnectYt,
   onAddVideo,
   onUpdateVideo,
   onRemoveVideo,
@@ -552,11 +565,11 @@ function DashRow({
   c: MyChannel;
   last?: ScheduledVideo;
   isExpanded: boolean;
+  checked: boolean;
+  onCheck: () => void;
   onToggle: () => void;
   onUpdate: (id: string, patch: Partial<MyChannel>) => void;
   onRemove: () => void;
-  onConnectYt: () => void;
-  onDisconnectYt: () => void;
   onAddVideo: (title: string, when: string, notes: string) => void;
   onUpdateVideo: (id: string, patch: Record<string, unknown>) => void;
   onRemoveVideo: (id: string) => void;
@@ -576,9 +589,19 @@ function DashRow({
         className={cn(
           'border-b hover:bg-accent/30',
           !c.isActive && 'opacity-50',
-          isExpanded && 'bg-accent/40'
+          isExpanded && 'bg-accent/40',
+          checked && 'bg-primary/5'
         )}
       >
+        <td className="px-2 py-2.5 text-center">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={onCheck}
+            onClick={(e) => e.stopPropagation()}
+            className="h-3.5 w-3.5"
+          />
+        </td>
         <td className="px-4 py-2.5">
           <div className="flex items-center gap-1.5">
             <button
@@ -596,14 +619,6 @@ function DashRow({
                   </span>
                 )}
               </div>
-              {c.youtubeOauth && (
-                <div
-                  className="text-[10px] text-muted-foreground"
-                  title={c.youtubeOauth.accountEmail ?? ''}
-                >
-                  ▶️ {c.youtubeOauth.youtubeChannelName ?? 'YT 연결됨'}
-                </div>
-              )}
             </div>
           </div>
         </td>
@@ -654,21 +669,6 @@ function DashRow({
               />
             </div>
             <div className="mb-3 flex flex-wrap gap-2">
-              {c.youtubeOauth ? (
-                <button
-                  onClick={onDisconnectYt}
-                  className="rounded-md border bg-card px-2.5 py-1 text-[11px] hover:border-destructive/40"
-                >
-                  ▶️ YT 연결 해제
-                </button>
-              ) : (
-                <button
-                  onClick={onConnectYt}
-                  className="rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20"
-                >
-                  ▶️ YouTube 연결
-                </button>
-              )}
               <button
                 onClick={() =>
                   onUpdate(c.id, { isActive: !c.isActive } as Partial<MyChannel>)
