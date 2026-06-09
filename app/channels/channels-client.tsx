@@ -186,33 +186,80 @@ function PlatformBlock({
         </div>
       ) : (
         <div className="space-y-2">
-          {folderEntries.map(([folder, items]) => (
-            <details
-              key={folder}
-              open={expandedAlways || items.length <= 4}
-              className="group/f overflow-hidden rounded-xl border bg-card"
-            >
-              <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 hover:bg-accent/30">
-                <span className="text-muted-foreground/60 transition group-open/f:rotate-90">
-                  ▶
-                </span>
-                <span className="text-[14px] font-semibold">{folder}</span>
-                <span className="num text-[12px] text-muted-foreground">
-                  ({items.length})
-                </span>
-              </summary>
-              <div className="border-t border-border/60">
-                <ul className="grid grid-cols-1 gap-1 p-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {items.map((c) => (
-                    <ChannelItem key={c.id} c={c} />
-                  ))}
-                </ul>
-              </div>
-            </details>
-          ))}
+          {folderEntries.map(([folder, items]) => {
+            const refs = items.filter((x) => x.kind !== 'SOURCE');
+            const sources = items.filter((x) => x.kind === 'SOURCE');
+            return (
+              <details
+                key={folder}
+                open={expandedAlways || items.length <= 4}
+                className="group/f overflow-hidden rounded-xl border bg-card"
+              >
+                <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 hover:bg-accent/30">
+                  <span className="text-muted-foreground/60 transition group-open/f:rotate-90">
+                    ▶
+                  </span>
+                  <span className="text-[14px] font-semibold">{folder}</span>
+                  <span className="num text-[12px] text-muted-foreground">
+                    ({items.length})
+                  </span>
+                </summary>
+                <div className="border-t border-border/60">
+                  <KindGroup
+                    label="레퍼런스"
+                    color="sky"
+                    items={refs}
+                    showHeader={refs.length > 0 && sources.length > 0}
+                  />
+                  <KindGroup
+                    label="원본 소스"
+                    color="amber"
+                    items={sources}
+                    showHeader={refs.length > 0 && sources.length > 0}
+                  />
+                </div>
+              </details>
+            );
+          })}
         </div>
       )}
     </section>
+  );
+}
+
+function KindGroup({
+  label,
+  color,
+  items,
+  showHeader,
+}: {
+  label: string;
+  color: 'sky' | 'amber';
+  items: ChannelRow[];
+  showHeader: boolean;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      {showHeader && (
+        <div
+          className={cn(
+            'flex items-center gap-1.5 border-b border-border/40 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-wider',
+            color === 'sky'
+              ? 'text-sky-700 dark:text-sky-300'
+              : 'text-amber-700 dark:text-amber-300'
+          )}
+        >
+          <span>{label}</span>
+          <span className="num opacity-70">({items.length})</span>
+        </div>
+      )}
+      <ul className="grid grid-cols-1 gap-1 p-2 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((c) => (
+          <ChannelItem key={c.id} c={c} />
+        ))}
+      </ul>
+    </div>
   );
 }
 
