@@ -65,11 +65,14 @@ model Channel {
   folder          Folder    @relation(fields: [folderId], references: [id])
   videos          Video[]
   isActive        Boolean   @default(true)
+  /// 'REFERENCE' (레퍼런스) | 'SOURCE' (원본 소스)
+  kind            String    @default("REFERENCE")
   addedAt         DateTime  @default(now())
   lastScrapedAt   DateTime?
 
   @@unique([platform, externalId])
   @@index([folderId])
+  @@index([kind])
 }
 
 model Video {

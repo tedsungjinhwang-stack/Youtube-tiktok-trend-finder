@@ -42,6 +42,7 @@ async function safeChannels() {
       folderId: r.folderId,
       subscriberCount: r.subscriberCount,
       lastScrapedAt: r.lastScrapedAt,
+      kind: (r.kind ?? 'REFERENCE') as 'REFERENCE' | 'SOURCE',
     }));
   } catch {
     return [];
