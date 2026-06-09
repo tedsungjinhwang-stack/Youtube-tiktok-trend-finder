@@ -130,8 +130,10 @@ async function findExistingChannelEvents(
       return (
         s.startsWith(`${channelName} / `) ||
         s.startsWith(`${channelName}, `) ||
-        s === channelName ||
-        s.startsWith(`${channelName} (`)
+        s.startsWith(`${channelName}(`) ||
+        s.startsWith(`${channelName} (`) ||
+        s.startsWith(`${channelName} 영상업로드`) ||
+        s === channelName
       );
     })
     .map((it) => it.id);
@@ -163,17 +165,18 @@ export async function syncMyChannel(channelId: string): Promise<void> {
     const today = `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, '0')}-${String(kstNow.getUTCDate()).padStart(2, '0')}`;
     input = {
       calendarId: auth.calendarId,
-      title: `${ch.name}, 영상업로드 필요`,
+      title: ch.category
+        ? `${ch.name}(${ch.category}) 영상업로드 필요`
+        : `${ch.name} 영상업로드 필요`,
       allDayDate: today,
       notes: '예약된 영상이 없습니다',
     };
   } else {
-    // 제목 포맷: "{채널명} / M/D HH:mm ({개수})" — KST 기준
-    const kst = new Date(latest.scheduledAt.getTime() + 9 * 60 * 60 * 1000);
-    const dateLabel = `${kst.getUTCMonth() + 1}/${kst.getUTCDate()} ${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
+    // 제목: "채널명(카테고리)" — 시각은 이벤트 자체에 들어있어서 중복 표기 안 함.
+    const titleStr = ch.category ? `${ch.name}(${ch.category})` : ch.name;
     input = {
       calendarId: auth.calendarId,
-      title: `${ch.name} / ${dateLabel} (${count})`,
+      title: titleStr,
       startISO: latest.scheduledAt.toISOString(),
       notes: `예약 영상 ${count}개${latest.title ? `. 마지막: ${latest.title}` : ''}`,
     };
