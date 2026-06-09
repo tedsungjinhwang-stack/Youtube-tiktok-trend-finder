@@ -8,9 +8,11 @@ import {
   deleteChannelAction,
   scrapeChannelAction,
   updateScrapeSettingsAction,
+  updateChannelKindAction,
 } from './actions';
 
 type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN';
+type Kind = 'REFERENCE' | 'SOURCE';
 
 export type ChannelRow = {
   id: string;
@@ -22,7 +24,14 @@ export type ChannelRow = {
   folderId: string;
   subscriberCount: number | null;
   lastScrapedAt: Date | null;
+  kind: Kind;
 };
+
+const KINDS: { v: Kind | 'ALL'; label: string }[] = [
+  { v: 'ALL', label: '전체' },
+  { v: 'REFERENCE', label: '레퍼런스' },
+  { v: 'SOURCE', label: '원본 소스' },
+];
 
 const PLATFORMS: { v: Platform | 'ALL'; label: string }[] = [
   { v: 'ALL', label: '전체' },
@@ -43,29 +52,60 @@ export function ChannelsClient({
   settings: { recencyDays: number; minViews: number };
 }) {
   const [tab, setTab] = useState<Platform | 'ALL'>('ALL');
+  const [kindTab, setKindTab] = useState<Kind | 'ALL'>('ALL');
+  const filteredByKind =
+    kindTab === 'ALL' ? channels : channels.filter((c) => c.kind === kindTab);
   const filtered =
-    tab === 'ALL' ? channels : channels.filter((c) => c.platform === tab);
+    tab === 'ALL'
+      ? filteredByKind
+      : filteredByKind.filter((c) => c.platform === tab);
 
   return (
     <>
       <ScrapeFilterBar initial={settings} />
 
-      <div className="mb-3 flex items-center justify-end text-[13.5px]">
-        <button
-          onClick={() => downloadCsv(filtered, tab)}
-          disabled={filtered.length === 0}
-          className="rounded-lg border bg-card px-3 py-1.5 hover:border-foreground/40 disabled:opacity-40"
-        >
-          CSV 내보내기 ({filtered.length})
-        </button>
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-[13.5px]">
+        <span className="text-[12px] font-semibold text-muted-foreground">
+          분류:
+        </span>
+        {KINDS.map((k) => {
+          const count =
+            k.v === 'ALL'
+              ? channels.length
+              : channels.filter((c) => c.kind === k.v).length;
+          return (
+            <button
+              key={k.v}
+              onClick={() => setKindTab(k.v)}
+              className={cn(
+                'rounded-full border px-3 py-1 text-[12.5px] transition',
+                kindTab === k.v
+                  ? 'border-foreground bg-foreground text-background font-semibold'
+                  : 'border-border/60 bg-card text-muted-foreground hover:border-foreground/40'
+              )}
+            >
+              {k.label}
+              <span className="num ml-1 text-[11px] opacity-70">({count})</span>
+            </button>
+          );
+        })}
+        <div className="ml-auto">
+          <button
+            onClick={() => downloadCsv(filtered, tab)}
+            disabled={filtered.length === 0}
+            className="rounded-lg border bg-card px-3 py-1.5 hover:border-foreground/40 disabled:opacity-40"
+          >
+            CSV 내보내기 ({filtered.length})
+          </button>
+        </div>
       </div>
 
       <div className="mb-4 flex gap-1 border-b">
         {PLATFORMS.map((p) => {
           const count =
             p.v === 'ALL'
-              ? channels.length
-              : channels.filter((c) => c.platform === p.v).length;
+              ? filteredByKind.length
+              : filteredByKind.filter((c) => c.platform === p.v).length;
           return (
             <button
               key={p.v}
@@ -92,7 +132,7 @@ export function ChannelsClient({
             key={p.v}
             platform={p.v as Platform}
             label={p.label}
-            list={channels.filter((c) => c.platform === p.v)}
+            list={filteredByKind.filter((c) => c.platform === p.v)}
             folders={folders}
           />
         ))
@@ -199,6 +239,16 @@ function ChannelItem({ c }: { c: ChannelRow }) {
     });
   };
 
+  const toggleKind = () => {
+    setError(null);
+    const next: Kind = c.kind === 'SOURCE' ? 'REFERENCE' : 'SOURCE';
+    startTransition(async () => {
+      const r = await updateChannelKindAction(c.id, next);
+      if (!r.ok) setError(r.error);
+      else router.refresh();
+    });
+  };
+
   const display = c.displayName ?? c.handle ?? c.externalId;
   const channelUrl = buildChannelUrl(c);
 
@@ -242,6 +292,19 @@ function ChannelItem({ c }: { c: ChannelRow }) {
           {(c.subscriberCount / 1000).toFixed(0)}K
         </div>
       )}
+      <button
+        onClick={toggleKind}
+        disabled={isPending}
+        title={c.kind === 'SOURCE' ? '원본 소스 — 클릭하면 레퍼런스로' : '레퍼런스 — 클릭하면 원본 소스로'}
+        className={cn(
+          'shrink-0 rounded-md border px-2 py-1 text-[10.5px] font-bold uppercase tracking-wider disabled:opacity-40',
+          c.kind === 'SOURCE'
+            ? 'border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:border-amber-500'
+            : 'border-sky-500/60 bg-sky-500/15 text-sky-700 dark:text-sky-300 hover:border-sky-500'
+        )}
+      >
+        {c.kind === 'SOURCE' ? '원본' : '레퍼'}
+      </button>
       <button
         onClick={onScrape}
         disabled={isPending}
@@ -346,7 +409,7 @@ function AddForm({
       action={onSubmit}
       className="mb-3 rounded-xl border bg-card p-3"
     >
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_180px_100px]">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_140px_140px_100px]">
         <input
           name="input"
           type="text"
@@ -355,6 +418,15 @@ function AddForm({
           disabled={isPending}
           className="w-full rounded-md border bg-background/40 px-3 py-2 text-[14px] outline-none placeholder:text-muted-foreground/60 focus:border-foreground/40 disabled:opacity-50"
         />
+        <select
+          name="kind"
+          disabled={isPending}
+          defaultValue="REFERENCE"
+          className="rounded-md border bg-background/40 px-3 py-2 text-[14px] outline-none focus:border-foreground/40 disabled:opacity-50"
+        >
+          <option value="REFERENCE">레퍼런스</option>
+          <option value="SOURCE">원본 소스</option>
+        </select>
         <select
           name="folderId"
           required
@@ -391,9 +463,10 @@ function AddForm({
 }
 
 function downloadCsv(list: ChannelRow[], scope: Platform | 'ALL') {
-  const header = ['platform', 'handle', 'externalId', 'displayName', 'folder', 'subscribers'];
+  const header = ['platform', 'kind', 'handle', 'externalId', 'displayName', 'folder', 'subscribers'];
   const rows = list.map((c) => [
     c.platform,
+    c.kind,
     c.handle ?? '',
     c.externalId,
     c.displayName ?? '',

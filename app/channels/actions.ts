@@ -12,6 +12,8 @@ export async function addChannelAction(formData: FormData): Promise<ActionResult
   const input = String(formData.get('input') ?? '').trim();
   const folderId = String(formData.get('folderId') ?? '').trim();
   const platformHint = (formData.get('platform') as string) || undefined;
+  const kindInput = (formData.get('kind') as string) || 'REFERENCE';
+  const kind = kindInput === 'SOURCE' ? 'SOURCE' : 'REFERENCE';
 
   if (!input) return { ok: false, error: '핸들 또는 URL을 입력하세요.' };
   if (!folderId) return { ok: false, error: '폴더를 선택하세요.' };
@@ -29,6 +31,7 @@ export async function addChannelAction(formData: FormData): Promise<ActionResult
         externalId: r.externalId,
         handle: r.handle,
         folderId,
+        kind,
       },
     });
     revalidatePath('/channels');
@@ -37,6 +40,22 @@ export async function addChannelAction(formData: FormData): Promise<ActionResult
     if (e?.code === 'P2002') return { ok: false, error: '이미 등록된 채널입니다.' };
     if (e?.code === 'P2003') return { ok: false, error: '폴더를 찾을 수 없습니다.' };
     return { ok: false, error: 'DB 오류: ' + (e?.message ?? 'unknown') };
+  }
+}
+
+export async function updateChannelKindAction(
+  id: string,
+  kind: 'REFERENCE' | 'SOURCE'
+): Promise<ActionResult> {
+  try {
+    await prisma.channel.update({
+      where: { id },
+      data: { kind: kind === 'SOURCE' ? 'SOURCE' : 'REFERENCE' },
+    });
+    revalidatePath('/channels');
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? '변경 실패' };
   }
 }
 
