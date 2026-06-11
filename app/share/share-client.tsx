@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { addChannelAction } from '../channels/actions';
+import { addChannelAction, deleteChannelAction } from '../channels/actions';
 
 type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN';
 type Kind = 'REFERENCE' | 'SOURCE';
@@ -14,6 +14,16 @@ type MyChannel = {
   name: string;
   category: string | null;
   materials: Material[];
+};
+type AssetChannel = {
+  id: string;
+  platform: Platform;
+  handle: string | null;
+  displayName: string | null;
+  externalId: string;
+  folderId: string;
+  folderName: string;
+  kind: Kind;
 };
 
 const PLATFORM_LABEL: Record<Platform, string> = {
@@ -42,9 +52,11 @@ function detectPlatform(input: string): Platform {
 export function ShareClient({
   folders,
   myChannels,
+  assetChannels,
 }: {
   folders: Folder[];
   myChannels: MyChannel[];
+  assetChannels: AssetChannel[];
 }) {
   return (
     <Suspense
@@ -54,7 +66,7 @@ export function ShareClient({
         </div>
       }
     >
-      <Inner folders={folders} myChannels={myChannels} />
+      <Inner folders={folders} myChannels={myChannels} assetChannels={assetChannels} />
     </Suspense>
   );
 }
@@ -62,9 +74,11 @@ export function ShareClient({
 function Inner({
   folders,
   myChannels,
+  assetChannels,
 }: {
   folders: Folder[];
   myChannels: MyChannel[];
+  assetChannels: AssetChannel[];
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -181,6 +195,7 @@ function Inner({
           `"${folderName}" 에 ${kind === 'SOURCE' ? '원본 소스' : '레퍼런스'} 채널 추가됨`
         );
         setInput('');
+        router.refresh();
       } else {
         setError(r.error);
       }
@@ -356,6 +371,14 @@ function Inner({
                 ))}
               </select>
             </label>
+
+            <AssetChannelsList
+              channels={assetChannels.filter(
+                (c) => c.folderId === folderId && c.kind === kind
+              )}
+              folderName={folders.find((f) => f.id === folderId)?.name ?? ''}
+              kind={kind}
+            />
           </>
         )}
 
@@ -461,6 +484,117 @@ function MaterialsList({
           </button>
         </div>
       ))}
+    </div>
+  );
+}
+
+const PLATFORM_BADGE: Record<Platform, { label: string; color: string }> = {
+  YOUTUBE: { label: 'YT', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  TIKTOK: { label: 'TT', color: 'bg-zinc-200/10 text-zinc-100 border-zinc-300/30' },
+  INSTAGRAM: { label: 'IG', color: 'bg-pink-500/20 text-pink-400 border-pink-500/30' },
+  XIAOHONGSHU: { label: '小', color: 'bg-red-400/20 text-red-300 border-red-400/30' },
+  DOUYIN: { label: '抖', color: 'bg-cyan-400/20 text-cyan-300 border-cyan-400/30' },
+};
+
+function buildAssetUrl(c: AssetChannel): string | null {
+  const h = c.handle?.replace(/^@/, '') || c.externalId;
+  switch (c.platform) {
+    case 'YOUTUBE':
+      return c.externalId.startsWith('UC')
+        ? `https://www.youtube.com/channel/${c.externalId}`
+        : `https://www.youtube.com/@${h}`;
+    case 'TIKTOK':
+      return `https://www.tiktok.com/@${h}`;
+    case 'INSTAGRAM':
+      return `https://www.instagram.com/${h}/`;
+    case 'XIAOHONGSHU':
+      return c.externalId.startsWith('http')
+        ? c.externalId
+        : `https://www.xiaohongshu.com/user/profile/${c.externalId}`;
+    case 'DOUYIN':
+      return c.externalId.startsWith('http')
+        ? c.externalId
+        : `https://www.douyin.com/user/${c.externalId}`;
+    default:
+      return null;
+  }
+}
+
+function AssetChannelsList({
+  channels,
+  folderName,
+  kind,
+}: {
+  channels: AssetChannel[];
+  folderName: string;
+  kind: Kind;
+}) {
+  const router = useRouter();
+  const [items, setItems] = useState<AssetChannel[]>(channels);
+  useEffect(() => {
+    setItems(channels);
+  }, [channels]);
+
+  const remove = async (id: string) => {
+    if (!confirm('이 채널을 삭제할까요?')) return;
+    setItems((prev) => prev.filter((x) => x.id !== id));
+    await deleteChannelAction(id).catch(() => {});
+    router.refresh();
+  };
+
+  if (items.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed bg-card/40 p-3 text-center text-[11px] text-muted-foreground">
+        {folderName ? `"${folderName}" · ${kind === 'SOURCE' ? '원본' : '레퍼'} 채널 없음` : '폴더를 선택하세요'}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5 rounded-md border bg-card/40 p-2">
+      <div className="px-1 text-[11px] font-semibold text-muted-foreground">
+        현재 채널 ({items.length})
+      </div>
+      {items.map((c) => {
+        const badge = PLATFORM_BADGE[c.platform];
+        const url = buildAssetUrl(c);
+        const display = c.displayName ?? c.handle ?? c.externalId;
+        return (
+          <div
+            key={c.id}
+            className="flex items-center gap-2 rounded border bg-background/60 px-2 py-1.5"
+          >
+            <span
+              className={
+                'inline-flex h-5 w-7 shrink-0 items-center justify-center rounded border text-[10.5px] font-bold ' +
+                badge.color
+              }
+            >
+              {badge.label}
+            </span>
+            {url ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="min-w-0 flex-1 truncate text-[11.5px] hover:underline"
+                title={display}
+              >
+                {display}
+              </a>
+            ) : (
+              <span className="min-w-0 flex-1 truncate text-[11.5px]">{display}</span>
+            )}
+            <button
+              onClick={() => remove(c.id)}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded text-[12px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              title="삭제"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
