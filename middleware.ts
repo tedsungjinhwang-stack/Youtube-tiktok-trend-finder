@@ -18,7 +18,14 @@ export function middleware(req: NextRequest) {
     pathname.startsWith('/api/auth') ||
     pathname === '/login' ||
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon')
+    pathname.startsWith('/favicon') ||
+    // PWA: manifest / icons / sw 는 인증 없이 접근 가능해야 Chrome 이 PWA 로 인식함
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/sw.js' ||
+    pathname === '/icon.svg' ||
+    pathname === '/icon-192' ||
+    pathname === '/icon-512' ||
+    pathname.startsWith('/icon-')
   ) {
     return NextResponse.next();
   }
