@@ -8,7 +8,13 @@ type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN';
 type Kind = 'REFERENCE' | 'SOURCE';
 type ShareMode = 'material' | 'channel';
 type Folder = { id: string; name: string };
-type MyChannel = { id: string; name: string; category: string | null };
+type Material = { id: string; url: string; createdAt: string };
+type MyChannel = {
+  id: string;
+  name: string;
+  category: string | null;
+  materials: Material[];
+};
 
 const PLATFORM_LABEL: Record<Platform, string> = {
   YOUTUBE: 'YouTube',
@@ -145,6 +151,7 @@ function Inner({
         const name = myChannels.find((c) => c.id === matChannelId)?.name ?? '채널';
         setDone(`"${name}" 에 소재 추가됨`);
         setInput('');
+        router.refresh();
       } else {
         setError(j.error?.message ?? '실패');
       }
@@ -260,21 +267,29 @@ function Inner({
               에서 먼저 채널을 추가하세요.
             </div>
           ) : (
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold">내 채널</span>
-              <select
-                value={matChannelId}
-                onChange={(e) => setMatChannelId(e.target.value)}
-                className="h-11 w-full rounded-md border bg-background px-3 text-sm"
-              >
-                {myChannels.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {c.category ? ` · ${c.category}` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold">내 채널</span>
+                <select
+                  value={matChannelId}
+                  onChange={(e) => setMatChannelId(e.target.value)}
+                  className="h-11 w-full rounded-md border bg-background px-3 text-sm"
+                >
+                  {myChannels.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.category ? ` · ${c.category}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <MaterialsList
+                channelId={matChannelId}
+                initial={
+                  myChannels.find((c) => c.id === matChannelId)?.materials ?? []
+                }
+              />
+            </>
           )
         ) : folders.length === 0 ? (
           <div className="rounded-md border border-amber-500/40 bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
@@ -384,6 +399,68 @@ function Inner({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function MaterialsList({
+  channelId,
+  initial,
+}: {
+  channelId: string;
+  initial: Material[];
+}) {
+  const [items, setItems] = useState<Material[]>(initial);
+  useEffect(() => {
+    setItems(initial);
+  }, [channelId, initial]);
+
+  const removeAt = async (id: string) => {
+    setItems((prev) => prev.filter((x) => x.id !== id));
+    await fetch(`/api/v1/my-schedule/materials/${id}`, {
+      method: 'DELETE',
+    }).catch(() => {});
+  };
+
+  if (items.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed bg-card/40 p-3 text-center text-[11px] text-muted-foreground">
+        이 채널 소재 없음
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5 rounded-md border bg-card/40 p-2">
+      <div className="px-1 text-[11px] font-semibold text-muted-foreground">
+        현재 소재 ({items.length})
+      </div>
+      {items.map((m, i) => (
+        <div
+          key={m.id}
+          className="flex items-center gap-2 rounded border bg-background/60 px-2 py-1.5"
+        >
+          <span className="num shrink-0 text-[10.5px] font-bold text-muted-foreground">
+            {i + 1}
+          </span>
+          <a
+            href={m.url}
+            target="_blank"
+            rel="noreferrer"
+            className="min-w-0 flex-1 truncate text-[11.5px] hover:underline"
+            title={m.url}
+          >
+            {m.url}
+          </a>
+          <button
+            onClick={() => removeAt(m.id)}
+            className="grid h-7 w-7 shrink-0 place-items-center rounded text-[12px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            title="삭제"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

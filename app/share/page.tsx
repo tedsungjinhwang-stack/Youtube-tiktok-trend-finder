@@ -25,9 +25,23 @@ async function safeMyChannels() {
     const rows = await prisma.myChannel.findMany({
       where: { isActive: true },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true, name: true, category: true },
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        materials: {
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, url: true, createdAt: true },
+        },
+      },
     });
-    return rows;
+    return rows.map((r) => ({
+      ...r,
+      materials: r.materials.map((m) => ({
+        ...m,
+        createdAt: m.createdAt.toISOString(),
+      })),
+    }));
   } catch {
     return [];
   }
