@@ -4,8 +4,18 @@ import { ShareClient } from './share-client';
 export const dynamic = 'force-dynamic';
 
 export default async function UnifiedSharePage() {
-  const [folders, myChannels] = await Promise.all([safeFolders(), safeMyChannels()]);
-  return <ShareClient folders={folders} myChannels={myChannels} />;
+  const [folders, myChannels, assetChannels] = await Promise.all([
+    safeFolders(),
+    safeMyChannels(),
+    safeAssetChannels(),
+  ]);
+  return (
+    <ShareClient
+      folders={folders}
+      myChannels={myChannels}
+      assetChannels={assetChannels}
+    />
+  );
 }
 
 async function safeFolders() {
@@ -41,6 +51,28 @@ async function safeMyChannels() {
         ...m,
         createdAt: m.createdAt.toISOString(),
       })),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+async function safeAssetChannels() {
+  try {
+    const rows = await prisma.channel.findMany({
+      where: { isActive: true },
+      include: { folder: { select: { id: true, name: true } } },
+      orderBy: { addedAt: 'desc' },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      platform: r.platform as 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN',
+      handle: r.handle,
+      displayName: r.displayName,
+      externalId: r.externalId,
+      folderId: r.folderId,
+      folderName: r.folder.name,
+      kind: (r.kind ?? 'REFERENCE') as 'REFERENCE' | 'SOURCE',
     }));
   } catch {
     return [];
