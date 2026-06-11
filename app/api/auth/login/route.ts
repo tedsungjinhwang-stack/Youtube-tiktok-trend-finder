@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-// v2: 30일 → 세션 쿠키. 이름을 바꿔 기존 30일 쿠키를 자동 무효화함.
 const COOKIE_NAME = 'tf_site_auth_v2';
+const MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30일
 
 export async function POST(req: NextRequest) {
   const { password, next } = await req.json().catch(() => ({}));
@@ -23,12 +23,12 @@ export async function POST(req: NextRequest) {
   }
 
   const res = NextResponse.json({ ok: true, next: next ?? '/' });
-  // maxAge 미설정 → 세션 쿠키 (브라우저 닫으면 만료)
   res.cookies.set(COOKIE_NAME, expected, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
+    maxAge: MAX_AGE_SECONDS,
   });
   return res;
 }
