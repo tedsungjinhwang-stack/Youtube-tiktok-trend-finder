@@ -6,6 +6,15 @@ export const metadata: Metadata = {
   title: 'Trend Finder',
   description: 'TikTok / Instagram / YouTube 에셋 채널 트렌드 영상 파인더',
   manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    title: 'Trend Finder',
+    statusBarStyle: 'black-translucent',
+  },
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
 };
 
 export const viewport: Viewport = {
