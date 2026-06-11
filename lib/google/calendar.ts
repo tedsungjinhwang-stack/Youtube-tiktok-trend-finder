@@ -143,6 +143,14 @@ export async function syncMyChannel(channelId: string): Promise<void> {
   const auth = await prisma.googleOAuth.findUnique({ where: { id: 'default' } });
   if (!auth) return;
 
+  // 예약 일시가 이미 지난 영상은 자동 제거 (업로드 완료된 것으로 간주).
+  // → 마지막 예약이 과거였던 채널은 자동으로 '영상업로드 필요' 상태로 전환됨.
+  await prisma.scheduledVideo
+    .deleteMany({
+      where: { channelId, scheduledAt: { lt: new Date() } },
+    })
+    .catch(() => {});
+
   const ch = await prisma.myChannel.findUnique({
     where: { id: channelId },
     include: {
