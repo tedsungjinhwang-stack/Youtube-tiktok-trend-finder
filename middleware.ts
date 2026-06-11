@@ -23,9 +23,8 @@ export function middleware(req: NextRequest) {
     pathname === '/manifest.webmanifest' ||
     pathname === '/sw.js' ||
     pathname === '/icon.svg' ||
-    pathname === '/icon-192' ||
-    pathname === '/icon-512' ||
-    pathname.startsWith('/icon-')
+    pathname === '/icon-192.png' ||
+    pathname === '/icon-512.png'
   ) {
     return NextResponse.next();
   }
