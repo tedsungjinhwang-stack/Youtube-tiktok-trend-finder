@@ -16,7 +16,7 @@
     }
   ],
   "share_target": {
-    "action": "/my-schedule/share",
+    "action": "/share",
     "method": "GET",
     "params": {
       "title": "title",
