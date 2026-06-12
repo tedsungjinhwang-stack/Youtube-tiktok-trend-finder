@@ -1,29 +1,13 @@
 import { cookies } from 'next/headers';
 import { ThresholdsForm } from './thresholds-form';
-import { AutoScrapeToggle } from './auto-scrape-toggle';
-import { TrendingSnapshotToggle } from './trending-snapshot-toggle';
 import {
   BUILTIN_DEFAULTS,
   COOKIE_KEY_MIN_VIEWS,
   numFromCookie,
 } from '@/lib/settings';
-import { getAutoScrapeEnabled } from '@/lib/system-settings';
-import { prisma } from '@/lib/db';
 import vercelConfig from '@/vercel.json';
 
 export const dynamic = 'force-dynamic';
-
-async function getTrendingSnapshotEnabled(): Promise<{ enabled: boolean; intervalHours: number } | null> {
-  try {
-    const s = await prisma.trendingSettings.findUnique({
-      where: { id: 'default' },
-    });
-    if (!s) return { enabled: true, intervalHours: 4 };
-    return { enabled: s.enabled, intervalHours: s.intervalHours };
-  } catch {
-    return null;
-  }
-}
 
 export default async function SettingsPage() {
   const c = cookies();
@@ -33,8 +17,6 @@ export default async function SettingsPage() {
       BUILTIN_DEFAULTS.minViews
     ),
   };
-  const autoScrapeEnabled = await getAutoScrapeEnabled();
-  const trendingSnap = await getTrendingSnapshotEnabled();
   const cronSchedules = parseCronSchedules(
     (vercelConfig as { crons?: { path: string; schedule: string }[] }).crons ?? []
   );
@@ -56,35 +38,11 @@ export default async function SettingsPage() {
           </div>
         </Card>
 
-        <Card title="자동 작업 (Cron)" subtitle="각 작업은 개별 토글로 ON/OFF 가능. 스케줄은 vercel.json (배포 후 적용)">
+        <Card title="자동 작업 (Cron)" subtitle="현재 활성 cron 만 표시. 스케줄은 vercel.json (배포 후 적용)">
           <CronRow
-            label="자동 스크래핑"
-            hint="등록한 모든 활성 채널을 매일 자동 스크래핑"
-            schedule={cronSchedules['/api/cron/scrape-all']}
-          >
-            <AutoScrapeToggle initial={autoScrapeEnabled} />
-          </CronRow>
-
-          <CronRow
-            label="트렌딩 스냅샷 (KR)"
-            hint={
-              trendingSnap
-                ? `매시간 트리거, ${trendingSnap.intervalHours}h 간격으로 KR mostPopular 200개 저장 — 주기 조정은 → /settings/trending`
-                : '⚠ DB 마이그레이션 필요 — /settings/trending 참고'
-            }
-            schedule={cronSchedules['/api/cron/snapshot-trending']}
-          >
-            {trendingSnap ? (
-              <TrendingSnapshotToggle initial={trendingSnap.enabled} />
-            ) : (
-              <span className="text-[12px] text-warning">DB 미설정</span>
-            )}
-          </CronRow>
-
-          <CronRow
-            label="YouTube 쿼터 리셋"
-            hint="API 키 사용량 카운터를 매일 자정에 0으로 리셋 (PT midnight 기준)"
-            schedule={cronSchedules['/api/cron/reset-youtube-quotas']}
+            label="캘린더 동기화"
+            hint="활성 채널의 예약영상을 Google Calendar 에 반영 (지난 예약은 자동 정리 → '영상업로드 필요')"
+            schedule={cronSchedules['/api/cron/calendar-sync']}
           >
             <span className="text-[12px] text-success">항상 ON</span>
           </CronRow>
