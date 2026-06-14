@@ -256,14 +256,14 @@ function Inner({
       <div className="space-y-4">
         <label className="block">
           <span className="mb-1 block text-xs font-semibold">
-            {mode === 'material' ? '영상 URL' : '채널 URL 또는 핸들 (@xxx)'}
+            {mode === 'material' ? '소재 (URL 또는 메모)' : '채널 URL 또는 핸들 (@xxx)'}
           </span>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
               mode === 'material'
-                ? 'https://...'
+                ? 'URL 또는 메모를 입력'
                 : 'https://youtube.com/@xxx  또는  @xxx'
             }
             inputMode="url"
@@ -458,32 +458,44 @@ function MaterialsList({
       <div className="px-1 text-[11px] font-semibold text-muted-foreground">
         현재 소재 ({items.length})
       </div>
-      {items.map((m, i) => (
-        <div
-          key={m.id}
-          className="flex items-center gap-2 rounded border bg-background/60 px-2 py-1.5"
-        >
-          <span className="num shrink-0 text-[10.5px] font-bold text-muted-foreground">
-            {i + 1}
-          </span>
-          <a
-            href={m.url}
-            target="_blank"
-            rel="noreferrer"
-            className="min-w-0 flex-1 truncate text-[11.5px] hover:underline"
-            title={m.url}
+      {items.map((m, i) => {
+        const isUrl = /^https?:\/\//i.test(m.url);
+        return (
+          <div
+            key={m.id}
+            className="flex items-center gap-2 rounded border bg-background/60 px-2 py-1.5"
           >
-            {m.url}
-          </a>
-          <button
-            onClick={() => removeAt(m.id)}
-            className="grid h-7 w-7 shrink-0 place-items-center rounded text-[12px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            title="삭제"
-          >
-            ✕
-          </button>
-        </div>
-      ))}
+            <span className="num shrink-0 text-[10.5px] font-bold text-muted-foreground">
+              {i + 1}
+            </span>
+            {isUrl ? (
+              <a
+                href={m.url}
+                target="_blank"
+                rel="noreferrer"
+                className="min-w-0 flex-1 truncate text-[11.5px] hover:underline"
+                title={m.url}
+              >
+                {m.url}
+              </a>
+            ) : (
+              <span
+                className="min-w-0 flex-1 truncate text-[11.5px]"
+                title={m.url}
+              >
+                {m.url}
+              </span>
+            )}
+            <button
+              onClick={() => removeAt(m.id)}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded text-[12px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              title="삭제"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

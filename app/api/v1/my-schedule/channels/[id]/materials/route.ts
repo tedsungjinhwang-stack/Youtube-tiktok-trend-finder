@@ -60,17 +60,18 @@ async function resolveFinalUrl(url: string): Promise<string> {
 export async function POST(req: Request, { params }: Ctx) {
   const { id } = await params;
   const body = await req.json();
-  const rawUrl = typeof body.url === 'string' ? body.url.trim() : '';
+  const rawInput = typeof body.url === 'string' ? body.url.trim() : '';
   const note = typeof body.note === 'string' ? body.note.trim() || null : null;
-  if (!rawUrl) {
+  if (!rawInput) {
     return NextResponse.json(
-      { success: false, error: { code: 'INVALID_URL', message: 'URL을 입력해주세요.' } },
+      { success: false, error: { code: 'EMPTY', message: '소재 내용을 입력해주세요.' } },
       { status: 400 }
     );
   }
 
-  // 단축 URL 이면 실주소로 변환
-  const url = await resolveFinalUrl(rawUrl);
+  // URL 형태(http/https) 면 단축 URL 자동 해석. 일반 텍스트(메모) 면 그대로 저장.
+  const looksLikeUrl = /^https?:\/\//i.test(rawInput);
+  const url = looksLikeUrl ? await resolveFinalUrl(rawInput) : rawInput;
 
   try {
     const created = await prisma.$transaction(async (tx) => {

@@ -1141,32 +1141,41 @@ function MaterialsCell({
           onClick={() => setAdding(true)}
           className="text-[11px] text-muted-foreground/70 hover:text-foreground"
         >
-          + 소재 URL
+          + 소재
         </button>
       )}
-      {materials.map((m) => (
-        <label
-          key={m.id}
-          className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-accent/40"
-        >
-          <input
-            type="checkbox"
-            checked={false}
-            onChange={() => onRemove(m.id)}
-            className="h-3 w-3 shrink-0"
-            title="체크하면 사용 완료 처리되어 사라집니다"
-          />
-          <a
-            href={m.url}
-            target="_blank"
-            rel="noreferrer"
-            className="truncate text-[11px] text-blue-600 hover:underline dark:text-blue-400"
-            title={m.url}
+      {materials.map((m) => {
+        const isUrl = /^https?:\/\//i.test(m.url);
+        return (
+          <label
+            key={m.id}
+            className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-accent/40"
           >
-            {m.url}
-          </a>
-        </label>
-      ))}
+            <input
+              type="checkbox"
+              checked={false}
+              onChange={() => onRemove(m.id)}
+              className="h-3 w-3 shrink-0"
+              title="체크하면 사용 완료 처리되어 사라집니다"
+            />
+            {isUrl ? (
+              <a
+                href={m.url}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate text-[11px] text-blue-600 hover:underline dark:text-blue-400"
+                title={m.url}
+              >
+                {m.url}
+              </a>
+            ) : (
+              <span className="truncate text-[11px]" title={m.url}>
+                {m.url}
+              </span>
+            )}
+          </label>
+        );
+      })}
       {adding ? (
         <input
           autoFocus
@@ -1185,7 +1194,7 @@ function MaterialsCell({
           placeholder={
             materials.length >= 20
               ? '추가 시 가장 오래된 소재가 삭제됩니다'
-              : 'https://...'
+              : 'URL 또는 메모'
           }
           className="h-6 w-full rounded border bg-background px-1.5 text-[11px]"
         />
@@ -1197,7 +1206,7 @@ function MaterialsCell({
             title={
               materials.length >= 20
                 ? '최대 20개 — 추가하면 가장 오래된 소재가 삭제됩니다'
-                : '소재 URL 추가'
+                : '소재 추가 (URL 또는 메모)'
             }
           >
             + 추가{materials.length >= 20 && ' (오래된 것 자동 삭제)'}
