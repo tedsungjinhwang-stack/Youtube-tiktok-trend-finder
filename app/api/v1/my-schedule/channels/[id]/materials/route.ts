@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-const MAX_PER_CHANNEL = 10;
+const MAX_PER_CHANNEL = 20;
 
 type Ctx = { params: Promise<{ id: string }> };
 
