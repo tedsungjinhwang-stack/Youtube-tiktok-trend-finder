@@ -594,12 +594,12 @@ export default function MySchedulePage() {
                       className="h-3.5 w-3.5"
                     />
                   </th>
-                  <th className="w-[28%] px-4 py-2 text-left font-semibold">채널</th>
-                  <th className="w-[10%] px-4 py-2 text-left font-semibold">카테고리</th>
-                  <th className="w-[20%] px-4 py-2 text-left font-semibold">소재</th>
-                  <th className="px-4 py-2 text-left font-semibold">마지막 예약 영상</th>
-                  <th className="w-[12%] px-4 py-2 text-left font-semibold">예약일시</th>
-                  <th className="w-[14%] px-4 py-2 text-left font-semibold">완성본 (최대 5)</th>
+                  <th className="w-[20%] px-4 py-2 text-left align-top font-semibold">채널</th>
+                  <th className="w-[8%] px-4 py-2 text-left align-top font-semibold">카테고리</th>
+                  <th className="w-[26%] px-4 py-2 text-left align-top font-semibold">소재</th>
+                  <th className="px-4 py-2 text-left align-top font-semibold">마지막 예약 영상</th>
+                  <th className="w-[10%] px-4 py-2 text-left align-top font-semibold">예약일시</th>
+                  <th className="w-[12%] px-4 py-2 text-left align-top font-semibold">완성본 (최대 5)</th>
                 </tr>
               </thead>
               <tbody>
@@ -723,7 +723,7 @@ function DashRow({
     <>
       <tr
         className={cn(
-          'border-b hover:bg-accent/30',
+          'border-b align-top hover:bg-accent/30',
           !c.isActive && 'opacity-50',
           isExpanded && 'bg-accent/40',
           checked && 'bg-primary/5'
@@ -1197,7 +1197,7 @@ function MaterialsCell({
   };
 
   return (
-    <div onClick={(e) => e.stopPropagation()} className="space-y-1">
+    <div onClick={(e) => e.stopPropagation()} className="space-y-0.5">
       {materials.length === 0 && !adding && (
         <button
           onClick={() => setAdding(true)}
@@ -1211,13 +1211,13 @@ function MaterialsCell({
         return (
           <label
             key={m.id}
-            className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-accent/40"
+            className="flex items-center gap-1 rounded px-0.5 hover:bg-accent/40"
           >
             <input
               type="checkbox"
               checked={false}
               onChange={() => onRemove(m.id)}
-              className="h-3 w-3 shrink-0"
+              className="h-2.5 w-2.5 shrink-0"
               title="체크하면 사용 완료 처리되어 사라집니다"
             />
             {isUrl ? (
@@ -1225,13 +1225,13 @@ function MaterialsCell({
                 href={m.url}
                 target="_blank"
                 rel="noreferrer"
-                className="truncate text-[11px] text-blue-600 hover:underline dark:text-blue-400"
+                className="truncate text-[10.5px] leading-tight text-blue-600 hover:underline dark:text-blue-400"
                 title={m.url}
               >
                 {m.url}
               </a>
             ) : (
-              <span className="truncate text-[11px]" title={m.url}>
+              <span className="truncate text-[10.5px] leading-tight" title={m.url}>
                 {m.url}
               </span>
             )}
