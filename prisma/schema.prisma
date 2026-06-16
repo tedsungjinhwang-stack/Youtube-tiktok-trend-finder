@@ -239,6 +239,7 @@ model MyChannel {
   videos       ScheduledVideo[]
   youtubeOauth ChannelYouTubeOAuth?
   materials    ChannelMaterial[]
+  attachments  ChannelAttachment[]
 
   @@index([adsense])
   @@index([platform])
@@ -251,6 +252,19 @@ model ChannelMaterial {
   channel   MyChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
   url       String
   note      String?
+  createdAt DateTime  @default(now())
+
+  @@index([channelId])
+  @@index([createdAt])
+}
+
+/// 채널별 완성본 첨부 (URL 또는 외부 파일 호스팅 링크). 채널당 최대 5개.
+model ChannelAttachment {
+  id        String    @id @default(cuid())
+  channelId String
+  channel   MyChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  url       String
+  label     String?
   createdAt DateTime  @default(now())
 
   @@index([channelId])
