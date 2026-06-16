@@ -93,6 +93,11 @@ export function PageFilters({
 
   const period = (searchParams.get('period') as Period) ?? 'all';
   const sortBy = (searchParams.get('sortBy') as SortBy) ?? 'views';
+  const isShortsParam = searchParams.get('isShorts');
+  const shortsMode: 'all' | 'shorts' | 'long' =
+    isShortsParam === 'true' ? 'shorts' : isShortsParam === 'false' ? 'long' : 'all';
+  const showShortsFilter =
+    platforms.length === 1 && platforms[0] === 'YOUTUBE';
 
   const togglePlatform = (p: Platform) => {
     const next = new Set(activePlatforms);
@@ -161,6 +166,27 @@ export function PageFilters({
             }
           />
         ))}
+
+        {showShortsFilter && (
+          <>
+            <span className="mx-1 h-4 w-px bg-border" />
+            <Pill
+              label="전체"
+              active={shortsMode === 'all'}
+              onClick={() => updateParams({ isShorts: null })}
+            />
+            <Pill
+              label="🎬 쇼츠"
+              active={shortsMode === 'shorts'}
+              onClick={() => updateParams({ isShorts: 'true' })}
+            />
+            <Pill
+              label="🎞 롱폼"
+              active={shortsMode === 'long'}
+              onClick={() => updateParams({ isShorts: 'false' })}
+            />
+          </>
+        )}
 
         {showPlatformToggle && platforms.length > 1 && (
           <>
