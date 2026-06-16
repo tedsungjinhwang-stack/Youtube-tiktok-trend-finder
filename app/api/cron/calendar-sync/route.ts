@@ -55,6 +55,21 @@ export async function GET(req: Request) {
     }
   }
 
+  // 별표 안 한 영상 중 7일 지난 거 자동 정리 (DB 용량 절약)
+  const cleanupCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  let cleanedVideos = 0;
+  try {
+    const r = await prisma.video.deleteMany({
+      where: {
+        isStarred: false,
+        fetchedAt: { lt: cleanupCutoff },
+      },
+    });
+    cleanedVideos = r.count;
+  } catch (e) {
+    console.error('[video cleanup] failed', (e as Error).message);
+  }
+
   const finishedAt = new Date().toISOString();
   console.log('[gcal cron] done', {
     startedAt,
@@ -62,10 +77,16 @@ export async function GET(req: Request) {
     allChannels: channels.length,
     calSynced: ok,
     calFailed: failed,
+    cleanedVideos,
   });
 
   return NextResponse.json({
     success: true,
-    data: { allChannels: channels.length, calSynced: ok, calFailed: failed },
+    data: {
+      allChannels: channels.length,
+      calSynced: ok,
+      calFailed: failed,
+      cleanedVideos,
+    },
   });
 }
