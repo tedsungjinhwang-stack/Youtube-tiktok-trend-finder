@@ -51,6 +51,35 @@ export function VideoCard({ data }: { data: VideoCardData }) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [starred, setStarred] = useState(data.starred ?? false);
   const [, startStarTransition] = useTransition();
+  const [copied, setCopied] = useState(false);
+
+  const onCopyUrl = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const url = data.url;
+    if (!url) return;
+    (async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {
+        // 비-https 또는 권한 거부 — fallback
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+        } catch {
+          /* ignore */
+        }
+        ta.remove();
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    })();
+  };
 
   const onToggleStar = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -210,17 +239,31 @@ export function VideoCard({ data }: { data: VideoCardData }) {
         </button>
 
         <button
+          aria-label="URL 복사"
+          title={copied ? '복사됨!' : 'URL 복사'}
+          onClick={onCopyUrl}
+          className={cn(
+            'absolute right-2 top-10 z-10 grid h-6 w-6 place-items-center rounded-full text-[12px] backdrop-blur transition group-hover:opacity-100',
+            copied
+              ? 'bg-emerald-500/90 text-white opacity-100'
+              : 'bg-black/60 text-white/70 opacity-0 hover:bg-black/80 hover:text-white'
+          )}
+        >
+          {copied ? '✓' : '⧉'}
+        </button>
+
+        <button
           aria-label="삭제"
           title="영상 삭제"
           onClick={onDelete}
           disabled={isDeleting}
-          className="absolute right-2 top-10 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-[12px] text-white/70 opacity-0 backdrop-blur transition group-hover:opacity-100 hover:bg-red-600/90 hover:text-white disabled:opacity-30"
+          className="absolute right-2 top-[4.5rem] z-10 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-[12px] text-white/70 opacity-0 backdrop-blur transition group-hover:opacity-100 hover:bg-red-600/90 hover:text-white disabled:opacity-30"
         >
           {isDeleting ? '…' : '✕'}
         </button>
 
         {deleteError && (
-          <span className="absolute right-2 top-[4.5rem] rounded bg-red-600/90 px-1.5 py-0.5 text-[10px] text-white">
+          <span className="absolute right-2 top-[6rem] rounded bg-red-600/90 px-1.5 py-0.5 text-[10px] text-white">
             {deleteError.slice(0, 30)}
           </span>
         )}
