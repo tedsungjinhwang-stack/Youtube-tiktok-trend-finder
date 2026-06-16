@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 type ScheduledVideo = {
@@ -236,17 +236,17 @@ export default function MySchedulePage() {
     refresh();
   };
 
-  const addAttachment = async (channelId: string, url: string) => {
-    const trimmed = url.trim();
-    if (!trimmed) return;
+  const addAttachment = async (channelId: string, file: File) => {
+    if (!file) return;
+    const fd = new FormData();
+    fd.set('file', file);
     const r = await fetch(`/api/v1/my-schedule/channels/${channelId}/attachments`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: trimmed }),
+      body: fd,
     });
     const j = await r.json();
     if (j.success) refresh();
-    else alert(j.error?.message ?? '실패');
+    else alert(j.error?.message ?? '업로드 실패');
   };
 
   const removeAttachment = async (id: string) => {
@@ -640,7 +640,7 @@ export default function MySchedulePage() {
                         onRemoveVideo={removeVideo}
                         onAddMaterial={(url) => addMaterial(c.id, url)}
                         onRemoveMaterial={removeMaterial}
-                        onAddAttachment={(url) => addAttachment(c.id, url)}
+                        onAddAttachment={(file) => addAttachment(c.id, file)}
                         onRemoveAttachment={removeAttachment}
                       />
                     </Fragment>
@@ -686,7 +686,7 @@ function DashRow({
   onRemoveVideo: (id: string) => void;
   onAddMaterial: (url: string) => void;
   onRemoveMaterial: (id: string) => void;
-  onAddAttachment: (url: string) => void;
+  onAddAttachment: (file: File) => void;
   onRemoveAttachment: (id: string) => void;
 }) {
   const [vTitle, setVTitle] = useState('');
@@ -1264,99 +1264,85 @@ function AttachmentsCell({
   onRemove,
 }: {
   items: ChannelAttachment[];
-  onAdd: (url: string) => void;
+  onAdd: (file: File) => void;
   onRemove: (id: string) => void;
 }) {
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const full = items.length >= 5;
 
-  const commit = () => {
-    const v = draft.trim();
-    if (v) onAdd(v);
-    setDraft('');
-    setAdding(false);
+  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    if (f.size > 4 * 1024 * 1024) {
+      alert(`파일 너무 큼 (${(f.size / 1024 / 1024).toFixed(1)}MB). 최대 4MB.`);
+      return;
+    }
+    setUploading(true);
+    try {
+      await Promise.resolve(onAdd(f));
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
     <div onClick={(e) => e.stopPropagation()} className="space-y-1">
-      {items.length === 0 && !adding && (
-        <button
-          onClick={() => setAdding(true)}
-          className="text-[11px] text-muted-foreground/70 hover:text-foreground"
-        >
-          📎 첨부
-        </button>
-      )}
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        onChange={onPick}
+        disabled={full || uploading}
+      />
+
       {items.map((a, i) => {
-        const isUrl = /^https?:\/\//i.test(a.url);
+        const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(a.label || a.url);
         return (
           <div
             key={a.id}
-            className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-accent/40"
+            className="flex items-center gap-1.5 rounded border border-border/40 bg-background/60 px-1.5 py-1"
           >
             <span className="num shrink-0 text-[10px] font-bold text-muted-foreground">
               {i + 1}
             </span>
-            {isUrl ? (
-              <a
-                href={a.url}
-                target="_blank"
-                rel="noreferrer"
-                className="truncate text-[11px] text-blue-600 hover:underline dark:text-blue-400"
-                title={a.url}
-              >
-                {a.label || a.url}
-              </a>
-            ) : (
-              <span className="truncate text-[11px]" title={a.url}>
-                {a.label || a.url}
-              </span>
-            )}
+            <a
+              href={a.url}
+              target="_blank"
+              rel="noreferrer"
+              className="min-w-0 flex-1 truncate text-[11px] text-blue-600 hover:underline dark:text-blue-400"
+              title={a.label || a.url}
+            >
+              {isImage ? '🖼' : '📎'} {a.label || a.url}
+            </a>
             <button
-              onClick={() => onRemove(a.id)}
-              className="ml-auto grid h-4 w-4 shrink-0 place-items-center rounded text-[10px] text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => {
+                if (!confirm('이 첨부를 삭제할까요?')) return;
+                onRemove(a.id);
+              }}
+              className="grid h-5 w-5 shrink-0 place-items-center rounded text-[11px] font-bold text-destructive hover:bg-destructive/10"
               title="삭제"
+              aria-label="삭제"
             >
               ✕
             </button>
           </div>
         );
       })}
-      {adding ? (
-        <input
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              commit();
-            } else if (e.key === 'Escape') {
-              setDraft('');
-              setAdding(false);
-            }
-          }}
-          placeholder={
-            items.length >= 5
-              ? '최대 5개'
-              : 'URL 또는 메모'
-          }
-          disabled={items.length >= 5}
-          className="h-6 w-full rounded border bg-background px-1.5 text-[11px] disabled:opacity-40"
-        />
-      ) : (
-        items.length > 0 && (
-          <button
-            onClick={() => setAdding(true)}
-            disabled={items.length >= 5}
-            className="text-[10.5px] text-muted-foreground/70 hover:text-foreground disabled:opacity-40"
-            title={items.length >= 5 ? '최대 5개' : '첨부 추가'}
-          >
-            + 첨부 {items.length}/5
-          </button>
-        )
-      )}
+
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={full || uploading}
+        className="w-full rounded border border-dashed border-border/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-foreground/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+        title={full ? '최대 5개' : '파일 선택 (최대 4MB)'}
+      >
+        {uploading
+          ? '업로드 중…'
+          : full
+            ? '최대 5/5'
+            : `📎 파일 추가 (${items.length}/5)`}
+      </button>
     </div>
   );
 }
