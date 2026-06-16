@@ -9,6 +9,7 @@ const tabs = [
   { href: '/xiaohongshu', label: '샤오홍수' },
   { href: '/douyin', label: '도우인' },
   { href: '/channels', label: '에셋 채널' },
+  { href: '/stock', label: '소재창고' },
   { href: '/folders', label: '폴더' },
   { href: '/comment-generator', label: '댓글생성기' },
   { href: '/my-schedule', label: '채널 스케줄' },
