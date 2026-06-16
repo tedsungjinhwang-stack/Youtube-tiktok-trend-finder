@@ -169,11 +169,42 @@ export function VideoCard({ data }: { data: VideoCardData }) {
           </span>
         )}
 
+        {data.platform === 'YOUTUBE' && (() => {
+          const isShort =
+            data.isShorts === true ||
+            (data.isShorts == null &&
+              data.durationSeconds != null &&
+              data.durationSeconds <= 180);
+          const isLong =
+            data.isShorts === false ||
+            (data.isShorts == null &&
+              data.durationSeconds != null &&
+              data.durationSeconds > 180);
+          if (!isShort && !isLong) return null;
+          return (
+            <span
+              className={cn(
+                'absolute right-10 top-2 z-10 rounded px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider shadow backdrop-blur',
+                isShort
+                  ? 'bg-red-500/90 text-white'
+                  : 'bg-blue-500/90 text-white'
+              )}
+              title={
+                isShort
+                  ? 'YouTube 쇼츠 (≤3분)'
+                  : `롱폼${data.durationSeconds ? ` (${Math.floor(data.durationSeconds / 60)}분)` : ''}`
+              }
+            >
+              {isShort ? 'SHORTS' : '롱폼'}
+            </span>
+          );
+        })()}
+
         <button
           aria-label={starred ? '별표 해제' : '별표'}
           title={starred ? '별표 해제 (정렬 맨 앞에서 빠짐)' : '별표 (목록 맨 앞으로)'}
           onClick={onToggleStar}
-          className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-[13px] backdrop-blur hover:bg-black/80"
+          className="absolute right-2 top-2 z-10 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-[13px] backdrop-blur hover:bg-black/80"
         >
           <span className={starred ? 'text-warning' : 'text-white/70'}>★</span>
         </button>
@@ -197,37 +228,6 @@ export function VideoCard({ data }: { data: VideoCardData }) {
         <span className="absolute bottom-2 left-2 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-[11px] font-black backdrop-blur">
           <PlatformLetter p={data.platform} />
         </span>
-
-        {data.platform === 'YOUTUBE' && (() => {
-          const isShort =
-            data.isShorts === true ||
-            (data.isShorts == null &&
-              data.durationSeconds != null &&
-              data.durationSeconds <= 180);
-          const isLong =
-            data.isShorts === false ||
-            (data.isShorts == null &&
-              data.durationSeconds != null &&
-              data.durationSeconds > 180);
-          if (!isShort && !isLong) return null;
-          return (
-            <span
-              className={cn(
-                'absolute bottom-2 right-2 rounded px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider backdrop-blur',
-                isShort
-                  ? 'bg-red-500/85 text-white'
-                  : 'bg-blue-500/85 text-white'
-              )}
-              title={
-                isShort
-                  ? 'YouTube 쇼츠 (≤3분)'
-                  : `롱폼${data.durationSeconds ? ` (${Math.floor(data.durationSeconds / 60)}분)` : ''}`
-              }
-            >
-              {isShort ? 'SHORTS' : '롱폼'}
-            </span>
-          );
-        })()}
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
         <div className="absolute inset-x-2 bottom-2 line-clamp-2 text-[13.5px] font-semibold leading-snug text-white">
