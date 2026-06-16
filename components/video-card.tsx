@@ -203,12 +203,12 @@ export function VideoCard({ data }: { data: VideoCardData }) {
             data.isShorts === true ||
             (data.isShorts == null &&
               data.durationSeconds != null &&
-              data.durationSeconds <= 60);
+              data.durationSeconds <= 180);
           const isLong =
             data.isShorts === false ||
             (data.isShorts == null &&
               data.durationSeconds != null &&
-              data.durationSeconds > 60);
+              data.durationSeconds > 180);
           if (!isShort && !isLong) return null;
           return (
             <span
@@ -220,7 +220,7 @@ export function VideoCard({ data }: { data: VideoCardData }) {
               )}
               title={
                 isShort
-                  ? 'YouTube 쇼츠 (≤60초)'
+                  ? 'YouTube 쇼츠 (≤3분)'
                   : `롱폼${data.durationSeconds ? ` (${Math.floor(data.durationSeconds / 60)}분)` : ''}`
               }
             >
