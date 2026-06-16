@@ -238,15 +238,36 @@ export default function MySchedulePage() {
 
   const addAttachment = async (channelId: string, file: File) => {
     if (!file) return;
+    const cloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    const preset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+    if (!cloud || !preset) {
+      alert(
+        'Cloudinary 미설정 — Vercel 에 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME, NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET 추가 후 재배포 필요'
+      );
+      return;
+    }
+    // 1) 브라우저 → Cloudinary 직접 업로드 (Vercel 4MB 한도 우회)
     const fd = new FormData();
     fd.set('file', file);
+    fd.set('upload_preset', preset);
+    const upRes = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloud}/auto/upload`,
+      { method: 'POST', body: fd }
+    );
+    const upJson = await upRes.json();
+    if (!upRes.ok || !upJson.secure_url) {
+      alert('업로드 실패: ' + (upJson.error?.message ?? upRes.status));
+      return;
+    }
+    // 2) 우리 서버엔 URL 만 등록
     const r = await fetch(`/api/v1/my-schedule/channels/${channelId}/attachments`, {
       method: 'POST',
-      body: fd,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: upJson.secure_url, label: file.name }),
     });
     const j = await r.json();
     if (j.success) refresh();
-    else alert(j.error?.message ?? '업로드 실패');
+    else alert(j.error?.message ?? '등록 실패');
   };
 
   const removeAttachment = async (id: string) => {
@@ -1275,8 +1296,8 @@ function AttachmentsCell({
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (f.size > 4 * 1024 * 1024) {
-      alert(`파일 너무 큼 (${(f.size / 1024 / 1024).toFixed(1)}MB). 최대 4MB.`);
+    if (f.size > 100 * 1024 * 1024) {
+      alert(`파일 너무 큼 (${(f.size / 1024 / 1024).toFixed(1)}MB). 최대 100MB.`);
       return;
     }
     setUploading(true);
@@ -1298,7 +1319,10 @@ function AttachmentsCell({
       />
 
       {items.map((a, i) => {
-        const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(a.label || a.url);
+        const name = a.label || a.url;
+        const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name);
+        const isVideo = /\.(mp4|mov|webm|mkv|avi|m4v)$/i.test(name);
+        const icon = isImage ? '🖼' : isVideo ? '🎬' : '📎';
         return (
           <div
             key={a.id}
@@ -1314,7 +1338,7 @@ function AttachmentsCell({
               className="min-w-0 flex-1 truncate text-[11px] text-blue-600 hover:underline dark:text-blue-400"
               title={a.label || a.url}
             >
-              {isImage ? '🖼' : '📎'} {a.label || a.url}
+              {icon} {a.label || a.url}
             </a>
             <button
               onClick={() => {
@@ -1335,7 +1359,7 @@ function AttachmentsCell({
         onClick={() => inputRef.current?.click()}
         disabled={full || uploading}
         className="w-full rounded border border-dashed border-border/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-foreground/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-        title={full ? '최대 5개' : '파일 선택 (최대 4MB)'}
+        title={full ? '최대 5개' : '파일 선택 (영상/이미지 최대 100MB)'}
       >
         {uploading
           ? '업로드 중…'
