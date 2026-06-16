@@ -1358,7 +1358,7 @@ function AttachmentsCell({
       <button
         onClick={() => inputRef.current?.click()}
         disabled={full || uploading}
-        className="w-full rounded border border-dashed border-border/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-foreground/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+        className="block w-full rounded border border-dashed border-border/60 px-1.5 py-1 text-center text-[11px] font-semibold text-muted-foreground hover:border-foreground/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
         title={full ? '최대 5개' : '파일 선택 (영상/이미지 최대 100MB)'}
       >
         {uploading
