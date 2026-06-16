@@ -37,6 +37,21 @@ model Folder {
   updatedAt DateTime  @updatedAt
   channels  Channel[]
   hashtags  Hashtag[]
+  stock     StockMaterial[]
+}
+
+/// 소재 창고 — 폴더별로 영구 보관되는 URL/제목/설명. 자동 정리 X.
+model StockMaterial {
+  id          String   @id @default(cuid())
+  folderId    String
+  folder      Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  url         String
+  title       String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([folderId, createdAt])
 }
 
 model Hashtag {
