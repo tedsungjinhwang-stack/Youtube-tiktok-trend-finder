@@ -1,78 +1,27 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
-// Vercel: 라우트 본문 최대 ~4.5MB. 큰 파일은 거부됨.
-export const maxDuration = 30;
 
 const MAX_PER_CHANNEL = 5;
-const MAX_FILE_BYTES = 4 * 1024 * 1024; // 4MB
-const BUCKET = 'channel-attachments';
 
 type Ctx = { params: Promise<{ id: string }> };
 
-function getStorage() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
-}
-
+/**
+ * 첨부 생성 — 클라이언트가 Cloudinary 에 직접 업로드한 뒤 secure_url 을 보내옴.
+ * 이 라우트는 그 URL 을 DB 에 저장만 함 (Vercel 4MB 본문 한도 우회).
+ */
 export async function POST(req: Request, { params }: Ctx) {
   const { id } = await params;
-
-  const storage = getStorage();
-  if (!storage) {
+  const body = await req.json().catch(() => ({}));
+  const url = typeof body.url === 'string' ? body.url.trim() : '';
+  const label = typeof body.label === 'string' ? body.label.trim() || null : null;
+  if (!url) {
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'STORAGE_NOT_CONFIGURED',
-          message:
-            'Supabase Storage 가 설정되지 않았습니다 (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).',
-        },
-      },
-      { status: 500 }
-    );
-  }
-
-  let form: FormData;
-  try {
-    form = await req.formData();
-  } catch (e) {
-    return NextResponse.json(
-      { success: false, error: { code: 'BAD_REQUEST', message: 'multipart/form-data 필요' } },
+      { success: false, error: { code: 'NO_URL', message: 'url 누락' } },
       { status: 400 }
     );
   }
-  const file = form.get('file');
-  if (!(file instanceof File)) {
-    return NextResponse.json(
-      { success: false, error: { code: 'NO_FILE', message: '파일 누락' } },
-      { status: 400 }
-    );
-  }
-  if (file.size === 0) {
-    return NextResponse.json(
-      { success: false, error: { code: 'EMPTY_FILE', message: '빈 파일' } },
-      { status: 400 }
-    );
-  }
-  if (file.size > MAX_FILE_BYTES) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'FILE_TOO_LARGE',
-          message: `파일 너무 큼 (${(file.size / 1024 / 1024).toFixed(1)}MB). 최대 4MB.`,
-        },
-      },
-      { status: 400 }
-    );
-  }
-
   try {
     const count = await prisma.channelAttachment.count({ where: { channelId: id } });
     if (count >= MAX_PER_CHANNEL) {
@@ -87,32 +36,8 @@ export async function POST(req: Request, { params }: Ctx) {
         { status: 400 }
       );
     }
-
-    // 업로드 — 경로: <channelId>/<timestamp>-<filename>
-    const safeName = file.name.replace(/[^\w.\-가-힣]/g, '_').slice(0, 120);
-    const objectPath = `${id}/${Date.now()}-${safeName}`;
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const up = await storage.storage.from(BUCKET).upload(objectPath, bytes, {
-      contentType: file.type || 'application/octet-stream',
-      upsert: false,
-    });
-    if (up.error) {
-      // 버킷이 없을 수도 — 안내
-      const msg = up.error.message || '업로드 실패';
-      const hint = /not.*found|bucket/i.test(msg)
-        ? `Supabase Storage 대시보드에서 public 버킷 "${BUCKET}" 을 먼저 만들어주세요.`
-        : '';
-      return NextResponse.json(
-        { success: false, error: { code: 'UPLOAD_FAILED', message: `${msg}${hint ? ' — ' + hint : ''}` } },
-        { status: 500 }
-      );
-    }
-
-    const { data: pub } = storage.storage.from(BUCKET).getPublicUrl(objectPath);
-    const publicUrl = pub.publicUrl;
-
     const created = await prisma.channelAttachment.create({
-      data: { channelId: id, url: publicUrl, label: file.name },
+      data: { channelId: id, url, label },
     });
     return NextResponse.json({ success: true, data: created });
   } catch (e) {

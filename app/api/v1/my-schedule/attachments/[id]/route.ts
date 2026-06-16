@@ -1,27 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
-
-const BUCKET = 'channel-attachments';
 
 type Ctx = { params: Promise<{ id: string }> };
-
-function getStorage() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
-}
-
-/** publicUrl 에서 버킷 이후 path 추출 — DELETE 시 storage object 키 필요 */
-function pathFromPublicUrl(publicUrl: string): string | null {
-  const m = publicUrl.match(/\/object\/public\/([^/]+)\/(.+)$/);
-  if (!m) return null;
-  return m[2];
-}
 
 export async function PATCH(req: Request, { params }: Ctx) {
   const { id } = await params;
@@ -39,20 +21,15 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
 }
 
+/**
+ * 첨부 삭제 — DB 레코드만 제거.
+ * Cloudinary 의 실제 파일은 그대로 남음 (월 25GB 한도 신경쓰지 않으면 OK).
+ * 정리하려면 Cloudinary 대시보드 → Media Library 에서 직접 삭제.
+ */
 export async function DELETE(_req: Request, { params }: Ctx) {
   const { id } = await params;
   try {
-    const row = await prisma.channelAttachment.findUnique({ where: { id } });
-    if (row) {
-      const storage = getStorage();
-      if (storage) {
-        const objectPath = pathFromPublicUrl(row.url);
-        if (objectPath) {
-          await storage.storage.from(BUCKET).remove([objectPath]).catch(() => {});
-        }
-      }
-      await prisma.channelAttachment.delete({ where: { id } });
-    }
+    await prisma.channelAttachment.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (e) {
     return NextResponse.json(
