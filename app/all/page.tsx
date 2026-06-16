@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { CategoryTabs } from '@/components/category-tabs';
 import { PageFilters } from '@/components/page-filters';
+import { PlatformPivot } from '@/components/platform-pivot';
 import { SelectableVideoGrid } from '@/components/selectable-video-grid';
 import { ScrapeButton } from '@/components/scrape-button';
 import { queryVideos } from '@/lib/queries/videos';
@@ -14,6 +15,22 @@ import type { Platform } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
+const ALL_PLATFORMS: Platform[] = [
+  'YOUTUBE',
+  'TIKTOK',
+  'INSTAGRAM',
+  'XIAOHONGSHU',
+  'DOUYIN',
+];
+
+const PLATFORM_LABELS: Record<string, string> = {
+  ALL: '통합',
+  YOUTUBE: 'YouTube',
+  SOCIAL: 'TikTok / Instagram',
+  XIAOHONGSHU: '샤오홍수',
+  DOUYIN: '도우인',
+};
+
 type SearchParams = {
   folderId?: string;
   platforms?: string;
@@ -22,14 +39,19 @@ type SearchParams = {
   minScore?: string;
   minViews?: string;
   minAgeDays?: string;
+  isShorts?: 'true' | 'false';
 };
 
-export default async function HomePage({
+export default async function FeedPage({
   searchParams,
 }: {
   searchParams: SearchParams;
 }) {
-  const folders = await getFoldersWithChannelCount();
+  // 기본값: YouTube 만 (사용자 요청)
+  const platforms = parsePlatforms(searchParams.platforms) ?? ['YOUTUBE'];
+
+  // 폴더 카운트는 현재 플랫폼 기준
+  const folders = await getFoldersWithChannelCount(platforms);
   const c = cookies();
   const defaults = {
     minViews: numFromCookie(
@@ -38,7 +60,6 @@ export default async function HomePage({
     ),
   };
 
-  const platforms = parsePlatforms(searchParams.platforms);
   const result = await safeQuery({
     folderId: searchParams.folderId,
     platforms,
@@ -46,7 +67,15 @@ export default async function HomePage({
     minAgeDays: numOpt(searchParams.minAgeDays),
     sortBy: searchParams.sortBy,
     minViews: numOpt(searchParams.minViews) ?? defaults.minViews,
+    isShorts:
+      searchParams.isShorts === 'true'
+        ? true
+        : searchParams.isShorts === 'false'
+          ? false
+          : undefined,
   });
+
+  const groupLabel = detectGroupLabel(platforms);
 
   return (
     <>
@@ -55,16 +84,29 @@ export default async function HomePage({
       <div className="px-4 py-4">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-lg font-bold tracking-tight">통합</h1>
+            <h1 className="text-lg font-bold tracking-tight">영상 조회</h1>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              YouTube · TikTok · Instagram 한 화면에서
+              플랫폼 선택 + 카테고리/기간/임계치 필터 — 현재: <b>{groupLabel}</b>
             </p>
           </div>
-          <ScrapeButton platforms={[]} label="전체 에셋 조회" />
+          <ScrapeButton
+            platforms={
+              platforms.length === ALL_PLATFORMS.length ? [] : platforms
+            }
+            label={`${groupLabel} 에셋 조회`}
+          />
+        </div>
+
+        <div className="mb-3">
+          <PlatformPivot platforms={platforms} />
         </div>
 
         <div className="mb-4">
-          <PageFilters showPlatformToggle={false} defaults={defaults} />
+          <PageFilters
+            platforms={platforms}
+            showPlatformToggle={false}
+            defaults={defaults}
+          />
         </div>
 
         <SelectableVideoGrid
@@ -92,6 +134,20 @@ export default async function HomePage({
   );
 }
 
+function detectGroupLabel(platforms: Platform[]): string {
+  const set = new Set(platforms);
+  if (set.size === ALL_PLATFORMS.length) return PLATFORM_LABELS.ALL;
+  if (set.size === 1) {
+    const only = platforms[0];
+    if (only === 'YOUTUBE') return PLATFORM_LABELS.YOUTUBE;
+    if (only === 'XIAOHONGSHU') return PLATFORM_LABELS.XIAOHONGSHU;
+    if (only === 'DOUYIN') return PLATFORM_LABELS.DOUYIN;
+  }
+  if (set.size === 2 && set.has('TIKTOK') && set.has('INSTAGRAM'))
+    return PLATFORM_LABELS.SOCIAL;
+  return '커스텀';
+}
+
 function EmptyState() {
   return (
     <div className="rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground">
@@ -109,9 +165,8 @@ function EmptyState() {
 
 function parsePlatforms(raw?: string): Platform[] | undefined {
   if (!raw) return undefined;
-  const all: Platform[] = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'XIAOHONGSHU', 'DOUYIN'];
   const list = raw.split(',').filter((p): p is Platform =>
-    all.includes(p as Platform)
+    ALL_PLATFORMS.includes(p as Platform)
   );
   return list.length > 0 ? list : undefined;
 }

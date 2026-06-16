@@ -3,11 +3,7 @@ import Link from 'next/link';
 const tabs = [
   { href: '/popular-feed', label: '해시태그검색' },
   { href: '/trending', label: '실시간 인기' },
-  { href: '/all', label: '통합' },
-  { href: '/youtube', label: 'YouTube' },
-  { href: '/social', label: 'TikTok / Insta' },
-  { href: '/xiaohongshu', label: '샤오홍수' },
-  { href: '/douyin', label: '도우인' },
+  { href: '/all?platforms=YOUTUBE', label: '영상 조회' },
   { href: '/channels', label: '에셋 채널' },
   { href: '/stock', label: '소재창고' },
   { href: '/folders', label: '폴더' },
