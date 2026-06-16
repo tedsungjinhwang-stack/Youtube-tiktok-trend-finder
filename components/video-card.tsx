@@ -198,6 +198,37 @@ export function VideoCard({ data }: { data: VideoCardData }) {
           <PlatformLetter p={data.platform} />
         </span>
 
+        {data.platform === 'YOUTUBE' && (() => {
+          const isShort =
+            data.isShorts === true ||
+            (data.isShorts == null &&
+              data.durationSeconds != null &&
+              data.durationSeconds <= 60);
+          const isLong =
+            data.isShorts === false ||
+            (data.isShorts == null &&
+              data.durationSeconds != null &&
+              data.durationSeconds > 60);
+          if (!isShort && !isLong) return null;
+          return (
+            <span
+              className={cn(
+                'absolute bottom-2 right-2 rounded px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider backdrop-blur',
+                isShort
+                  ? 'bg-red-500/85 text-white'
+                  : 'bg-blue-500/85 text-white'
+              )}
+              title={
+                isShort
+                  ? 'YouTube 쇼츠 (≤60초)'
+                  : `롱폼${data.durationSeconds ? ` (${Math.floor(data.durationSeconds / 60)}분)` : ''}`
+              }
+            >
+              {isShort ? 'SHORTS' : '롱폼'}
+            </span>
+          );
+        })()}
+
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
         <div className="absolute inset-x-2 bottom-2 line-clamp-2 text-[13.5px] font-semibold leading-snug text-white">
           {data.title}
