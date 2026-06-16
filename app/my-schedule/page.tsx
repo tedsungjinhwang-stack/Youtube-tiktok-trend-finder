@@ -30,6 +30,14 @@ type ChannelMaterial = {
   createdAt: string;
 };
 
+type ChannelAttachment = {
+  id: string;
+  channelId: string;
+  url: string;
+  label: string | null;
+  createdAt: string;
+};
+
 type Platform = 'YOUTUBE' | 'INSTAGRAM' | 'THREADS' | 'NAVER_CLIP';
 
 const PLATFORM_LABEL: Record<Platform, string> = {
@@ -53,6 +61,7 @@ type MyChannel = {
   videos: ScheduledVideo[];
   youtubeOauth: YtOauth | null;
   materials: ChannelMaterial[];
+  attachments: ChannelAttachment[];
 };
 
 type GoogleStatus = {
@@ -224,6 +233,24 @@ export default function MySchedulePage() {
 
   const removeMaterial = async (id: string) => {
     await fetch(`/api/v1/my-schedule/materials/${id}`, { method: 'DELETE' });
+    refresh();
+  };
+
+  const addAttachment = async (channelId: string, url: string) => {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    const r = await fetch(`/api/v1/my-schedule/channels/${channelId}/attachments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: trimmed }),
+    });
+    const j = await r.json();
+    if (j.success) refresh();
+    else alert(j.error?.message ?? '실패');
+  };
+
+  const removeAttachment = async (id: string) => {
+    await fetch(`/api/v1/my-schedule/attachments/${id}`, { method: 'DELETE' });
     refresh();
   };
 
@@ -550,7 +577,8 @@ export default function MySchedulePage() {
                   <th className="w-[10%] px-4 py-2 text-left font-semibold">카테고리</th>
                   <th className="w-[20%] px-4 py-2 text-left font-semibold">소재</th>
                   <th className="px-4 py-2 text-left font-semibold">마지막 예약 영상</th>
-                  <th className="w-[14%] px-4 py-2 text-left font-semibold">예약일시</th>
+                  <th className="w-[12%] px-4 py-2 text-left font-semibold">예약일시</th>
+                  <th className="w-[14%] px-4 py-2 text-left font-semibold">완성본 (최대 5)</th>
                 </tr>
               </thead>
               <tbody>
@@ -612,6 +640,8 @@ export default function MySchedulePage() {
                         onRemoveVideo={removeVideo}
                         onAddMaterial={(url) => addMaterial(c.id, url)}
                         onRemoveMaterial={removeMaterial}
+                        onAddAttachment={(url) => addAttachment(c.id, url)}
+                        onRemoveAttachment={removeAttachment}
                       />
                     </Fragment>
                   );
@@ -640,6 +670,8 @@ function DashRow({
   onRemoveVideo,
   onAddMaterial,
   onRemoveMaterial,
+  onAddAttachment,
+  onRemoveAttachment,
 }: {
   c: MyChannel;
   last?: ScheduledVideo;
@@ -654,6 +686,8 @@ function DashRow({
   onRemoveVideo: (id: string) => void;
   onAddMaterial: (url: string) => void;
   onRemoveMaterial: (id: string) => void;
+  onAddAttachment: (url: string) => void;
+  onRemoveAttachment: (id: string) => void;
 }) {
   const [vTitle, setVTitle] = useState('');
   const [vWhen, setVWhen] = useState('');
@@ -743,10 +777,17 @@ function DashRow({
             onCreate={(localStr) => onAddVideo('', localStr, '')}
           />
         </td>
+        <td className="px-4 py-2.5 text-xs">
+          <AttachmentsCell
+            items={c.attachments}
+            onAdd={onAddAttachment}
+            onRemove={onRemoveAttachment}
+          />
+        </td>
       </tr>
       {isExpanded && (
         <tr className="border-b bg-secondary/20">
-          <td colSpan={6} className="px-6 py-3">
+          <td colSpan={7} className="px-6 py-3">
             {/* 채널 메타 인라인 편집 */}
             <div className="mb-3 grid grid-cols-12 gap-2">
               <select
@@ -1210,6 +1251,109 @@ function MaterialsCell({
             }
           >
             + 추가{materials.length >= 20 && ' (오래된 것 자동 삭제)'}
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+function AttachmentsCell({
+  items,
+  onAdd,
+  onRemove,
+}: {
+  items: ChannelAttachment[];
+  onAdd: (url: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const commit = () => {
+    const v = draft.trim();
+    if (v) onAdd(v);
+    setDraft('');
+    setAdding(false);
+  };
+
+  return (
+    <div onClick={(e) => e.stopPropagation()} className="space-y-1">
+      {items.length === 0 && !adding && (
+        <button
+          onClick={() => setAdding(true)}
+          className="text-[11px] text-muted-foreground/70 hover:text-foreground"
+        >
+          📎 첨부
+        </button>
+      )}
+      {items.map((a, i) => {
+        const isUrl = /^https?:\/\//i.test(a.url);
+        return (
+          <div
+            key={a.id}
+            className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-accent/40"
+          >
+            <span className="num shrink-0 text-[10px] font-bold text-muted-foreground">
+              {i + 1}
+            </span>
+            {isUrl ? (
+              <a
+                href={a.url}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate text-[11px] text-blue-600 hover:underline dark:text-blue-400"
+                title={a.url}
+              >
+                {a.label || a.url}
+              </a>
+            ) : (
+              <span className="truncate text-[11px]" title={a.url}>
+                {a.label || a.url}
+              </span>
+            )}
+            <button
+              onClick={() => onRemove(a.id)}
+              className="ml-auto grid h-4 w-4 shrink-0 place-items-center rounded text-[10px] text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
+              title="삭제"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
+      {adding ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commit();
+            } else if (e.key === 'Escape') {
+              setDraft('');
+              setAdding(false);
+            }
+          }}
+          placeholder={
+            items.length >= 5
+              ? '최대 5개'
+              : 'URL 또는 메모'
+          }
+          disabled={items.length >= 5}
+          className="h-6 w-full rounded border bg-background px-1.5 text-[11px] disabled:opacity-40"
+        />
+      ) : (
+        items.length > 0 && (
+          <button
+            onClick={() => setAdding(true)}
+            disabled={items.length >= 5}
+            className="text-[10.5px] text-muted-foreground/70 hover:text-foreground disabled:opacity-40"
+            title={items.length >= 5 ? '최대 5개' : '첨부 추가'}
+          >
+            + 첨부 {items.length}/5
           </button>
         )
       )}

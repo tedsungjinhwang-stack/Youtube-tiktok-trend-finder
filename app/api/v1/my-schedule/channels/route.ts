@@ -47,6 +47,7 @@ export async function GET() {
           },
         },
         materials: { orderBy: { createdAt: 'asc' } },
+        attachments: { orderBy: { createdAt: 'asc' } },
       },
     });
     return NextResponse.json({ success: true, data: sortByPlatform(channels) }, { headers: NO_STORE });
@@ -64,6 +65,7 @@ export async function GET() {
           include: {
             videos: { orderBy: { scheduledAt: 'asc' } },
             materials: { orderBy: { createdAt: 'asc' } },
+        attachments: { orderBy: { createdAt: 'asc' } },
           },
         });
         return NextResponse.json({
