@@ -228,6 +228,7 @@ model MyChannel {
   url          String?
   adsense      String?
   email        String?
+  phone        String?
   sortOrder    Int                   @default(0)
   /// 비활성화하면 cron/캘린더 동기화에서 제외. 기존 GCal 이벤트는 건드리지 않음.
   isActive     Boolean               @default(true)

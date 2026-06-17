@@ -56,6 +56,7 @@ type MyChannel = {
   url: string | null;
   adsense: string | null;
   email: string | null;
+  phone: string | null;
   sortOrder: number;
   isActive: boolean;
   videos: ScheduledVideo[];
@@ -755,18 +756,26 @@ function DashRow({
                   </span>
                 )}
               </div>
-              <div className="mt-0.5 flex items-center gap-2 text-[10px] leading-tight text-muted-foreground">
+              <div className="mt-0.5 flex flex-col gap-0.5 text-[10px] leading-tight text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <InlineTextCell
+                    value={c.adsense}
+                    placeholder="애드센스"
+                    onSave={(v) => onUpdate(c.id, { adsense: v } as Partial<MyChannel>)}
+                    small
+                  />
+                  <span className="text-muted-foreground/40">·</span>
+                  <InlineTextCell
+                    value={c.email}
+                    placeholder="이메일"
+                    onSave={(v) => onUpdate(c.id, { email: v } as Partial<MyChannel>)}
+                    small
+                  />
+                </div>
                 <InlineTextCell
-                  value={c.adsense}
-                  placeholder="애드센스"
-                  onSave={(v) => onUpdate(c.id, { adsense: v } as Partial<MyChannel>)}
-                  small
-                />
-                <span className="text-muted-foreground/40">·</span>
-                <InlineTextCell
-                  value={c.email}
-                  placeholder="이메일"
-                  onSave={(v) => onUpdate(c.id, { email: v } as Partial<MyChannel>)}
+                  value={c.phone}
+                  placeholder="핸드폰"
+                  onSave={(v) => onUpdate(c.id, { phone: v } as Partial<MyChannel>)}
                   small
                 />
               </div>

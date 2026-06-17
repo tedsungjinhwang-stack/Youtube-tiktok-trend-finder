@@ -18,6 +18,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     url?: string | null;
     adsense?: string | null;
     email?: string | null;
+    phone?: string | null;
     isActive?: boolean;
   } = {};
   if (typeof body.name === 'string') data.name = body.name.trim();
@@ -28,6 +29,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if ('url' in body) data.url = body.url?.trim() || null;
   if ('adsense' in body) data.adsense = body.adsense?.trim() || null;
   if ('email' in body) data.email = body.email?.trim() || null;
+  if ('phone' in body) data.phone = body.phone?.trim() || null;
   if (typeof body.isActive === 'boolean') data.isActive = body.isActive;
   const updated = await prisma.myChannel.update({ where: { id }, data });
   // 채널명 변경 또는 활성 상태 변경 → 캘린더 동기화 (비활성이면 syncMyChannel 안에서 스킵)
