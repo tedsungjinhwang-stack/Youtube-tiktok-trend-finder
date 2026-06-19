@@ -30,6 +30,7 @@ export async function GET() {
   try {
     const channels = await prisma.myChannel.findMany({
       orderBy: [
+        { phone: { sort: 'asc', nulls: 'last' } },
         { adsense: { sort: 'asc', nulls: 'last' } },
         { email: { sort: 'asc', nulls: 'last' } },
         { sortOrder: 'asc' },
@@ -57,6 +58,7 @@ export async function GET() {
       try {
         const channels = await prisma.myChannel.findMany({
           orderBy: [
+        { phone: { sort: 'asc', nulls: 'last' } },
         { adsense: { sort: 'asc', nulls: 'last' } },
         { email: { sort: 'asc', nulls: 'last' } },
         { sortOrder: 'asc' },
