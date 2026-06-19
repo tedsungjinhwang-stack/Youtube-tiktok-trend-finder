@@ -577,7 +577,7 @@ export default function MySchedulePage() {
         ) : (
           <div className="flex-1 overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-background text-[11px] uppercase text-muted-foreground">
+              <thead className="sticky top-0 z-10 border-b-2 bg-secondary/60 text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
                 <tr className="border-b">
                   <th className="w-9 px-2 py-2 text-center">
                     <input
@@ -724,10 +724,10 @@ function DashRow({
     <>
       <tr
         className={cn(
-          'border-b align-top hover:bg-accent/30',
+          'border-b border-border/40 align-top transition-colors hover:bg-accent/20',
           !c.isActive && 'opacity-50',
-          isExpanded && 'bg-accent/40',
-          checked && 'bg-primary/5'
+          isExpanded && 'bg-accent/30',
+          checked && 'bg-primary/10'
         )}
       >
         <td className="px-2 py-2.5 text-center">
@@ -739,51 +739,56 @@ function DashRow({
             className="h-3.5 w-3.5"
           />
         </td>
-        <td className="px-4 py-2.5">
-          <div className="flex items-center gap-1.5">
+        <td className="px-3 py-2.5">
+          <div className="flex items-start gap-1">
             <button
               onClick={onToggle}
-              className="grid h-5 w-5 place-items-center rounded text-muted-foreground hover:bg-accent"
+              className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-accent"
             >
               {isExpanded ? '▾' : '▸'}
             </button>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-center gap-1.5 truncate">
-                <span className="truncate font-semibold">{c.name}</span>
+                <span className="truncate text-[14px] font-bold leading-tight">
+                  {c.name}
+                </span>
                 {!c.isActive && (
-                  <span className="text-[10px] font-normal text-muted-foreground">
-                    (비활성)
+                  <span className="rounded bg-muted px-1 py-px text-[9.5px] font-medium text-muted-foreground">
+                    비활성
                   </span>
                 )}
               </div>
-              <div className="mt-0.5 flex flex-col gap-0.5 text-[10px] leading-tight text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <InlineTextCell
-                    value={c.adsense}
-                    placeholder="애드센스"
-                    onSave={(v) => onUpdate(c.id, { adsense: v } as Partial<MyChannel>)}
-                    small
-                  />
-                  <span className="text-muted-foreground/40">·</span>
-                  <InlineTextCell
-                    value={c.email}
-                    placeholder="이메일"
-                    onSave={(v) => onUpdate(c.id, { email: v } as Partial<MyChannel>)}
-                    small
-                  />
-                </div>
-                <InlineTextCell
+              <div className="space-y-px rounded-md border border-border/50 bg-background/40 px-2 py-1">
+                <ContactRow
+                  icon="💰"
+                  value={c.adsense}
+                  placeholder="애드센스 계정"
+                  onSave={(v) => onUpdate(c.id, { adsense: v } as Partial<MyChannel>)}
+                />
+                <ContactRow
+                  icon="✉️"
+                  value={c.email}
+                  placeholder="이메일"
+                  onSave={(v) => onUpdate(c.id, { email: v } as Partial<MyChannel>)}
+                />
+                <ContactRow
+                  icon="📱"
                   value={c.phone}
                   placeholder="핸드폰"
                   onSave={(v) => onUpdate(c.id, { phone: v } as Partial<MyChannel>)}
-                  small
                 />
               </div>
             </div>
           </div>
         </td>
-        <td className="px-4 py-2.5 text-xs text-muted-foreground">
-          {c.category ?? '—'}
+        <td className="px-3 py-2.5 text-xs">
+          {c.category ? (
+            <span className="inline-block rounded-md bg-secondary/80 px-2 py-0.5 text-[11px] font-medium text-foreground/80">
+              {c.category}
+            </span>
+          ) : (
+            <span className="text-muted-foreground/50">—</span>
+          )}
         </td>
         <td className="px-4 py-2.5 text-xs">
           <MaterialsCell
@@ -1376,6 +1381,68 @@ function AttachmentsCell({
             ? '최대 5/5'
             : `📎 파일 추가 (${items.length}/5)`}
       </button>
+    </div>
+  );
+}
+
+function ContactRow({
+  icon,
+  value,
+  placeholder,
+  onSave,
+}: {
+  icon: string;
+  value: string | null;
+  placeholder: string;
+  onSave: (v: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const start = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDraft(value ?? '');
+    setEditing(true);
+  };
+  const commit = () => {
+    setEditing(false);
+    const v = draft.trim();
+    if ((value ?? '') !== v) onSave(v || null);
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 text-[11px] leading-tight">
+      <span className="shrink-0 text-[10px] opacity-80">{icon}</span>
+      {editing ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commit();
+            } else if (e.key === 'Escape') {
+              setEditing(false);
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          placeholder={placeholder}
+          className="h-5 w-full min-w-0 flex-1 rounded border bg-background px-1 text-[11px]"
+        />
+      ) : (
+        <button
+          onClick={start}
+          className="min-w-0 flex-1 truncate text-left hover:text-foreground"
+          title={value ?? `${placeholder} (클릭해서 입력)`}
+        >
+          {value ? (
+            <span className="font-medium">{value}</span>
+          ) : (
+            <span className="text-muted-foreground/50">{placeholder}</span>
+          )}
+        </button>
+      )}
     </div>
   );
 }
