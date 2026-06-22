@@ -412,17 +412,13 @@ function RankBadge({ rank, prevRank }: { rank: number; prevRank: number | null }
 }
 
 function TimeText({ row }: { row: DiscoveryRow }) {
-  // publishedAt(원문 게시 시각) 우선, 없으면 firstSeenAt(우리가 처음 발견한 시각)
-  const ts = row.publishedAt ?? row.firstSeenAt;
-  if (!ts) return null;
-  const isProxy = !row.publishedAt;
-  const text = formatRelative(new Date(ts));
+  // 원문 게시 시각이 있을 때만 표시 (없으면 표시 안 함 — firstSeenAt 으로 추정값을
+  // 보여주면 첫 수집 직후 모두 동일 시각으로 보여 헷갈림)
+  if (!row.publishedAt) return null;
+  const text = formatRelative(new Date(row.publishedAt));
   return (
-    <span
-      className="opacity-70"
-      title={isProxy ? `처음 발견: ${ts}` : `게시: ${ts}`}
-    >
-      · {isProxy ? '발견 ' : ''}{text}
+    <span className="opacity-70" title={`게시: ${row.publishedAt}`}>
+      · {text}
     </span>
   );
 }
