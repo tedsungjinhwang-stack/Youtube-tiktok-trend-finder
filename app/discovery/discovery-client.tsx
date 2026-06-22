@@ -16,9 +16,12 @@ export type DiscoveryRow = {
   thumbnailUrl: string | null;
   commentCount: number | null;
   prevCommentCount: number | null;
+  viewCount: number | null;
+  prevViewCount: number | null;
   score: number | null;
   prevScore: number | null;
   lang: string | null;
+  publishedAt: string | null;
   collectedAt: string;
   firstSeenAt: string;
 };
@@ -308,6 +311,7 @@ export function DiscoveryClient({
           {visible.map((r, i) => {
             const title = translated && tmap[r.id] ? tmap[r.id] : r.title;
             const cDelta = delta(r.commentCount, r.prevCommentCount);
+            const vDelta = delta(r.viewCount, r.prevViewCount);
             const sDelta = delta(r.score, r.prevScore);
             return (
               <li key={r.id}>
@@ -347,18 +351,25 @@ export function DiscoveryClient({
                         style={{ backgroundColor: colorFor(r.source) }}
                       />
                       {r.sourceLabel ?? r.source}
+                      {r.viewCount != null && (
+                        <span>
+                          👁 {fmt(r.viewCount)}
+                          {vDelta > 0 && <DeltaSpan d={vDelta} />}
+                        </span>
+                      )}
                       {r.commentCount != null && (
                         <span>
                           💬 {fmt(r.commentCount)}
-                          {cDelta !== 0 && <DeltaSpan d={cDelta} />}
+                          {cDelta > 0 && <DeltaSpan d={cDelta} />}
                         </span>
                       )}
                       {r.score != null && (
                         <span>
                           ▲ {fmt(r.score)}
-                          {sDelta !== 0 && <DeltaSpan d={sDelta} />}
+                          {sDelta > 0 && <DeltaSpan d={sDelta} />}
                         </span>
                       )}
+                      <TimeText row={r} />
                       {translated && tmap[r.id] && (
                         <span className="text-blue-400/80">· 번역됨</span>
                       )}
@@ -396,6 +407,22 @@ function RankBadge({ rank, prevRank }: { rank: number; prevRank: number | null }
   return (
     <span className="mt-0.5 text-[10px] font-semibold text-rose-400">
       ▼{-diff}
+    </span>
+  );
+}
+
+function TimeText({ row }: { row: DiscoveryRow }) {
+  // publishedAt(원문 게시 시각) 우선, 없으면 firstSeenAt(우리가 처음 발견한 시각)
+  const ts = row.publishedAt ?? row.firstSeenAt;
+  if (!ts) return null;
+  const isProxy = !row.publishedAt;
+  const text = formatRelative(new Date(ts));
+  return (
+    <span
+      className="opacity-70"
+      title={isProxy ? `처음 발견: ${ts}` : `게시: ${ts}`}
+    >
+      · {isProxy ? '발견 ' : ''}{text}
     </span>
   );
 }

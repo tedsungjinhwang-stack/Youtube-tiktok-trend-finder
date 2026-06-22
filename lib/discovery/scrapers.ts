@@ -22,10 +22,27 @@ export type DiscoveryItem = {
   url: string;
   thumbnailUrl?: string | null;
   commentCount?: number | null;
+  viewCount?: number | null;
   score?: number | null;
   lang?: string | null;
   publishedAt?: Date | null;
 };
+
+/** aagag "46초전" / "3분전" / "2시간전" / "5일전" / "지금" → Date */
+function parseAagagRelative(text: string | undefined): Date | null {
+  if (!text) return null;
+  const t = text.replace(/\s+/g, '').trim();
+  if (t === '지금' || t === '방금') return new Date();
+  const m = t.match(/(\d+)(초|분|시간|일)전/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  const unitMs =
+    m[2] === '초' ? 1000 :
+    m[2] === '분' ? 60_000 :
+    m[2] === '시간' ? 3600_000 :
+    86_400_000;
+  return new Date(Date.now() - n * unitMs);
+}
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -97,6 +114,49 @@ export async function scrapeKorea(): Promise<DiscoveryItem[]> {
       title,
       url: `https://aagag.com/mirror/re.php?ss=${ss}`,
       commentCount: Number(cnt),
+      lang: 'ko',
+    });
+  }
+  return out;
+}
+
+/**
+ * aagag 메인 피드 (홈 큰 카드 영역) — mirror 와 달리 조회수+게시 시각이 있음.
+ * 출처(fmkorea/뽐뿌 등) 표시는 없음. 보완용으로 같이 노출.
+ */
+export async function scrapeKoreaMain(): Promise<DiscoveryItem[]> {
+  const html = await fetchText('https://aagag.com/');
+  // 각 카드: <a class="article c t" href="/issue/?idx=N">...<span class="title">제목<span class="btmlayer">
+  //   ... <span class="hit"><u>NUM</u></span> ... <span class="time right"><u><i>...</i>46초전</u></span>
+  const blocks = html.split('<a class="article c t"').slice(1);
+  const out: DiscoveryItem[] = [];
+  let rank = 0;
+  for (const seg of blocks) {
+    const idxM = seg.match(/href="\/issue\/\?idx=(\d+)"/);
+    const thumbM = seg.match(/background-image:url\(([^)]+)\)/);
+    const titleM = seg.match(/<span class="title">([^<]+)<span class="btmlayer">/);
+    const hitM = seg.match(/<span class="hit"><u>(\d+)<\/u>/);
+    const timeM = seg.match(/<span class="time right"><u>(?:<i[^>]*><\/i>)?([^<]+)<\/u>/);
+    if (!idxM || !titleM) continue;
+    const title = decodeEntities(titleM[1]).trim();
+    if (!title) continue;
+    const thumbRaw = thumbM?.[1];
+    const thumb = thumbRaw
+      ? thumbRaw.startsWith('//') ? `https:${thumbRaw}` : thumbRaw
+      : null;
+    rank += 1;
+    out.push({
+      tab: 'community',
+      country: 'KR',
+      source: 'aagag',
+      sourceLabel: 'aagag 인기',
+      sourceKey: `kr:aagag:${idxM[1]}`,
+      rank,
+      title,
+      url: `https://aagag.com/issue/?idx=${idxM[1]}`,
+      thumbnailUrl: thumb,
+      viewCount: hitM ? Number(hitM[1]) : null,
+      publishedAt: parseAagagRelative(timeM?.[1]),
       lang: 'ko',
     });
   }
@@ -319,6 +379,7 @@ export async function scrapeAll(): Promise<{
 }> {
   const tasks: [string, Promise<DiscoveryItem[]>][] = [
     ['korea', scrapeKorea()],
+    ['koreaMain', scrapeKoreaMain()],
     ['japan', scrapeJapan()],
     ['reddit', scrapeReddit()],
     ['news', scrapeNews()],
