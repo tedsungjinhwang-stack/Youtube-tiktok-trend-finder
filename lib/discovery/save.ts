@@ -13,8 +13,16 @@ export async function collectAndSave(): Promise<{
   report: Record<string, number | string>;
   collectedAt: Date;
 }> {
-  const { items, report } = await scrapeAll();
+  const { items: raw, report } = await scrapeAll();
   const now = new Date();
+
+  // 같은 sourceKey 중복 제거 (스크래퍼가 동일 글을 두 번 뱉는 케이스 대비 — 가장 높은 순위 유지)
+  const dedup = new Map<string, DiscoveryItem>();
+  for (const it of raw) {
+    const prev = dedup.get(it.sourceKey);
+    if (!prev || it.rank < prev.rank) dedup.set(it.sourceKey, it);
+  }
+  const items = [...dedup.values()];
 
   // 기존 행을 한 번에 가져와서 prev 값을 채우기 위한 룩업
   const existing = await prisma.discoveryPost.findMany({
@@ -56,7 +64,9 @@ async function writeOne(
         collectedAt: now,
       },
     });
-  } else {
+    return;
+  }
+  try {
     await prisma.discoveryPost.create({
       data: {
         tab: it.tab,
@@ -73,6 +83,22 @@ async function writeOne(
         lang: it.lang ?? null,
         publishedAt: it.publishedAt ?? null,
         firstSeenAt: now,
+        collectedAt: now,
+      },
+    });
+  } catch (e) {
+    // P2002 = unique violation. 이미 존재 → update 로 폴백
+    const code = (e as { code?: string })?.code;
+    if (code !== 'P2002') throw e;
+    await prisma.discoveryPost.update({
+      where: { sourceKey: it.sourceKey },
+      data: {
+        rank: it.rank,
+        title: it.title,
+        sourceLabel: it.sourceLabel ?? null,
+        thumbnailUrl: it.thumbnailUrl ?? null,
+        commentCount: it.commentCount ?? null,
+        score: it.score ?? null,
         collectedAt: now,
       },
     });
