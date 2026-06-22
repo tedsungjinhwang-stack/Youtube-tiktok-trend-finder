@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 const tabs = [
-  { href: '/discovery', label: '디스커버리' },
+  { href: '/discovery', label: '커뮤니티/뉴스' },
   { href: '/popular-feed', label: '해시태그검색' },
   { href: '/trending', label: '실시간 인기' },
   { href: '/all?platforms=YOUTUBE', label: '영상 조회' },
