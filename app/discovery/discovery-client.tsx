@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export type DiscoveryRow = {
   id: string;
@@ -55,6 +56,35 @@ export function DiscoveryClient({
   const [translated, setTranslated] = useState(false);
   const [tmap, setTmap] = useState<Record<string, string>>({});
   const [translating, setTranslating] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [lastRun, setLastRun] = useState<string | null>(null);
+  const router = useRouter();
+
+  async function runNow() {
+    if (running) return;
+    setRunning(true);
+    setLastRun(null);
+    try {
+      const res = await fetch('/api/v1/discovery/run', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        const msg = data?.error?.message ?? `HTTP ${res.status}`;
+        setLastRun(`❌ 실패: ${msg}`);
+        return;
+      }
+      const r = data.data.report as Record<string, number | string>;
+      const parts = Object.entries(r)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(' · ');
+      setLastRun(`✅ ${data.data.saved}건 수집 (${parts})`);
+      // 서버 컴포넌트 재실행 → 새로운 rows 로 갱신
+      router.refresh();
+    } catch (e) {
+      setLastRun(`❌ ${(e as Error).message}`);
+    } finally {
+      setRunning(false);
+    }
+  }
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { community: 0, news: 0, reddit: 0 };
@@ -149,6 +179,18 @@ export function DiscoveryClient({
           한국·일본 커뮤니티 / 뉴스 / 레딧 인기글
         </span>
         <div className="flex-1" />
+        <button
+          onClick={runNow}
+          disabled={running}
+          className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
+            running
+              ? 'border-border bg-accent opacity-60'
+              : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+          }`}
+          title="지금 즉시 4개 소스에서 인기글 새로 수집"
+        >
+          {running ? '수집 중…' : '🔄 수동 수집'}
+        </button>
         {hasForeign && (
           <button
             onClick={toggleTranslate}
@@ -163,6 +205,12 @@ export function DiscoveryClient({
           </button>
         )}
       </div>
+
+      {lastRun && (
+        <div className="mb-3 rounded-lg border border-border bg-accent/40 px-4 py-2 text-xs text-muted-foreground">
+          {lastRun}
+        </div>
+      )}
 
       {warning && (
         <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
