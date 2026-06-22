@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export type DiscoveryRow = {
@@ -10,13 +10,17 @@ export type DiscoveryRow = {
   source: string;
   sourceLabel: string | null;
   rank: number;
+  prevRank: number | null;
   title: string;
   url: string;
   thumbnailUrl: string | null;
   commentCount: number | null;
+  prevCommentCount: number | null;
   score: number | null;
+  prevScore: number | null;
   lang: string | null;
   collectedAt: string;
+  firstSeenAt: string;
 };
 
 const TABS: { key: DiscoveryRow['tab']; label: string }[] = [
@@ -32,7 +36,6 @@ const FLAG: Record<string, string> = {
   GLOBAL: '🌐',
 };
 
-// 출처 슬러그 → 안정적인 색상 (점 표시용)
 const PALETTE = [
   '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6',
   '#3b82f6', '#6366f1', '#a855f7', '#ec4899', '#06b6d4',
@@ -46,9 +49,11 @@ function colorFor(source: string): string {
 export function DiscoveryClient({
   rows,
   warning,
+  lastRunAt,
 }: {
   rows: DiscoveryRow[];
   warning: string | null;
+  lastRunAt: string | null;
 }) {
   const [tab, setTab] = useState<DiscoveryRow['tab']>('community');
   const [source, setSource] = useState<string>('ALL');
@@ -57,30 +62,42 @@ export function DiscoveryClient({
   const [tmap, setTmap] = useState<Record<string, string>>({});
   const [translating, setTranslating] = useState(false);
   const [running, setRunning] = useState(false);
-  const [lastRun, setLastRun] = useState<string | null>(null);
+  const [runMsg, setRunMsg] = useState<string | null>(null);
+  const [relTime, setRelTime] = useState('');
   const router = useRouter();
+
+  // "N분 전" 같이 매분 갱신
+  useEffect(() => {
+    if (!lastRunAt) {
+      setRelTime('');
+      return;
+    }
+    const update = () => setRelTime(formatRelative(new Date(lastRunAt)));
+    update();
+    const t = setInterval(update, 30_000);
+    return () => clearInterval(t);
+  }, [lastRunAt]);
 
   async function runNow() {
     if (running) return;
     setRunning(true);
-    setLastRun(null);
+    setRunMsg(null);
     try {
       const res = await fetch('/api/v1/discovery/run', { method: 'POST' });
       const data = await res.json();
       if (!res.ok || !data.success) {
         const msg = data?.error?.message ?? `HTTP ${res.status}`;
-        setLastRun(`❌ 실패: ${msg}`);
+        setRunMsg(`❌ 실패: ${msg}`);
         return;
       }
       const r = data.data.report as Record<string, number | string>;
       const parts = Object.entries(r)
         .map(([k, v]) => `${k}: ${v}`)
         .join(' · ');
-      setLastRun(`✅ ${data.data.saved}건 수집 (${parts})`);
-      // 서버 컴포넌트 재실행 → 새로운 rows 로 갱신
+      setRunMsg(`✅ ${data.data.saved}건 수집 (${parts})`);
       router.refresh();
     } catch (e) {
-      setLastRun(`❌ ${(e as Error).message}`);
+      setRunMsg(`❌ ${(e as Error).message}`);
     } finally {
       setRunning(false);
     }
@@ -97,7 +114,6 @@ export function DiscoveryClient({
     [rows, tab]
   );
 
-  // 현재 탭의 소스 필터 칩 (출처별 개수)
   const sources = useMemo(() => {
     const map = new Map<string, { label: string; country: string; n: number }>();
     for (const r of tabRows) {
@@ -133,17 +149,13 @@ export function DiscoveryClient({
       setTranslated(false);
       return;
     }
-    // 번역 필요한(비한국어 + 아직 미번역) 항목 수집
-    const need = rows.filter(
-      (r) => r.lang && r.lang !== 'ko' && !tmap[r.id]
-    );
+    const need = rows.filter((r) => r.lang && r.lang !== 'ko' && !tmap[r.id]);
     if (need.length === 0) {
       setTranslated(true);
       return;
     }
     setTranslating(true);
     try {
-      // 언어별로 묶어서 요청
       const byLang = new Map<string, DiscoveryRow[]>();
       for (const r of need) {
         const arr = byLang.get(r.lang!) ?? [];
@@ -173,7 +185,7 @@ export function DiscoveryClient({
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6">
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mb-2 flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-bold">디스커버리</h1>
         <span className="text-sm text-muted-foreground">
           한국·일본 커뮤니티 / 뉴스 / 레딧 인기글
@@ -206,9 +218,21 @@ export function DiscoveryClient({
         )}
       </div>
 
-      {lastRun && (
+      {/* 마지막 수집 시각 (한국어 번역 버튼 바로 아래) */}
+      <div className="mb-4 text-xs text-muted-foreground">
+        {lastRunAt ? (
+          <>
+            마지막 수집: <span className="font-medium text-foreground">{formatKst(lastRunAt)}</span>
+            {relTime && <span className="ml-1.5 opacity-70">({relTime})</span>}
+          </>
+        ) : (
+          <>아직 수집된 데이터가 없습니다.</>
+        )}
+      </div>
+
+      {runMsg && (
         <div className="mb-3 rounded-lg border border-border bg-accent/40 px-4 py-2 text-xs text-muted-foreground">
-          {lastRun}
+          {runMsg}
         </div>
       )}
 
@@ -218,7 +242,6 @@ export function DiscoveryClient({
         </div>
       )}
 
-      {/* 탭 */}
       <div className="mb-3 flex gap-1 border-b">
         {TABS.map((t) => (
           <button
@@ -241,7 +264,6 @@ export function DiscoveryClient({
         ))}
       </div>
 
-      {/* 검색 */}
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -249,7 +271,6 @@ export function DiscoveryClient({
         className="mb-3 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40"
       />
 
-      {/* 소스 필터 칩 (커뮤니티·레딧만) */}
       {tab !== 'news' && sources.length > 1 && (
         <div className="mb-4 flex flex-wrap gap-1.5">
           <Chip
@@ -271,7 +292,6 @@ export function DiscoveryClient({
         </div>
       )}
 
-      {/* 리스트 */}
       {visible.length === 0 ? (
         <p className="py-16 text-center text-sm text-muted-foreground">
           {rows.length === 0
@@ -282,6 +302,8 @@ export function DiscoveryClient({
         <ul className="divide-y divide-border/60">
           {visible.map((r, i) => {
             const title = translated && tmap[r.id] ? tmap[r.id] : r.title;
+            const cDelta = delta(r.commentCount, r.prevCommentCount);
+            const sDelta = delta(r.score, r.prevScore);
             return (
               <li key={r.id}>
                 <a
@@ -290,8 +312,11 @@ export function DiscoveryClient({
                   rel="noopener noreferrer"
                   className="flex items-start gap-3 py-2.5 hover:bg-accent/40"
                 >
-                  <span className="w-6 shrink-0 pt-0.5 text-center text-sm font-bold text-muted-foreground">
-                    {i + 1}
+                  <span className="flex w-10 shrink-0 flex-col items-center pt-0.5">
+                    <span className="text-sm font-bold text-muted-foreground">
+                      {i + 1}
+                    </span>
+                    <RankBadge rank={r.rank} prevRank={r.prevRank} />
                   </span>
                   {r.thumbnailUrl ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
@@ -310,17 +335,25 @@ export function DiscoveryClient({
                     </span>
                   )}
                   <span className="min-w-0 flex-1">
-                    <span className="line-clamp-2 text-sm leading-snug">
-                      {title}
-                    </span>
-                    <span className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="line-clamp-2 text-sm leading-snug">{title}</span>
+                    <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                       <span
                         className="inline-block h-2 w-2 rounded-full"
                         style={{ backgroundColor: colorFor(r.source) }}
                       />
                       {r.sourceLabel ?? r.source}
-                      {r.commentCount != null && <span>💬 {fmt(r.commentCount)}</span>}
-                      {r.score != null && <span>▲ {fmt(r.score)}</span>}
+                      {r.commentCount != null && (
+                        <span>
+                          💬 {fmt(r.commentCount)}
+                          {cDelta !== 0 && <DeltaSpan d={cDelta} />}
+                        </span>
+                      )}
+                      {r.score != null && (
+                        <span>
+                          ▲ {fmt(r.score)}
+                          {sDelta !== 0 && <DeltaSpan d={sDelta} />}
+                        </span>
+                      )}
                       {translated && tmap[r.id] && (
                         <span className="text-blue-400/80">· 번역됨</span>
                       )}
@@ -334,6 +367,43 @@ export function DiscoveryClient({
       )}
     </div>
   );
+}
+
+function RankBadge({ rank, prevRank }: { rank: number; prevRank: number | null }) {
+  if (prevRank == null) {
+    return (
+      <span className="mt-0.5 rounded bg-pink-500/15 px-1 text-[9px] font-bold text-pink-400">
+        NEW
+      </span>
+    );
+  }
+  const diff = prevRank - rank; // 양수 = 순위 상승
+  if (diff === 0) {
+    return <span className="mt-0.5 text-[10px] text-muted-foreground/60">−</span>;
+  }
+  if (diff > 0) {
+    return (
+      <span className="mt-0.5 text-[10px] font-semibold text-emerald-400">
+        ▲{diff}
+      </span>
+    );
+  }
+  return (
+    <span className="mt-0.5 text-[10px] font-semibold text-rose-400">
+      ▼{-diff}
+    </span>
+  );
+}
+
+function DeltaSpan({ d }: { d: number }) {
+  const cls = d > 0 ? 'text-emerald-400' : 'text-rose-400';
+  const sign = d > 0 ? '+' : '';
+  return <span className={`ml-0.5 ${cls}`}>({sign}{fmt(d)})</span>;
+}
+
+function delta(cur: number | null, prev: number | null | undefined): number {
+  if (cur == null || prev == null) return 0;
+  return cur - prev;
 }
 
 function Chip({
@@ -371,7 +441,31 @@ function Chip({
 }
 
 function fmt(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}만`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}천`;
+  const abs = Math.abs(n);
+  if (abs >= 10000) return `${(n / 10000).toFixed(1)}만`;
+  if (abs >= 1000) return `${(n / 1000).toFixed(1)}천`;
   return String(n);
+}
+
+function formatKst(iso: string): string {
+  const d = new Date(iso);
+  const fmt = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  return fmt.format(d).replace(/\.\s?$/, '');
+}
+
+function formatRelative(d: Date): string {
+  const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (diffSec < 60) return '방금 전';
+  const min = Math.floor(diffSec / 60);
+  if (min < 60) return `${min}분 전`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}시간 전`;
+  return `${Math.floor(hr / 24)}일 전`;
 }

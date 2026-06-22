@@ -307,6 +307,10 @@ model DiscoveryPost {
   /// 중복 제거 키 (tab+원본 식별자). 같으면 덮어씀.
   sourceKey    String    @unique
   rank         Int       @default(0)
+  /// 직전 수집 시점의 값 (변화량 표시용)
+  prevRank     Int?
+  prevCommentCount Int?
+  prevScore    Int?
   title        String
   url          String
   thumbnailUrl String?
@@ -315,6 +319,7 @@ model DiscoveryPost {
   /// 원문 언어 (클라이언트 번역 토글용): 'ko'|'ja'|'de'|'en'
   lang         String?
   publishedAt  DateTime?
+  firstSeenAt  DateTime  @default(now())
   collectedAt  DateTime  @default(now())
 
   @@index([tab, country, rank])
