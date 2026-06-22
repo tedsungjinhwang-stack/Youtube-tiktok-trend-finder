@@ -292,6 +292,36 @@ model ScheduledVideo {
   @@index([scheduledAt])
 }
 
+/// 디스커버리(픽셀링 클론) — 커뮤니티/뉴스/레딧 인기글 수집.
+/// 외부 cron(cron-job.org)이 /api/cron/discovery 를 주기적으로 때려서 갱신.
+model DiscoveryPost {
+  id           String    @id @default(cuid())
+  /// 'community' | 'news' | 'reddit'
+  tab          String
+  /// 'KR' | 'JP' | 'DE' | 'GLOBAL'
+  country      String
+  /// 출처 슬러그: fmkorea, mlbpark, matomedane, de, news ...
+  source       String
+  /// 화면 표시용 출처명
+  sourceLabel  String?
+  /// 중복 제거 키 (tab+원본 식별자). 같으면 덮어씀.
+  sourceKey    String    @unique
+  rank         Int       @default(0)
+  title        String
+  url          String
+  thumbnailUrl String?
+  commentCount Int?
+  score        Int?
+  /// 원문 언어 (클라이언트 번역 토글용): 'ko'|'ja'|'de'|'en'
+  lang         String?
+  publishedAt  DateTime?
+  collectedAt  DateTime  @default(now())
+
+  @@index([tab, country, rank])
+  @@index([tab, collectedAt])
+  @@index([collectedAt])
+}
+
 /// Google OAuth (Calendar 동기화용). 싱글톤 (id='default').
 model GoogleOAuth {
   id           String   @id @default("default")
