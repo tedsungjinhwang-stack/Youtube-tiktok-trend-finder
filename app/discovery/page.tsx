@@ -37,6 +37,7 @@ export default async function DiscoveryPage() {
       score: p.score,
       prevScore: p.prevScore,
       lang: p.lang,
+      publishedAt: p.publishedAt?.toISOString() ?? null,
       collectedAt: p.collectedAt.toISOString(),
       firstSeenAt: p.firstSeenAt.toISOString(),
     }));
