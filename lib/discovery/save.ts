@@ -31,8 +31,21 @@ export async function collectAndSave(): Promise<{
   });
   const prevMap = new Map(existing.map((e) => [e.sourceKey, e]));
 
-  // 병렬로 처리 (Prisma 풀이 알아서 조절)
-  await Promise.all(items.map((it) => writeOne(it, prevMap.get(it.sourceKey), now)));
+  // 8개씩 배치 처리 — Supabase pgbouncer 풀 고갈/타임아웃 방지.
+  // 항목별 에러는 흡수해서 한두 개 깨져도 나머지는 계속 진행.
+  const CHUNK = 8;
+  let writeErrors = 0;
+  for (let i = 0; i < items.length; i += CHUNK) {
+    const slice = items.slice(i, i + CHUNK);
+    await Promise.all(
+      slice.map((it) =>
+        writeOne(it, prevMap.get(it.sourceKey), now).catch(() => {
+          writeErrors += 1;
+        })
+      )
+    );
+  }
+  if (writeErrors > 0) report.writeErrors = writeErrors;
 
   // 3일 넘은 항목 정리
   const threeDaysAgo = new Date(now.getTime() - 3 * 86_400_000);

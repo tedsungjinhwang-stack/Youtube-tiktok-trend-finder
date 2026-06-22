@@ -84,17 +84,22 @@ export function DiscoveryClient({
     setRunMsg(null);
     try {
       const res = await fetch('/api/v1/discovery/run', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        const msg = data?.error?.message ?? `HTTP ${res.status}`;
-        setRunMsg(`❌ 실패: ${msg}`);
+      const text = await res.text();
+      // JSON 이 아니면 Vercel/Next 에러 페이지 — 그대로 일부만 표시
+      let data: { success?: boolean; data?: { saved: number; report: Record<string, number | string> }; error?: { message?: string } } | null = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setRunMsg(`❌ HTTP ${res.status}: ${text.slice(0, 160)}…`);
         return;
       }
-      const r = data.data.report as Record<string, number | string>;
-      const parts = Object.entries(r)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(' · ');
-      setRunMsg(`✅ ${data.data.saved}건 수집 (${parts})`);
+      if (!res.ok || !data?.success) {
+        setRunMsg(`❌ 실패: ${data?.error?.message ?? `HTTP ${res.status}`}`);
+        return;
+      }
+      const r = data.data!.report;
+      const parts = Object.entries(r).map(([k, v]) => `${k}: ${v}`).join(' · ');
+      setRunMsg(`✅ ${data.data!.saved}건 수집 (${parts})`);
       router.refresh();
     } catch (e) {
       setRunMsg(`❌ ${(e as Error).message}`);
