@@ -14,8 +14,8 @@ export default async function DiscoveryPage() {
   let lastRunAt: string | null = null;
 
   try {
-    // 최근 24시간 수집분만 (cron 이 매시간 갱신 → 떨어진 글은 자연 소멸)
-    const since = new Date(Date.now() - 24 * 3600_000);
+    // 최근 7일 수집분만 (cron 이 매시간 갱신 → 떨어진 글은 자연 소멸, 7일 후 삭제)
+    const since = new Date(Date.now() - 7 * 86_400_000);
     const posts = await prisma.discoveryPost.findMany({
       where: { collectedAt: { gte: since } },
       orderBy: [{ rank: 'asc' }],

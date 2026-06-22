@@ -53,10 +53,10 @@ export async function collectAndSave(): Promise<{
   }
   if (writeErrors > 0) report.writeErrors = writeErrors;
 
-  // 3일 넘은 항목 정리
-  const threeDaysAgo = new Date(now.getTime() - 3 * 86_400_000);
+  // 7일 넘은 항목 정리
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000);
   const pruned = await prisma.discoveryPost.deleteMany({
-    where: { collectedAt: { lt: threeDaysAgo } },
+    where: { collectedAt: { lt: sevenDaysAgo } },
   });
 
   return { saved: items.length, pruned: pruned.count, report, collectedAt: now };
