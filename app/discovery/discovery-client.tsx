@@ -118,8 +118,21 @@ export function DiscoveryClient({
   }, [rows]);
 
   const tabRows = useMemo(
-    () => rows.filter((r) => r.tab === tab).sort((a, b) => a.rank - b.rank),
-    [rows, tab]
+    () =>
+      rows
+        .filter((r) => r.tab === tab)
+        .sort((a, b) => {
+          // '전체' 보기: 출처별 rank 1위들이 다 똑같이 1위라 의미 없음 →
+          //   최근 발견 순(신규 우선) → 같은 시각이면 rank 순
+          // 출처 필터 걸면: 그 출처의 원본 rank 순서 그대로
+          if (source !== 'ALL') return a.rank - b.rank;
+          const ta = new Date(a.firstSeenAt).getTime();
+          const tb = new Date(b.firstSeenAt).getTime();
+          // 1분 이내 차이는 같은 배치로 간주 → rank 순서
+          if (Math.abs(tb - ta) < 60_000) return a.rank - b.rank;
+          return tb - ta;
+        }),
+    [rows, tab, source]
   );
 
   const sources = useMemo(() => {
@@ -412,13 +425,18 @@ function RankBadge({ rank, prevRank }: { rank: number; prevRank: number | null }
 }
 
 function TimeText({ row }: { row: DiscoveryRow }) {
-  // 원문 게시 시각이 있을 때만 표시 (없으면 표시 안 함 — firstSeenAt 으로 추정값을
-  // 보여주면 첫 수집 직후 모두 동일 시각으로 보여 헷갈림)
-  if (!row.publishedAt) return null;
-  const text = formatRelative(new Date(row.publishedAt));
+  // 우선순위: 원문 게시 시각 → 우리가 처음 발견한 시각(firstSeenAt)
+  // 매시간 cron 으로 수집하므로 firstSeenAt 도 의미 있는 신호 (글이 핫해진 시점 ≈ 처음 발견)
+  const useFirstSeen = !row.publishedAt;
+  const ts = row.publishedAt ?? row.firstSeenAt;
+  if (!ts) return null;
+  const text = formatRelative(new Date(ts));
   return (
-    <span className="opacity-70" title={`게시: ${row.publishedAt}`}>
-      · {text}
+    <span
+      className="opacity-70"
+      title={useFirstSeen ? `처음 발견: ${ts}` : `게시: ${ts}`}
+    >
+      · {useFirstSeen ? '발견 ' : ''}{text}
     </span>
   );
 }
