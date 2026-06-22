@@ -16,6 +16,8 @@ export type DiscoveryRow = {
   thumbnailUrl: string | null;
   commentCount: number | null;
   prevCommentCount: number | null;
+  viewCount: number | null;
+  prevViewCount: number | null;
   score: number | null;
   prevScore: number | null;
   lang: string | null;
@@ -309,6 +311,7 @@ export function DiscoveryClient({
           {visible.map((r, i) => {
             const title = translated && tmap[r.id] ? tmap[r.id] : r.title;
             const cDelta = delta(r.commentCount, r.prevCommentCount);
+            const vDelta = delta(r.viewCount, r.prevViewCount);
             const sDelta = delta(r.score, r.prevScore);
             return (
               <li key={r.id}>
@@ -348,6 +351,12 @@ export function DiscoveryClient({
                         style={{ backgroundColor: colorFor(r.source) }}
                       />
                       {r.sourceLabel ?? r.source}
+                      {r.viewCount != null && (
+                        <span>
+                          👁 {fmt(r.viewCount)}
+                          {vDelta > 0 && <DeltaSpan d={vDelta} />}
+                        </span>
+                      )}
                       {r.commentCount != null && (
                         <span>
                           💬 {fmt(r.commentCount)}

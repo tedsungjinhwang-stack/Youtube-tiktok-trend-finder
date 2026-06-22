@@ -34,6 +34,8 @@ export default async function DiscoveryPage() {
       thumbnailUrl: p.thumbnailUrl,
       commentCount: p.commentCount,
       prevCommentCount: p.prevCommentCount,
+      viewCount: p.viewCount,
+      prevViewCount: p.prevViewCount,
       score: p.score,
       prevScore: p.prevScore,
       lang: p.lang,

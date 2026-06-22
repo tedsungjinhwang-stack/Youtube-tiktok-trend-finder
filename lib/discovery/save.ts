@@ -27,7 +27,13 @@ export async function collectAndSave(): Promise<{
   // 기존 행을 한 번에 가져와서 prev 값을 채우기 위한 룩업
   const existing = await prisma.discoveryPost.findMany({
     where: { sourceKey: { in: items.map((i) => i.sourceKey) } },
-    select: { sourceKey: true, rank: true, commentCount: true, score: true },
+    select: {
+      sourceKey: true,
+      rank: true,
+      commentCount: true,
+      viewCount: true,
+      score: true,
+    },
   });
   const prevMap = new Map(existing.map((e) => [e.sourceKey, e]));
 
@@ -56,23 +62,28 @@ export async function collectAndSave(): Promise<{
   return { saved: items.length, pruned: pruned.count, report, collectedAt: now };
 }
 
-async function writeOne(
-  it: DiscoveryItem,
-  prev: { rank: number; commentCount: number | null; score: number | null } | undefined,
-  now: Date
-) {
+type PrevSnap = {
+  rank: number;
+  commentCount: number | null;
+  viewCount: number | null;
+  score: number | null;
+};
+
+async function writeOne(it: DiscoveryItem, prev: PrevSnap | undefined, now: Date) {
   if (prev) {
     await prisma.discoveryPost.update({
       where: { sourceKey: it.sourceKey },
       data: {
         prevRank: prev.rank,
         prevCommentCount: prev.commentCount,
+        prevViewCount: prev.viewCount,
         prevScore: prev.score,
         rank: it.rank,
         title: it.title,
         sourceLabel: it.sourceLabel ?? null,
         thumbnailUrl: it.thumbnailUrl ?? null,
         commentCount: it.commentCount ?? null,
+        viewCount: it.viewCount ?? null,
         score: it.score ?? null,
         collectedAt: now,
       },
@@ -92,6 +103,7 @@ async function writeOne(
         url: it.url,
         thumbnailUrl: it.thumbnailUrl ?? null,
         commentCount: it.commentCount ?? null,
+        viewCount: it.viewCount ?? null,
         score: it.score ?? null,
         lang: it.lang ?? null,
         publishedAt: it.publishedAt ?? null,
@@ -100,7 +112,6 @@ async function writeOne(
       },
     });
   } catch (e) {
-    // P2002 = unique violation. 이미 존재 → update 로 폴백
     const code = (e as { code?: string })?.code;
     if (code !== 'P2002') throw e;
     await prisma.discoveryPost.update({
@@ -111,6 +122,7 @@ async function writeOne(
         sourceLabel: it.sourceLabel ?? null,
         thumbnailUrl: it.thumbnailUrl ?? null,
         commentCount: it.commentCount ?? null,
+        viewCount: it.viewCount ?? null,
         score: it.score ?? null,
         collectedAt: now,
       },

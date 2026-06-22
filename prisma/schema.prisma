@@ -315,6 +315,8 @@ model DiscoveryPost {
   url          String
   thumbnailUrl String?
   commentCount Int?
+  viewCount    Int?
+  prevViewCount Int?
   score        Int?
   /// 원문 언어 (클라이언트 번역 토글용): 'ko'|'ja'|'de'|'en'
   lang         String?
