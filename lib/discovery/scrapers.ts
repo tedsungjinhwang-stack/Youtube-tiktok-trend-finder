@@ -157,11 +157,45 @@ async function fetchSubreddit(
   lang: string,
   limit = 50
 ): Promise<DiscoveryItem[]> {
-  const json = await fetchText(
+  // Reddit 정책: 고유 UA + 명확한 식별자 권장. 봇 차단 회피용으로 JSON 여러 호스트 시도 → RSS 폴백.
+  const headers = {
+    'User-Agent': 'trendfinder/1.0 (+https://trendfinder-radaq.vercel.app)',
+    Accept: 'application/json, text/html;q=0.5',
+  };
+  const jsonEndpoints = [
     `https://www.reddit.com/${sub}/hot.json?limit=${limit}&raw_json=1`,
-    { headers: { Accept: 'application/json' } }
-  );
-  const parsed = JSON.parse(json) as { data: { children: RedditChild[] } };
+    `https://old.reddit.com/${sub}/hot.json?limit=${limit}&raw_json=1`,
+    `https://oauth.reddit.com/${sub}/hot.json?limit=${limit}&raw_json=1`,
+  ];
+  let lastErr: Error | null = null;
+  for (const url of jsonEndpoints) {
+    try {
+      const text = await fetchText(url, { headers });
+      // 차단 페이지가 200으로 와도 JSON 아닌 경우가 있음
+      if (!text.trim().startsWith('{')) {
+        throw new Error(`non-json response (${text.slice(0, 40)})`);
+      }
+      return parseRedditJson(text, country, lang);
+    } catch (e) {
+      lastErr = e as Error;
+    }
+  }
+  // 최종 폴백: RSS (score/comments 못 가져옴)
+  try {
+    return await fetchSubredditRss(sub, country, lang, limit);
+  } catch (e) {
+    throw new Error(
+      `reddit ${sub} blocked. last json err: ${lastErr?.message?.slice(0, 80)}; rss err: ${(e as Error).message.slice(0, 80)}`
+    );
+  }
+}
+
+function parseRedditJson(
+  text: string,
+  country: DiscoveryCountry,
+  lang: string
+): DiscoveryItem[] {
+  const parsed = JSON.parse(text) as { data: { children: RedditChild[] } };
   const out: DiscoveryItem[] = [];
   let rank = 0;
   for (const c of parsed.data.children) {
@@ -185,6 +219,50 @@ async function fetchSubreddit(
       lang,
       publishedAt: d.created_utc ? new Date(d.created_utc * 1000) : null,
     });
+  }
+  return out;
+}
+
+async function fetchSubredditRss(
+  sub: string,
+  country: DiscoveryCountry,
+  lang: string,
+  limit: number
+): Promise<DiscoveryItem[]> {
+  const xml = await fetchText(
+    `https://www.reddit.com/${sub}/hot/.rss?limit=${limit}`,
+    {
+      headers: {
+        'User-Agent': 'trendfinder/1.0 (+https://trendfinder-radaq.vercel.app)',
+        Accept: 'application/atom+xml, application/xml, text/xml',
+      },
+    }
+  );
+  const entries = xml.split('<entry>').slice(1);
+  const out: DiscoveryItem[] = [];
+  let rank = 0;
+  for (const block of entries) {
+    const title = block.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? '';
+    const link = block.match(/<link[^>]*href="([^"]+)"/)?.[1] ?? '';
+    const pub = block.match(/<published>([\s\S]*?)<\/published>/)?.[1];
+    const thumb = block.match(/<media:thumbnail[^>]*url="([^"]+)"/)?.[1] ?? null;
+    if (!title || !link) continue;
+    const permalink = link.replace(/^https?:\/\/[^/]+/, '');
+    rank += 1;
+    out.push({
+      tab: 'reddit',
+      country,
+      source: sub.replace(/^r\//, ''),
+      sourceLabel: sub,
+      sourceKey: `reddit:${permalink}`,
+      rank,
+      title: decodeEntities(title.replace(/<!\[CDATA\[|\]\]>/g, '')),
+      url: link,
+      thumbnailUrl: thumb,
+      lang,
+      publishedAt: pub ? new Date(pub) : null,
+    });
+    if (rank >= limit) break;
   }
   return out;
 }

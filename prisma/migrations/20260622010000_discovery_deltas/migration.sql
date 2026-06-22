@@ -1,0 +1,5 @@
+-- 디스커버리: 변화량(이전 순위/댓글/점수) + 최초 발견 시각
+ALTER TABLE "DiscoveryPost" ADD COLUMN IF NOT EXISTS "prevRank" INTEGER;
+ALTER TABLE "DiscoveryPost" ADD COLUMN IF NOT EXISTS "prevCommentCount" INTEGER;
+ALTER TABLE "DiscoveryPost" ADD COLUMN IF NOT EXISTS "prevScore" INTEGER;
+ALTER TABLE "DiscoveryPost" ADD COLUMN IF NOT EXISTS "firstSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

@@ -11,6 +11,7 @@ function isMissingTable(e: unknown): boolean {
 export default async function DiscoveryPage() {
   let rows: DiscoveryRow[] = [];
   let warning: string | null = null;
+  let lastRunAt: string | null = null;
 
   try {
     // 최근 24시간 수집분만 (cron 이 매시간 갱신 → 떨어진 글은 자연 소멸)
@@ -27,22 +28,30 @@ export default async function DiscoveryPage() {
       source: p.source,
       sourceLabel: p.sourceLabel,
       rank: p.rank,
+      prevRank: p.prevRank,
       title: p.title,
       url: p.url,
       thumbnailUrl: p.thumbnailUrl,
       commentCount: p.commentCount,
+      prevCommentCount: p.prevCommentCount,
       score: p.score,
+      prevScore: p.prevScore,
       lang: p.lang,
       collectedAt: p.collectedAt.toISOString(),
+      firstSeenAt: p.firstSeenAt.toISOString(),
     }));
+    const latest = await prisma.discoveryPost.aggregate({
+      _max: { collectedAt: true },
+    });
+    lastRunAt = latest._max.collectedAt?.toISOString() ?? null;
   } catch (e) {
     if (isMissingTable(e)) {
       warning =
-        'DB 마이그레이션 미실행: DiscoveryPost 테이블이 없습니다. Supabase SQL Editor 에서 마이그레이션 SQL 을 실행하세요.';
+        'DB 마이그레이션 미실행: DiscoveryPost 또는 변화량 컬럼이 없습니다. Supabase SQL Editor 에서 최신 마이그레이션 SQL 을 실행하세요.';
     } else {
       warning = `조회 실패: ${(e as Error).message.slice(0, 160)}`;
     }
   }
 
-  return <DiscoveryClient rows={rows} warning={warning} />;
+  return <DiscoveryClient rows={rows} warning={warning} lastRunAt={lastRunAt} />;
 }
