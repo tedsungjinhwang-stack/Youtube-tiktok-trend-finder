@@ -205,38 +205,47 @@ export function DiscoveryClient({
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6">
-      <div className="mb-2 flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-bold">디스커버리</h1>
-        <span className="text-sm text-muted-foreground">
-          한국·일본 커뮤니티 / 뉴스 / 레딧 인기글
-        </span>
-        <div className="flex-1" />
-        <button
-          onClick={runNow}
-          disabled={running}
-          className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
-            running
-              ? 'border-border bg-accent opacity-60'
-              : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
-          }`}
-          title="지금 즉시 4개 소스에서 인기글 새로 수집"
-        >
-          {running ? '수집 중…' : '🔄 수동 수집'}
-        </button>
-        {hasForeign && (
+    <div className="mx-auto max-w-3xl px-3 py-4 sm:px-4 sm:py-6">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold leading-tight">디스커버리</h1>
+          <p className="hidden text-sm text-muted-foreground sm:block">
+            한국·일본 커뮤니티 / 뉴스 / 레딧 인기글
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
           <button
-            onClick={toggleTranslate}
-            disabled={translating}
-            className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
-              translated
-                ? 'border-blue-500 bg-blue-500/15 text-blue-400'
-                : 'border-border hover:bg-accent'
-            } ${translating ? 'opacity-60' : ''}`}
+            onClick={runNow}
+            disabled={running}
+            className={`rounded-full border px-3 py-2 text-sm font-semibold transition ${
+              running
+                ? 'border-border bg-accent opacity-60'
+                : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+            }`}
+            title="지금 즉시 4개 소스에서 인기글 새로 수집"
           >
-            {translating ? '번역 중…' : translated ? '🌐 원문 보기' : '🌐 한국어 번역'}
+            <span className="sm:hidden">🔄</span>
+            <span className="hidden sm:inline">
+              {running ? '수집 중…' : '🔄 수동 수집'}
+            </span>
           </button>
-        )}
+          {hasForeign && (
+            <button
+              onClick={toggleTranslate}
+              disabled={translating}
+              className={`rounded-full border px-3 py-2 text-sm font-semibold transition ${
+                translated
+                  ? 'border-blue-500 bg-blue-500/15 text-blue-400'
+                  : 'border-border hover:bg-accent'
+              } ${translating ? 'opacity-60' : ''}`}
+            >
+              <span className="sm:hidden">🌐</span>
+              <span className="hidden sm:inline">
+                {translating ? '번역 중…' : translated ? '🌐 원문 보기' : '🌐 한국어 번역'}
+              </span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 마지막 수집 시각 (한국어 번역 버튼 바로 아래) */}
@@ -289,7 +298,7 @@ export function DiscoveryClient({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="제목 검색…"
-        className="mb-3 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40"
+        className="mb-3 h-11 w-full rounded-lg border bg-background px-3 text-[15px] outline-none focus:border-foreground/40 sm:h-10 sm:text-sm"
       />
 
       {tab !== 'news' && sources.length > 1 && (
@@ -332,7 +341,7 @@ export function DiscoveryClient({
                   href={r.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-start gap-3 py-2.5 hover:bg-accent/40"
+                  className="flex items-start gap-3 py-3 active:bg-accent/60 sm:hover:bg-accent/40"
                 >
                   <span className="flex w-10 shrink-0 flex-col items-center pt-0.5">
                     <span className="text-sm font-bold text-muted-foreground">

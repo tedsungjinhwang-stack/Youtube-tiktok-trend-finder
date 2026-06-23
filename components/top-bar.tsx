@@ -14,35 +14,34 @@ const tabs = [
 
 export function TopBar() {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-6 border-b bg-background/80 px-4 backdrop-blur">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 px-3 backdrop-blur sm:gap-6 sm:px-4">
       <Link
         href="/"
-        className="flex items-center gap-2 text-[16px] font-bold tracking-tight"
+        className="flex shrink-0 items-center gap-2 text-[16px] font-bold tracking-tight"
       >
         <span className="grid h-6 w-6 place-items-center rounded bg-foreground text-[12px] font-black text-background">
           T
         </span>
-        Trend Finder
+        <span className="hidden sm:inline">Trend Finder</span>
       </Link>
 
-      <nav className="flex items-center gap-1 text-sm">
+      {/* 모바일: 가로 스크롤 가능. 데스크탑: 그대로 */}
+      <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((t) => (
           <Link
             key={t.href}
             href={t.href}
-            className="rounded-md px-3 py-1.5 font-semibold text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="shrink-0 rounded-md px-3 py-1.5 font-semibold text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             {t.label}
           </Link>
         ))}
       </nav>
 
-      <div className="flex-1" />
-
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
         <Link
           href="/settings/api-keys"
-          className="rounded-md px-2 py-1 hover:bg-accent hover:text-foreground"
+          className="hidden rounded-md px-2 py-1 hover:bg-accent hover:text-foreground sm:inline-block"
         >
           API 키
         </Link>
