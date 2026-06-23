@@ -385,18 +385,18 @@ export default function MySchedulePage() {
 
 
   if (loading) {
-    return <div className="p-8 text-base text-muted-foreground">로딩 중…</div>;
+    return <div className="p-8 text-[15px] text-muted-foreground">로딩 중…</div>;
   }
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
       {setupWarning && (
-        <div className="border-b border-amber-500/30 bg-amber-50 px-4 py-3 text-[15px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+        <div className="border-b border-amber-500/30 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
           ⚠️ {setupWarning}
         </div>
       )}
       {syncingGcal && (
-        <div className="flex items-center gap-2 border-b border-primary/30 bg-primary/10 px-4 py-3 text-[15px] font-semibold text-primary">
+        <div className="flex items-center gap-2 border-b border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary">
           <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           Google 캘린더 전체 동기화 진행 중… (활성 채널 모두 처리)
         </div>
@@ -406,14 +406,14 @@ export default function MySchedulePage() {
       <aside className="flex w-80 shrink-0 flex-col border-r">
         <div className="border-b p-4">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-base font-bold">내 채널</h2>
-            <span className="text-[15px] text-muted-foreground">{channels.length}개</span>
+            <h2 className="text-[15px] font-bold">내 채널</h2>
+            <span className="text-sm text-muted-foreground">{channels.length}개</span>
           </div>
           <div className="space-y-1.5">
             <select
               value={newPlatform}
               onChange={(e) => setNewPlatform(e.target.value as Platform)}
-              className="h-8 w-full rounded-md border bg-background px-2 text-[15px]"
+              className="h-8 w-full rounded-md border bg-background px-2 text-sm"
             >
               {PLATFORM_ORDER.map((p) => (
                 <option key={p} value={p}>
@@ -425,24 +425,24 @@ export default function MySchedulePage() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="채널명 *"
-              className="h-8 w-full rounded-md border bg-background px-2 text-[15px]"
+              className="h-8 w-full rounded-md border bg-background px-2 text-sm"
             />
             <input
               value={newCategory}
               onChange={(e) => setNewCategory(e.target.value)}
               placeholder="카테고리 (예: 푸드, 게임)"
-              className="h-8 w-full rounded-md border bg-background px-2 text-[15px]"
+              className="h-8 w-full rounded-md border bg-background px-2 text-sm"
             />
             <input
               value={newUrl}
               onChange={(e) => setNewUrl(e.target.value)}
               placeholder="채널 URL"
-              className="h-8 w-full rounded-md border bg-background px-2 text-[15px]"
+              className="h-8 w-full rounded-md border bg-background px-2 text-sm"
             />
             <button
               onClick={() => addChannel()}
               disabled={!newName.trim()}
-              className="h-8 w-full rounded-md bg-primary text-[15px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
+              className="h-8 w-full rounded-md bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
             >
               + 채널 추가
             </button>
@@ -451,7 +451,7 @@ export default function MySchedulePage() {
 
         <div className="flex-1 overflow-auto p-2">
           {channels.length === 0 ? (
-            <p className="p-4 text-center text-[15px] text-muted-foreground">
+            <p className="p-4 text-center text-sm text-muted-foreground">
               아직 채널이 없습니다
             </p>
           ) : (
@@ -467,7 +467,7 @@ export default function MySchedulePage() {
                   key={c.id}
                   onClick={() => setSelectedChannelId(c.id)}
                   className={cn(
-                    'mb-1 block w-full rounded-md px-3 py-2 text-left text-base hover:bg-accent',
+                    'mb-1 block w-full rounded-md px-3 py-2 text-left text-[15px] hover:bg-accent',
                     selectedChannelId === c.id && 'bg-accent font-semibold',
                     !c.isActive && 'opacity-50'
                   )}
@@ -475,15 +475,15 @@ export default function MySchedulePage() {
                   <div className="truncate">
                     {c.name}
                     {!c.isActive && (
-                      <span className="ml-1 text-[13px] text-muted-foreground">(비활성)</span>
+                      <span className="ml-1 text-[12px] text-muted-foreground">(비활성)</span>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-x-2 text-[13px] text-muted-foreground">
+                  <div className="flex flex-wrap gap-x-2 text-[12px] text-muted-foreground">
                     {c.category && <span>{c.category}</span>}
                     <span>· {c.videos.length}개 예약</span>
                   </div>
                   {last && (
-                    <div className="mt-0.5 text-[13px] text-muted-foreground/80">
+                    <div className="mt-0.5 text-[12px] text-muted-foreground/80">
                       마지막: {fmt(last.scheduledAt)}
                     </div>
                   )}
@@ -495,15 +495,15 @@ export default function MySchedulePage() {
 
         {/* Google 연결 영역 */}
         <div className="border-t bg-secondary/30 p-3">
-          <div className="mb-1.5 text-[14px] font-semibold">Google 캘린더</div>
+          <div className="mb-1.5 text-[13px] font-semibold">Google 캘린더</div>
           {google.connected ? (
             <div className="space-y-1.5">
-              <div className="text-[14px] text-muted-foreground">
+              <div className="text-[13px] text-muted-foreground">
                 ✓ 연결됨 {google.email ? `(${google.email})` : ''}
               </div>
               <button
                 onClick={disconnectGoogle}
-                className="h-7 w-full rounded-md border bg-background text-[14px] text-muted-foreground hover:border-destructive/40 hover:text-foreground"
+                className="h-7 w-full rounded-md border bg-background text-[13px] text-muted-foreground hover:border-destructive/40 hover:text-foreground"
               >
                 연결 해제
               </button>
@@ -511,7 +511,7 @@ export default function MySchedulePage() {
           ) : (
             <button
               onClick={connectGoogle}
-              className="h-7 w-full rounded-md bg-primary text-[15px] font-semibold text-primary-foreground hover:bg-primary/90"
+              className="h-7 w-full rounded-md bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90"
             >
               Google 캘린더 연결
             </button>
@@ -523,13 +523,13 @@ export default function MySchedulePage() {
       <main className="flex flex-1 flex-col overflow-hidden">
         {/* 일괄 작업 툴바 — 채널 1개 이상 선택 시 노출 */}
         {bulkIds.size > 0 && (
-          <div className="flex flex-wrap items-center gap-2 border-b border-primary/40 bg-primary/10 px-4 py-3 text-[15px]">
-            <span className="rounded bg-primary px-2 py-0.5 text-[13px] font-bold uppercase tracking-wider text-primary-foreground">
+          <div className="flex flex-wrap items-center gap-2 border-b border-primary/40 bg-primary/10 px-4 py-3 text-sm">
+            <span className="rounded bg-primary px-2 py-0.5 text-[12px] font-bold uppercase tracking-wider text-primary-foreground">
               {bulkIds.size}개 선택됨
             </span>
             <button
               onClick={clearBulk}
-              className="rounded border bg-card px-2 py-1 text-[14px] text-muted-foreground hover:border-foreground/40"
+              className="rounded border bg-card px-2 py-1 text-[13px] text-muted-foreground hover:border-foreground/40"
             >
               ✕ 선택 해제
             </button>
@@ -537,18 +537,18 @@ export default function MySchedulePage() {
               value={bulkTitle}
               onChange={(e) => setBulkTitle(e.target.value)}
               placeholder="제목 (선택)"
-              className="h-7 w-48 rounded border bg-background px-2 text-[15px]"
+              className="h-7 w-48 rounded border bg-background px-2 text-sm"
             />
             <input
               type="datetime-local"
               value={bulkWhen}
               onChange={(e) => setBulkWhen(e.target.value)}
-              className="h-7 rounded border bg-background px-2 text-[15px]"
+              className="h-7 rounded border bg-background px-2 text-sm"
             />
             <button
               onClick={bulkAdd}
               disabled={!bulkWhen || bulkBusy}
-              className="h-7 rounded-md bg-primary px-3 text-[14px] font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
+              className="h-7 rounded-md bg-primary px-3 text-[13px] font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
             >
               + 일괄 예약 추가
             </button>
@@ -556,7 +556,7 @@ export default function MySchedulePage() {
             <button
               onClick={bulkClear}
               disabled={bulkBusy}
-              className="h-7 rounded-md border border-amber-500/60 bg-amber-500/10 px-3 text-[14px] font-bold text-amber-700 hover:bg-amber-500/20 disabled:opacity-40 dark:text-amber-300"
+              className="h-7 rounded-md border border-amber-500/60 bg-amber-500/10 px-3 text-[13px] font-bold text-amber-700 hover:bg-amber-500/20 disabled:opacity-40 dark:text-amber-300"
             >
               ⚠️ 업로드 필요로 변경 (예약 비우기)
             </button>
@@ -564,7 +564,7 @@ export default function MySchedulePage() {
               <button
                 onClick={syncGcalAll}
                 disabled={syncingGcal || bulkBusy}
-                className="ml-auto h-7 rounded-md border bg-card px-3 text-[14px] hover:border-foreground/40 disabled:opacity-40"
+                className="ml-auto h-7 rounded-md border bg-card px-3 text-[13px] hover:border-foreground/40 disabled:opacity-40"
                 title="캘린더 전체 동기화"
               >
                 {syncingGcal ? '동기화 중…' : '🗓️ 캘린더 동기화'}
@@ -573,7 +573,7 @@ export default function MySchedulePage() {
           </div>
         )}
         {bulkIds.size === 0 && google.connected && (
-          <div className="flex items-center gap-3 border-b bg-secondary/30 px-6 py-3 text-[15px]">
+          <div className="flex items-center gap-3 border-b bg-secondary/30 px-6 py-3 text-sm">
             <button
               onClick={syncGcalAll}
               disabled={syncingGcal}
@@ -584,13 +584,13 @@ export default function MySchedulePage() {
           </div>
         )}
         {channels.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center text-base text-muted-foreground">
+          <div className="flex flex-1 items-center justify-center text-[15px] text-muted-foreground">
             왼쪽에서 채널을 추가하세요
           </div>
         ) : (
           <div className="flex-1 overflow-auto">
-            <table className="w-full text-base">
-              <thead className="sticky top-0 z-10 border-b-2 bg-secondary/60 text-[14px] uppercase tracking-wider text-muted-foreground backdrop-blur">
+            <table className="w-full text-[15px]">
+              <thead className="sticky top-0 z-10 border-b-2 bg-secondary/60 text-[13px] uppercase tracking-wider text-muted-foreground backdrop-blur">
                 <tr className="border-b">
                   <th className="w-9 px-2 py-2 text-center">
                     <input
@@ -637,10 +637,10 @@ export default function MySchedulePage() {
                         <tr className="bg-secondary/40">
                           <td
                             colSpan={6}
-                            className="px-4 py-1.5 text-[14px] font-bold uppercase tracking-wider text-muted-foreground"
+                            className="px-4 py-1.5 text-[13px] font-bold uppercase tracking-wider text-muted-foreground"
                           >
                             {PLATFORM_LABEL[(c.platform ?? 'YOUTUBE') as Platform]}
-                            <span className="ml-1.5 text-[13px] font-normal text-muted-foreground/70">
+                            <span className="ml-1.5 text-[12px] font-normal text-muted-foreground/70">
                               ({countInGroup})
                             </span>
                           </td>
@@ -752,7 +752,7 @@ function DashRow({
             className="h-3.5 w-3.5"
           />
         </td>
-        <td className="px-3 py-3.5">
+        <td className="px-3 py-3">
           <div className="flex items-start gap-1">
             <button
               onClick={onToggle}
@@ -762,11 +762,11 @@ function DashRow({
             </button>
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-center gap-1.5 truncate">
-                <span className="truncate text-[19px] font-bold leading-tight">
+                <span className="truncate text-[17px] font-bold leading-tight">
                   {c.name}
                 </span>
                 {!c.isActive && (
-                  <span className="rounded bg-muted px-1 py-px text-[13px] font-medium text-muted-foreground">
+                  <span className="rounded bg-muted px-1 py-px text-[12px] font-medium text-muted-foreground">
                     비활성
                   </span>
                 )}
@@ -794,23 +794,23 @@ function DashRow({
             </div>
           </div>
         </td>
-        <td className="px-3 py-3 text-[15px]">
+        <td className="px-3 py-3 text-sm">
           {c.category ? (
-            <span className="inline-block rounded-md bg-secondary/80 px-2 py-0.5 text-[14px] font-medium text-foreground/80">
+            <span className="inline-block rounded-md bg-secondary/80 px-2 py-0.5 text-[13px] font-medium text-foreground/80">
               {c.category}
             </span>
           ) : (
             <span className="text-muted-foreground/50">—</span>
           )}
         </td>
-        <td className="px-4 py-3 text-[15px]">
+        <td className="px-4 py-3 text-sm">
           <MaterialsCell
             materials={c.materials}
             onAdd={onAddMaterial}
             onRemove={onRemoveMaterial}
           />
         </td>
-        <td className="px-4 py-3.5">
+        <td className="px-4 py-3">
           <InlineTitleCell
             last={last}
             count={c.videos.length}
@@ -818,14 +818,14 @@ function DashRow({
             onCreate={(title) => onAddVideo(title, todayKstInputValue(), '')}
           />
         </td>
-        <td className="px-4 py-3 text-[15px]">
+        <td className="px-4 py-3 text-sm">
           <InlineDateCell
             last={last}
             onSaveExisting={(id, iso) => onUpdateVideo(id, { scheduledAt: iso })}
             onCreate={(localStr) => onAddVideo('', localStr, '')}
           />
         </td>
-        <td className="px-4 py-3 text-[15px]">
+        <td className="px-4 py-3 text-sm">
           <AttachmentsCell
             items={c.attachments}
             onAdd={onAddAttachment}
@@ -835,7 +835,7 @@ function DashRow({
       </tr>
       {isExpanded && (
         <tr className="border-b bg-secondary/20">
-          <td colSpan={7} className="px-6 py-3.5">
+          <td colSpan={7} className="px-6 py-3">
             {/* 채널 메타 인라인 편집 */}
             <div className="mb-3 grid grid-cols-12 gap-2">
               <select
@@ -843,7 +843,7 @@ function DashRow({
                 onChange={(e) =>
                   onUpdate(c.id, { platform: e.target.value as Platform } as Partial<MyChannel>)
                 }
-                className="col-span-2 h-8 rounded border bg-background px-2 text-[15px]"
+                className="col-span-2 h-8 rounded border bg-background px-2 text-sm"
               >
                 {PLATFORM_ORDER.map((p) => (
                   <option key={p} value={p}>
@@ -856,21 +856,21 @@ function DashRow({
                 onChange={(e) => onUpdate(c.id, { name: e.target.value } as Partial<MyChannel>)}
                 onBlur={(e) => onUpdate(c.id, { name: e.target.value } as Partial<MyChannel>)}
                 placeholder="채널명"
-                className="col-span-3 h-8 rounded border bg-background px-2 text-[15px]"
+                className="col-span-3 h-8 rounded border bg-background px-2 text-sm"
               />
               <input
                 value={c.category ?? ''}
                 onChange={(e) => onUpdate(c.id, { category: e.target.value } as Partial<MyChannel>)}
                 onBlur={(e) => onUpdate(c.id, { category: e.target.value } as Partial<MyChannel>)}
                 placeholder="카테고리"
-                className="col-span-2 h-8 rounded border bg-background px-2 text-[15px]"
+                className="col-span-2 h-8 rounded border bg-background px-2 text-sm"
               />
               <input
                 value={c.url ?? ''}
                 onChange={(e) => onUpdate(c.id, { url: e.target.value } as Partial<MyChannel>)}
                 onBlur={(e) => onUpdate(c.id, { url: e.target.value } as Partial<MyChannel>)}
                 placeholder="URL"
-                className="col-span-5 h-8 rounded border bg-background px-2 text-[15px]"
+                className="col-span-5 h-8 rounded border bg-background px-2 text-sm"
               />
             </div>
             <div className="mb-3 flex flex-wrap gap-2">
@@ -879,7 +879,7 @@ function DashRow({
                   onUpdate(c.id, { isActive: !c.isActive } as Partial<MyChannel>)
                 }
                 className={cn(
-                  'rounded-md border px-2.5 py-1 text-[14px]',
+                  'rounded-md border px-2.5 py-1 text-[13px]',
                   c.isActive
                     ? 'bg-card hover:border-foreground/40'
                     : 'border-amber-500/40 bg-amber-100/50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-200'
@@ -889,7 +889,7 @@ function DashRow({
               </button>
               <button
                 onClick={onRemove}
-                className="rounded-md border bg-card px-2.5 py-1 text-[14px] hover:border-destructive/40"
+                className="rounded-md border bg-card px-2.5 py-1 text-[13px] hover:border-destructive/40"
               >
                 🗑️ 채널 삭제
               </button>
@@ -901,19 +901,19 @@ function DashRow({
                 value={vTitle}
                 onChange={(e) => setVTitle(e.target.value)}
                 placeholder="영상 제목 (선택)"
-                className="col-span-5 h-8 rounded border bg-background px-2 text-[15px]"
+                className="col-span-5 h-8 rounded border bg-background px-2 text-sm"
               />
               <input
                 type="datetime-local"
                 value={vWhen}
                 onChange={(e) => setVWhen(e.target.value)}
-                className="col-span-3 h-8 rounded border bg-background px-2 text-[15px]"
+                className="col-span-3 h-8 rounded border bg-background px-2 text-sm"
               />
               <input
                 value={vNotes}
                 onChange={(e) => setVNotes(e.target.value)}
                 placeholder="메모 (선택)"
-                className="col-span-3 h-8 rounded border bg-background px-2 text-[15px]"
+                className="col-span-3 h-8 rounded border bg-background px-2 text-sm"
               />
               <button
                 onClick={() => {
@@ -923,7 +923,7 @@ function DashRow({
                   setVNotes('');
                 }}
                 disabled={!vWhen}
-                className="col-span-1 h-8 rounded bg-primary text-[14px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
+                className="col-span-1 h-8 rounded bg-primary text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
               >
                 + 예약
               </button>
@@ -931,7 +931,7 @@ function DashRow({
 
             {/* 영상 리스트 — 컴팩트 한 줄 */}
             {sortedAsc.length === 0 ? (
-              <p className="py-2 text-center text-[14px] text-muted-foreground">
+              <p className="py-2 text-center text-[13px] text-muted-foreground">
                 예약 영상 없음
               </p>
             ) : (
@@ -939,7 +939,7 @@ function DashRow({
                 {sortedAsc.map((v) => (
                   <li
                     key={v.id}
-                    className="flex items-center gap-2 rounded border bg-background px-2 py-1.5 text-[15px]"
+                    className="flex items-center gap-2 rounded border bg-background px-2 py-1.5 text-sm"
                   >
                     <input
                       type="datetime-local"
@@ -949,7 +949,7 @@ function DashRow({
                           scheduledAt: new Date(e.target.value).toISOString(),
                         })
                       }
-                      className="h-8 w-[180px] rounded border bg-background px-1.5 text-[14px]"
+                      className="h-8 w-[180px] rounded border bg-background px-1.5 text-[13px]"
                     />
                     <input
                       value={v.title}
@@ -959,7 +959,7 @@ function DashRow({
                     />
                     {v.notes && (
                       <span
-                        className="truncate text-[13px] text-muted-foreground"
+                        className="truncate text-[12px] text-muted-foreground"
                         title={v.notes}
                       >
                         {v.notes}
@@ -967,7 +967,7 @@ function DashRow({
                     )}
                     <button
                       onClick={() => onRemoveVideo(v.id)}
-                      className="rounded border bg-background px-1.5 text-[13px] hover:border-destructive/40"
+                      className="rounded border bg-background px-1.5 text-[12px] hover:border-destructive/40"
                     >
                       삭제
                     </button>
@@ -1029,7 +1029,7 @@ function InlineTitleCell({
         }}
         onClick={(e) => e.stopPropagation()}
         placeholder="제목"
-        className="h-7 w-full rounded border bg-background px-2 text-[15px]"
+        className="h-7 w-full rounded border bg-background px-2 text-sm"
       />
     );
   }
@@ -1041,16 +1041,16 @@ function InlineTitleCell({
       title="클릭해서 수정"
     >
       {last ? (
-        <div className="truncate text-[15px]">
+        <div className="truncate text-sm">
           {last.title || (
             <span className="italic text-muted-foreground">제목 없음</span>
           )}
-          <span className="ml-1.5 text-base font-bold">({count})</span>
+          <span className="ml-1.5 text-[15px] font-bold">({count})</span>
         </div>
       ) : (
-        <span className="text-[15px] text-amber-700 dark:text-amber-300">
+        <span className="text-sm text-amber-700 dark:text-amber-300">
           ⚠️ 영상 없음 — 업로드 필요
-          <span className="ml-1.5 text-base font-bold">(0)</span>
+          <span className="ml-1.5 text-[15px] font-bold">(0)</span>
         </span>
       )}
     </div>
@@ -1105,7 +1105,7 @@ function InlineDateCell({
           }
         }}
         onClick={(e) => e.stopPropagation()}
-        className="h-7 rounded border bg-background px-2 text-[15px]"
+        className="h-7 rounded border bg-background px-2 text-sm"
       />
     );
   }
@@ -1178,7 +1178,7 @@ function InlineTextCell({
         placeholder={placeholder}
         className={cn(
           'w-full rounded border bg-background px-2',
-          small ? 'h-7 text-[13px]' : 'h-9 text-[15px]'
+          small ? 'h-7 text-[12px]' : 'h-9 text-sm'
         )}
       />
     );
@@ -1189,7 +1189,7 @@ function InlineTextCell({
       onClick={start}
       className={cn(
         'cursor-text truncate rounded hover:bg-accent/40',
-        small ? 'px-1 text-[13px] leading-tight text-muted-foreground' : 'px-1 py-0.5'
+        small ? 'px-1 text-[12px] leading-tight text-muted-foreground' : 'px-1 py-0.5'
       )}
       title={value ?? `${placeholder} (클릭해서 입력)`}
     >
@@ -1228,7 +1228,7 @@ function MaterialsCell({
       {materials.length === 0 && !adding && (
         <button
           onClick={() => setAdding(true)}
-          className="text-[14px] text-muted-foreground/70 hover:text-foreground"
+          className="text-[13px] text-muted-foreground/70 hover:text-foreground"
         >
           + 소재
         </button>
@@ -1252,13 +1252,13 @@ function MaterialsCell({
                 href={m.url}
                 target="_blank"
                 rel="noreferrer"
-                className="truncate text-[13px] leading-tight text-blue-600 hover:underline dark:text-blue-400"
+                className="truncate text-[12px] leading-tight text-blue-600 hover:underline dark:text-blue-400"
                 title={m.url}
               >
                 {m.url}
               </a>
             ) : (
-              <span className="truncate text-[13px] leading-tight" title={m.url}>
+              <span className="truncate text-[12px] leading-tight" title={m.url}>
                 {m.url}
               </span>
             )}
@@ -1285,13 +1285,13 @@ function MaterialsCell({
               ? '추가 시 가장 오래된 소재가 삭제됩니다'
               : 'URL 또는 메모'
           }
-          className="h-6 w-full rounded border bg-background px-1.5 text-[14px]"
+          className="h-6 w-full rounded border bg-background px-1.5 text-[13px]"
         />
       ) : (
         materials.length > 0 && (
           <button
             onClick={() => setAdding(true)}
-            className="text-[13px] text-muted-foreground/70 hover:text-foreground"
+            className="text-[12px] text-muted-foreground/70 hover:text-foreground"
             title={
               materials.length >= 20
                 ? '최대 20개 — 추가하면 가장 오래된 소재가 삭제됩니다'
@@ -1355,14 +1355,14 @@ function AttachmentsCell({
             key={a.id}
             className="flex items-center gap-1.5 rounded border border-border/40 bg-background/60 px-1.5 py-1"
           >
-            <span className="num shrink-0 text-[13px] font-bold text-muted-foreground">
+            <span className="num shrink-0 text-[12px] font-bold text-muted-foreground">
               {i + 1}
             </span>
             <a
               href={a.url}
               target="_blank"
               rel="noreferrer"
-              className="min-w-0 flex-1 truncate text-[14px] text-blue-600 hover:underline dark:text-blue-400"
+              className="min-w-0 flex-1 truncate text-[13px] text-blue-600 hover:underline dark:text-blue-400"
               title={a.label || a.url}
             >
               {icon} {a.label || a.url}
@@ -1372,7 +1372,7 @@ function AttachmentsCell({
                 if (!confirm('이 첨부를 삭제할까요?')) return;
                 onRemove(a.id);
               }}
-              className="grid h-5 w-5 shrink-0 place-items-center rounded text-[14px] font-bold text-destructive hover:bg-destructive/10"
+              className="grid h-5 w-5 shrink-0 place-items-center rounded text-[13px] font-bold text-destructive hover:bg-destructive/10"
               title="삭제"
               aria-label="삭제"
             >
@@ -1385,7 +1385,7 @@ function AttachmentsCell({
       <button
         onClick={() => inputRef.current?.click()}
         disabled={full || uploading}
-        className="block w-full rounded border border-dashed border-border/60 px-1 py-1 text-left text-[14px] font-semibold text-muted-foreground hover:border-foreground/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+        className="block w-full rounded border border-dashed border-border/60 px-1 py-1 text-left text-[13px] font-semibold text-muted-foreground hover:border-foreground/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
         title={full ? '최대 5개' : '파일 선택 (영상/이미지 최대 100MB)'}
       >
         {uploading
@@ -1423,8 +1423,8 @@ function ContactRow({
   };
 
   return (
-    <div className="flex items-center gap-1.5 text-[14px] leading-tight">
-      <span className="shrink-0 text-[13px] opacity-80">{icon}</span>
+    <div className="flex items-center gap-1.5 text-[13px] leading-tight">
+      <span className="shrink-0 text-[12px] opacity-80">{icon}</span>
       {editing ? (
         <input
           autoFocus
@@ -1441,7 +1441,7 @@ function ContactRow({
           }}
           onClick={(e) => e.stopPropagation()}
           placeholder={placeholder}
-          className="h-7 w-full min-w-0 flex-1 rounded border bg-background px-1.5 text-[14px]"
+          className="h-7 w-full min-w-0 flex-1 rounded border bg-background px-1.5 text-[13px]"
         />
       ) : (
         <button
