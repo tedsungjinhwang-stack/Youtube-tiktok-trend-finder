@@ -6,7 +6,7 @@ import { addChannelAction, deleteChannelAction } from '../channels/actions';
 
 type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN';
 type Kind = 'REFERENCE' | 'SOURCE';
-type ShareMode = 'material' | 'channel' | 'community';
+type ShareMode = 'material' | 'channel' | 'community' | 'schedule';
 export type CommunityPost = {
   id: string;
   tab: string;
@@ -122,13 +122,23 @@ function Inner({
   const [mode, setMode] = useState<ShareMode>('material');
   useEffect(() => {
     const fromUrl = params.get('type');
-    if (fromUrl === 'channel' || fromUrl === 'material' || fromUrl === 'community') {
+    if (
+      fromUrl === 'channel' ||
+      fromUrl === 'material' ||
+      fromUrl === 'community' ||
+      fromUrl === 'schedule'
+    ) {
       setMode(fromUrl);
       return;
     }
     if (typeof window !== 'undefined') {
       const last = localStorage.getItem('share-mode');
-      if (last === 'channel' || last === 'material' || last === 'community') {
+      if (
+        last === 'channel' ||
+        last === 'material' ||
+        last === 'community' ||
+        last === 'schedule'
+      ) {
         setMode(last as ShareMode);
       }
     }
@@ -250,14 +260,14 @@ function Inner({
     (mode === 'material' ? !matChannelId : !folderId);
 
   return (
-    <div className="mx-auto max-w-md p-5">
+    <div className="mx-auto max-w-lg px-4 py-5 sm:px-5">
       <h1 className="mb-1 text-lg font-bold">빠른 추가</h1>
       <p className="mb-4 text-xs text-muted-foreground">
         URL 을 붙여넣고 어디에 추가할지 선택
       </p>
 
-      {/* 모드 토글 */}
-      <div className="mb-5 grid grid-cols-3 gap-1 rounded-lg bg-secondary/40 p-1">
+      {/* 모드 토글 — 4개 칸 */}
+      <div className="mb-5 grid grid-cols-4 gap-1 rounded-lg bg-secondary/40 p-1">
         <button
           onClick={() => {
             setMode('material');
@@ -265,7 +275,7 @@ function Inner({
             setError(null);
           }}
           className={
-            'h-10 rounded-md text-[13px] font-semibold transition ' +
+            'h-10 rounded-md text-[12.5px] font-semibold transition ' +
             (mode === 'material'
               ? 'bg-background shadow-sm'
               : 'text-muted-foreground hover:text-foreground')
@@ -280,13 +290,13 @@ function Inner({
             setError(null);
           }}
           className={
-            'h-10 rounded-md text-[13px] font-semibold transition ' +
+            'h-10 rounded-md text-[12.5px] font-semibold transition ' +
             (mode === 'channel'
               ? 'bg-background shadow-sm'
               : 'text-muted-foreground hover:text-foreground')
           }
         >
-          📺 에셋 채널
+          📺 에셋채널
         </button>
         <button
           onClick={() => {
@@ -295,7 +305,7 @@ function Inner({
             setError(null);
           }}
           className={
-            'h-10 rounded-md text-[13px] font-semibold transition ' +
+            'h-10 rounded-md text-[12.5px] font-semibold transition ' +
             (mode === 'community'
               ? 'bg-background shadow-sm'
               : 'text-muted-foreground hover:text-foreground')
@@ -303,12 +313,30 @@ function Inner({
         >
           💬 커뮤니티
         </button>
+        <button
+          onClick={() => {
+            setMode('schedule');
+            setDone(null);
+            setError(null);
+          }}
+          className={
+            'h-10 rounded-md text-[12.5px] font-semibold transition ' +
+            (mode === 'schedule'
+              ? 'bg-background shadow-sm'
+              : 'text-muted-foreground hover:text-foreground')
+          }
+        >
+          📅 스케줄
+        </button>
       </div>
 
       {mode === 'community' && (
         <CommunityFeed posts={community} lastRunAt={communityLastRunAt} />
       )}
-      {mode !== 'community' && (
+      {mode === 'schedule' && (
+        <ScheduleForm myChannels={myChannels} />
+      )}
+      {mode !== 'community' && mode !== 'schedule' && (
 
       <div className="space-y-4">
         <label className="block">
@@ -952,4 +980,166 @@ function cfColorFor(source: string): string {
   let h = 0;
   for (let i = 0; i < source.length; i++) h = (h * 31 + source.charCodeAt(i)) >>> 0;
   return CF_PALETTE[h % CF_PALETTE.length];
+}
+
+/* ─────────── 채널 스케줄: 채널 선택 + 예약일시 + 저장 ─────────── */
+
+function ScheduleForm({ myChannels }: { myChannels: MyChannel[] }) {
+  const router = useRouter();
+  const [channelId, setChannelId] = useState<string>('');
+  const [title, setTitle] = useState('');
+  const [when, setWhen] = useState(sfDefaultWhen());
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const last = localStorage.getItem('share-schedule-channel');
+    if (last && myChannels.some((c) => c.id === last)) setChannelId(last);
+    else if (myChannels[0]) setChannelId(myChannels[0].id);
+  }, [myChannels]);
+
+  const submit = async () => {
+    if (!channelId || !when) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const r = await fetch('/api/v1/my-schedule/videos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelId,
+          title: title.trim(),
+          scheduledAt: new Date(when).toISOString(),
+          notes: notes.trim(),
+        }),
+      });
+      const j = await r.json();
+      if (j.success) {
+        localStorage.setItem('share-schedule-channel', channelId);
+        const name = myChannels.find((c) => c.id === channelId)?.name ?? '채널';
+        setDone(`"${name}" 에 ${sfFmtKst(when)} 예약 추가됨`);
+        setTitle('');
+        setNotes('');
+        setWhen(sfDefaultWhen());
+        router.refresh();
+      } else {
+        setError(j.error?.message ?? '실패');
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (myChannels.length === 0) {
+    return (
+      <div className="rounded-md border border-amber-500/40 bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+        내 채널이 없습니다.{' '}
+        <a href="/my-schedule" className="underline">/my-schedule</a> 에서 먼저 채널을 추가하세요.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold">채널</span>
+        <select
+          value={channelId}
+          onChange={(e) => setChannelId(e.target.value)}
+          className="h-11 w-full rounded-md border bg-background px-3 text-sm"
+        >
+          {myChannels.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+              {c.category ? ` · ${c.category}` : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold">예약일시</span>
+        <input
+          type="datetime-local"
+          value={when}
+          onChange={(e) => setWhen(e.target.value)}
+          className="h-11 w-full rounded-md border bg-background px-3 text-sm"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold">제목 (선택)</span>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="영상 제목"
+          className="h-11 w-full rounded-md border bg-background px-3 text-sm"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold">메모 (선택)</span>
+        <input
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="메모"
+          className="h-11 w-full rounded-md border bg-background px-3 text-sm"
+        />
+      </label>
+
+      <button
+        onClick={submit}
+        disabled={submitting || !channelId || !when}
+        className="h-12 w-full rounded-md bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50"
+      >
+        {submitting ? '저장 중…' : '📅 예약 저장'}
+      </button>
+
+      {done && (
+        <div className="rounded-md border border-emerald-500/40 bg-emerald-50 p-3 text-xs text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+          ✓ {done}
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={() => setDone(null)}
+              className="h-8 flex-1 rounded border bg-background text-[13px]"
+            >
+              하나 더 추가
+            </button>
+            <button
+              onClick={() => router.push('/my-schedule')}
+              className="h-8 flex-1 rounded border bg-background text-[13px]"
+            >
+              스케줄 보기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-md border border-red-500/40 bg-red-50 p-3 text-xs text-red-900 dark:bg-red-950/30 dark:text-red-200">
+          ⚠️ {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function sfDefaultWhen(): string {
+  // 내일 16:30 (KST 기준 로컬)
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(16, 30, 0, 0);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function sfFmtKst(local: string): string {
+  // datetime-local 입력값 → 'MM/DD HH:mm' 표시용
+  const d = new Date(local);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
