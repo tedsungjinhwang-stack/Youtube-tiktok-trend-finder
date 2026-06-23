@@ -82,7 +82,7 @@ export function FolderRow({ id, name, channelCount, index, isSeed }: Props) {
       </span>
 
       {error && (
-        <span className="max-w-[200px] truncate text-[11.5px] text-warning" title={error}>
+        <span className="max-w-[200px] truncate text-[13px] text-warning" title={error}>
           {error}
         </span>
       )}

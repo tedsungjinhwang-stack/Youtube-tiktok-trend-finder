@@ -39,13 +39,13 @@ export function CategoryTabs({ folders }: { folders: CategoryFolder[] }) {
       <div className="px-4 py-2.5">
         {/* 헤더: 라벨 + 현재 선택 + 펼치기 / 폴더 관리 */}
         <div className="mb-1.5 flex items-center gap-2">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <span className="text-[13px] font-bold uppercase tracking-wider text-muted-foreground">
             카테고리
           </span>
-          <span className="rounded-full bg-foreground/10 px-2 py-0.5 text-[11.5px] font-semibold">
+          <span className="rounded-full bg-foreground/10 px-2 py-0.5 text-[13px] font-semibold">
             {activeLabel}
             {activeCount != null && activeCount > 0 && (
-              <span className="num ml-1 text-[10.5px] text-muted-foreground">
+              <span className="num ml-1 text-[12px] text-muted-foreground">
                 {activeCount}
               </span>
             )}
@@ -53,13 +53,13 @@ export function CategoryTabs({ folders }: { folders: CategoryFolder[] }) {
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="ml-auto text-[11px] text-muted-foreground hover:text-foreground"
+            className="ml-auto text-[13px] text-muted-foreground hover:text-foreground"
           >
             {expanded ? '접기 ▲' : `전체 보기 ▼`}
           </button>
           <Link
             href="/folders"
-            className="text-[11px] text-muted-foreground hover:text-foreground"
+            className="text-[13px] text-muted-foreground hover:text-foreground"
             title="폴더 관리"
           >
             ⚙
@@ -120,7 +120,7 @@ function Tab({
       {count != null && count > 0 && (
         <span
           className={cn(
-            'num ml-1.5 text-[11px] tabular-nums',
+            'num ml-1.5 text-[13px] tabular-nums',
             active ? 'text-background/70' : 'text-muted-foreground/70'
           )}
         >

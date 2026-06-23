@@ -175,15 +175,15 @@ function HashtagRow({
           ({h.videoCount.toLocaleString()})
         </span>
       </button>
-      {info && <span className="text-[11.5px] text-success">{info}</span>}
-      {error && <span className="text-[11.5px] text-warning">{error}</span>}
+      {info && <span className="text-[13px] text-success">{info}</span>}
+      {error && <span className="text-[13px] text-warning">{error}</span>}
       {h.platform === 'YOUTUBE' && (
         <select
           value={period}
           onChange={(e) => setPeriod(e.target.value as SearchPeriod)}
           disabled={isPending}
           title="검색 기간 (YouTube만 적용)"
-          className="rounded border border-border/60 bg-background/40 px-1.5 py-1 text-[11.5px] hover:border-foreground/40 disabled:opacity-40"
+          className="rounded border border-border/60 bg-background/40 px-1.5 py-1 text-[13px] hover:border-foreground/40 disabled:opacity-40"
         >
           <option value="all">전체 (모든 기간)</option>
           <option value="24h">최근 24h</option>

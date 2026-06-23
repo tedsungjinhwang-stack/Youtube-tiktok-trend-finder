@@ -137,7 +137,7 @@ function CronRow({
             </div>
           )}
           {schedule && (
-            <div className="num mt-1 text-[11.5px] text-muted-foreground/70">
+            <div className="num mt-1 text-[13px] text-muted-foreground/70">
               {schedule}
             </div>
           )}

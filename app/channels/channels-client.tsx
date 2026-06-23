@@ -85,7 +85,7 @@ export function ChannelsClient({
               )}
             >
               {k.label}
-              <span className="num ml-1 text-[11px] opacity-70">({count})</span>
+              <span className="num ml-1 text-[13px] opacity-70">({count})</span>
             </button>
           );
         })}
@@ -244,7 +244,7 @@ function KindGroup({
       {showHeader && (
         <div
           className={cn(
-            'flex items-center gap-1.5 border-b border-border/40 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-wider',
+            'flex items-center gap-1.5 border-b border-border/40 px-3 py-1.5 text-[13px] font-bold uppercase tracking-wider',
             color === 'sky'
               ? 'text-sky-700 dark:text-sky-300'
               : 'text-amber-700 dark:text-amber-300'
@@ -305,11 +305,11 @@ function ChannelItem({ c }: { c: ChannelRow }) {
       <div className="truncate text-[13.5px] font-medium hover:underline">
         {display}
       </div>
-      <div className="num truncate text-[11.5px] text-muted-foreground hover:underline">
+      <div className="num truncate text-[13px] text-muted-foreground hover:underline">
         {c.handle ?? c.externalId}
       </div>
       {error && (
-        <div className="truncate text-[11px] text-warning" title={error}>
+        <div className="truncate text-[13px] text-warning" title={error}>
           {error}
         </div>
       )}
@@ -344,7 +344,7 @@ function ChannelItem({ c }: { c: ChannelRow }) {
         disabled={isPending}
         title={c.kind === 'SOURCE' ? '원본 소스 — 클릭하면 레퍼런스로' : '레퍼런스 — 클릭하면 원본 소스로'}
         className={cn(
-          'shrink-0 rounded-md border px-2 py-1 text-[10.5px] font-bold uppercase tracking-wider disabled:opacity-40',
+          'shrink-0 rounded-md border px-2 py-1 text-[12px] font-bold uppercase tracking-wider disabled:opacity-40',
           c.kind === 'SOURCE'
             ? 'border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:border-amber-500'
             : 'border-sky-500/60 bg-sky-500/15 text-sky-700 dark:text-sky-300 hover:border-sky-500'
@@ -554,7 +554,7 @@ function PlatformBadge({ p }: { p: Platform }) {
   return (
     <span
       className={cn(
-        'inline-flex h-5 w-7 items-center justify-center rounded border text-[11px] font-black',
+        'inline-flex h-5 w-7 items-center justify-center rounded border text-[13px] font-black',
         m.color
       )}
     >
@@ -606,7 +606,7 @@ function ScrapeFilterBar({
     <div className="mb-4 rounded-xl border bg-card/40 px-3 py-2.5">
       <div className="mb-1.5 flex items-center justify-between">
         <div className="text-[13px] font-semibold">스크래핑 필터</div>
-        <div className="text-[11.5px] text-muted-foreground">
+        <div className="text-[13px] text-muted-foreground">
           모든 플랫폼 공통 — 채널 스크랩 시 이 조건만 통과한 영상이 DB에 저장됩니다.
         </div>
       </div>

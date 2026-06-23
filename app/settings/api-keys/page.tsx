@@ -11,7 +11,7 @@ export default function ApiKeysPage() {
           여기서 바로 추가·수정·삭제 가능. 부팅 시점에 필요한 값(DATABASE_URL,
           Supabase 키)은 .env 전용입니다.
         </p>
-        <p className="mt-1 text-[11.5px] text-muted-foreground/80">
+        <p className="mt-1 text-[13px] text-muted-foreground/80">
           현재 메모리 저장 (서버 재시작 시 초기화). DB 연결 후 영구 저장으로 자동
           전환됩니다.
         </p>
@@ -101,7 +101,7 @@ function GuideRow({
       <div className="flex items-center justify-between gap-2">
         <span className="text-[14px] font-semibold">{name}</span>
         {href && (
-          <span className="text-[11.5px] text-muted-foreground">↗ 열기</span>
+          <span className="text-[13px] text-muted-foreground">↗ 열기</span>
         )}
       </div>
       <p className="mt-1 text-[12.5px] text-muted-foreground">{steps}</p>

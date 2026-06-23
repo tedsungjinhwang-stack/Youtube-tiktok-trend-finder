@@ -72,7 +72,7 @@ export function LoginForm() {
           {isPending ? '확인 중…' : '로그인'}
         </button>
 
-        <p className="mt-3 text-[11.5px] text-muted-foreground">
+        <p className="mt-3 text-[13px] text-muted-foreground">
           브라우저를 닫으면 자동 로그아웃됩니다.
         </p>
       </form>

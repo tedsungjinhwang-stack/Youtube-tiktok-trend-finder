@@ -86,7 +86,7 @@ export default function TrendingPage() {
       </div>
 
       <div className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[13px]">
-        <span className="mr-1 text-[11.5px] uppercase tracking-wider text-muted-foreground/80">
+        <span className="mr-1 text-[13px] uppercase tracking-wider text-muted-foreground/80">
           국가
         </span>
         {COUNTRIES.map((c) => (
@@ -106,7 +106,7 @@ export default function TrendingPage() {
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-1.5 text-[13px]">
-        <span className="mr-1 text-[11.5px] uppercase tracking-wider text-muted-foreground/80">
+        <span className="mr-1 text-[13px] uppercase tracking-wider text-muted-foreground/80">
           형식
         </span>
         {FORMATS.map((f) => (
@@ -172,7 +172,7 @@ export default function TrendingPage() {
 
       {items.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
-          <div className="hidden grid-cols-12 gap-4 border-b border-border/60 bg-secondary/40 px-5 py-2.5 text-[11.5px] font-medium uppercase tracking-wider text-muted-foreground/80 md:grid">
+          <div className="hidden grid-cols-12 gap-4 border-b border-border/60 bg-secondary/40 px-5 py-2.5 text-[13px] font-medium uppercase tracking-wider text-muted-foreground/80 md:grid">
             <div className="col-span-1">순위</div>
             <div className="col-span-5">영상</div>
             <div className="col-span-3">채널</div>
@@ -227,11 +227,11 @@ function TrendingRow({ v }: { v: TrendingItem }) {
             }}
             className="h-full w-full object-cover transition group-hover:scale-[1.03]"
           />
-          <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[10.5px] font-bold text-white backdrop-blur md:hidden">
+          <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[12px] font-bold text-white backdrop-blur md:hidden">
             #{v.rank}
           </span>
           {v.isShorts && (
-            <span className="absolute right-1 top-1 rounded bg-red-500/90 px-1 py-0.5 text-[9.5px] font-bold text-white backdrop-blur">
+            <span className="absolute right-1 top-1 rounded bg-red-500/90 px-1 py-0.5 text-[12px] font-bold text-white backdrop-blur">
               SHORTS
             </span>
           )}
@@ -253,7 +253,7 @@ function TrendingRow({ v }: { v: TrendingItem }) {
             <span className="num">{formatRelative(v.publishedAt)}</span>
           </div>
           <div
-            className="num mt-0.5 text-[11.5px] text-emerald-500/90 md:hidden"
+            className="num mt-0.5 text-[13px] text-emerald-500/90 md:hidden"
             title={v.isShorts ? '한국 쇼츠 평균 RPM 0.15~0.20원 기준 추정' : '롱폼(8분↑) 평균 RPM 2.0~2.3원 기준 추정'}
           >
             예상수익 {formatRevenueRange(v.viewCount, { durationSeconds: v.durationSeconds, isShorts: v.isShorts })}
@@ -276,7 +276,7 @@ function TrendingRow({ v }: { v: TrendingItem }) {
           </div>
           <div className="min-w-0">
             <div className="truncate font-medium">{v.channelName}</div>
-            <div className="num text-[11.5px] text-muted-foreground/80">
+            <div className="num text-[13px] text-muted-foreground/80">
               {formatRelative(v.publishedAt)}
             </div>
           </div>
@@ -286,14 +286,14 @@ function TrendingRow({ v }: { v: TrendingItem }) {
       <div className="hidden items-center justify-end md:col-span-2 md:flex">
         <div className="text-right">
           <div className="num text-[15px] font-bold leading-tight">{formatKr(v.viewCount)}</div>
-          <div className="text-[10.5px] leading-tight text-muted-foreground/80">조회수</div>
+          <div className="text-[12px] leading-tight text-muted-foreground/80">조회수</div>
           <div
             className="num mt-1 text-[12px] font-semibold leading-tight text-emerald-500/90"
             title={v.isShorts ? '한국 쇼츠 평균 RPM 0.15~0.20원 기준 추정' : '롱폼(8분↑) 평균 RPM 2.0~2.3원 기준 추정'}
           >
             {formatRevenueRange(v.viewCount, { durationSeconds: v.durationSeconds, isShorts: v.isShorts })}
           </div>
-          <div className="text-[10.5px] leading-tight text-muted-foreground/80">예상수익</div>
+          <div className="text-[12px] leading-tight text-muted-foreground/80">예상수익</div>
         </div>
       </div>
 
