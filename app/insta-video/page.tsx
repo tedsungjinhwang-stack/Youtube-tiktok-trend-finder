@@ -449,7 +449,7 @@ export default function InstaVideoPage() {
         <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-bold">인스타형 영상생성기</h1>
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[12px] uppercase tracking-wide text-muted-foreground">
               Beta
             </span>
             <span className="num text-xs text-muted-foreground">
@@ -503,7 +503,7 @@ export default function InstaVideoPage() {
             >
               {exporting === 'zip' ? '…' : '↓ 전체 ZIP'}
             </button>
-            <label className="flex items-center gap-1 text-[11px]">
+            <label className="flex items-center gap-1 text-[13px]">
               <span className="text-muted-foreground">초/장</span>
               <select
                 value={secondsPerSlide}
@@ -566,7 +566,7 @@ export default function InstaVideoPage() {
           <div className="flex flex-wrap justify-center gap-6">
             {list.map((s, i) => (
               <div key={s.id} className="flex flex-col items-center gap-1">
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-[13px] text-muted-foreground">
                   #{i + 1}
                 </span>
                 <SlideCard
@@ -609,7 +609,7 @@ export default function InstaVideoPage() {
                       {t.emoji}
                     </span>
                     <span
-                      className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-center text-[9px] font-semibold"
+                      className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-center text-[12px] font-semibold"
                       style={{ color: t.style.textColor }}
                     >
                       {t.label}
@@ -618,7 +618,7 @@ export default function InstaVideoPage() {
                 );
               })}
             </div>
-            <p className="mt-1 text-[10.5px] text-muted-foreground">
+            <p className="mt-1 text-[12px] text-muted-foreground">
               클릭: 선택 슬라이드만 / 더블클릭: 모든 슬라이드 적용
             </p>
           </Field>
@@ -702,7 +702,7 @@ export default function InstaVideoPage() {
                 {selected.bgImageUrl && (
                   <button
                     onClick={() => update('bgImageUrl', undefined)}
-                    className="w-full rounded-md border bg-background px-2 py-1 text-[11px] hover:bg-accent"
+                    className="w-full rounded-md border bg-background px-2 py-1 text-[13px] hover:bg-accent"
                   >
                     이미지 제거
                   </button>
@@ -840,7 +840,7 @@ export default function InstaVideoPage() {
             </div>
             {selected.accentBar !== 'none' && (
               <div className="mt-1.5 flex items-center gap-2">
-                <span className="text-[11px] text-muted-foreground">색</span>
+                <span className="text-[13px] text-muted-foreground">색</span>
                 <input
                   type="color"
                   value={selected.accentColor ?? selected.textColor}

@@ -171,7 +171,7 @@ export function VideoCard({ data }: { data: VideoCardData }) {
             {rankBadge && (
               <span className="ml-0.5 inline-flex items-center gap-0.5">
                 <span>{rankBadge.emoji}</span>
-                <span className="text-[11px]">{rankBadge.label}</span>
+                <span className="text-[13px]">{rankBadge.label}</span>
               </span>
             )}
           </span>
@@ -189,7 +189,7 @@ export function VideoCard({ data }: { data: VideoCardData }) {
         {growth && (
           <span
             className={cn(
-              'absolute left-2 top-9 rounded px-1.5 py-0.5 text-[11px] font-bold backdrop-blur',
+              'absolute left-2 top-9 rounded px-1.5 py-0.5 text-[13px] font-bold backdrop-blur',
               growth.color
             )}
             title={`시간당 ${formatKr(growth.perHour)}회`}
@@ -213,7 +213,7 @@ export function VideoCard({ data }: { data: VideoCardData }) {
           return (
             <span
               className={cn(
-                'absolute right-10 top-2 z-10 rounded px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider shadow backdrop-blur',
+                'absolute right-10 top-2 z-10 rounded px-1.5 py-0.5 text-[12px] font-bold uppercase tracking-wider shadow backdrop-blur',
                 isShort
                   ? 'bg-red-500/90 text-white'
                   : 'bg-blue-500/90 text-white'
@@ -263,12 +263,12 @@ export function VideoCard({ data }: { data: VideoCardData }) {
         </button>
 
         {deleteError && (
-          <span className="absolute right-2 top-[6rem] rounded bg-red-600/90 px-1.5 py-0.5 text-[10px] text-white">
+          <span className="absolute right-2 top-[6rem] rounded bg-red-600/90 px-1.5 py-0.5 text-[12px] text-white">
             {deleteError.slice(0, 30)}
           </span>
         )}
 
-        <span className="absolute bottom-2 left-2 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-[11px] font-black backdrop-blur">
+        <span className="absolute bottom-2 left-2 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-[13px] font-black backdrop-blur">
           <PlatformLetter p={data.platform} />
         </span>
 
@@ -280,11 +280,11 @@ export function VideoCard({ data }: { data: VideoCardData }) {
 
       <div className="space-y-1.5 px-3 py-2.5">
         <div className="flex items-center gap-1.5 truncate text-[12.5px] text-muted-foreground">
-          <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold">
+          <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-secondary text-[12px] font-bold">
             {data.channelName.slice(0, 1)}
           </span>
           <span className="truncate">{data.channelName}</span>
-          <span className="shrink-0 rounded border border-border/60 px-1 py-px text-[10px] text-muted-foreground/80">
+          <span className="shrink-0 rounded border border-border/60 px-1 py-px text-[12px] text-muted-foreground/80">
             {data.folder}
           </span>
         </div>

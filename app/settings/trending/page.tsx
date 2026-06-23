@@ -198,7 +198,7 @@ function Stat({
 }) {
   return (
     <div>
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
+      <div className="text-[13px] uppercase tracking-wider text-muted-foreground/80">
         {label}
       </div>
       <div

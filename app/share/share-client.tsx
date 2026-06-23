@@ -400,7 +400,7 @@ function Inner({
             <div className="mt-2 flex gap-2">
               <button
                 onClick={() => setDone(null)}
-                className="h-8 flex-1 rounded border bg-background text-[11px]"
+                className="h-8 flex-1 rounded border bg-background text-[13px]"
               >
                 하나 더 추가
               </button>
@@ -408,7 +408,7 @@ function Inner({
                 onClick={() =>
                   router.push(mode === 'material' ? '/my-schedule' : '/channels')
                 }
-                className="h-8 flex-1 rounded border bg-background text-[11px]"
+                className="h-8 flex-1 rounded border bg-background text-[13px]"
               >
                 목록 보기
               </button>
@@ -447,7 +447,7 @@ function MaterialsList({
 
   if (items.length === 0) {
     return (
-      <div className="rounded-md border border-dashed bg-card/40 p-3 text-center text-[11px] text-muted-foreground">
+      <div className="rounded-md border border-dashed bg-card/40 p-3 text-center text-[13px] text-muted-foreground">
         이 채널 소재 없음
       </div>
     );
@@ -455,7 +455,7 @@ function MaterialsList({
 
   return (
     <div className="space-y-1.5 rounded-md border bg-card/40 p-2">
-      <div className="px-1 text-[11px] font-semibold text-muted-foreground">
+      <div className="px-1 text-[13px] font-semibold text-muted-foreground">
         현재 소재 ({items.length})
       </div>
       {items.map((m, i) => {
@@ -465,7 +465,7 @@ function MaterialsList({
             key={m.id}
             className="flex items-center gap-2 rounded border bg-background/60 px-2 py-1.5"
           >
-            <span className="num shrink-0 text-[10.5px] font-bold text-muted-foreground">
+            <span className="num shrink-0 text-[12px] font-bold text-muted-foreground">
               {i + 1}
             </span>
             {isUrl ? (
@@ -473,14 +473,14 @@ function MaterialsList({
                 href={m.url}
                 target="_blank"
                 rel="noreferrer"
-                className="min-w-0 flex-1 truncate text-[11.5px] hover:underline"
+                className="min-w-0 flex-1 truncate text-[13px] hover:underline"
                 title={m.url}
               >
                 {m.url}
               </a>
             ) : (
               <span
-                className="min-w-0 flex-1 truncate text-[11.5px]"
+                className="min-w-0 flex-1 truncate text-[13px]"
                 title={m.url}
               >
                 {m.url}
@@ -556,7 +556,7 @@ function AssetChannelsList({
 
   if (items.length === 0) {
     return (
-      <div className="rounded-md border border-dashed bg-card/40 p-3 text-center text-[11px] text-muted-foreground">
+      <div className="rounded-md border border-dashed bg-card/40 p-3 text-center text-[13px] text-muted-foreground">
         {folderName ? `"${folderName}" · ${kind === 'SOURCE' ? '원본' : '레퍼'} 채널 없음` : '폴더를 선택하세요'}
       </div>
     );
@@ -564,7 +564,7 @@ function AssetChannelsList({
 
   return (
     <div className="space-y-1.5 rounded-md border bg-card/40 p-2">
-      <div className="px-1 text-[11px] font-semibold text-muted-foreground">
+      <div className="px-1 text-[13px] font-semibold text-muted-foreground">
         현재 채널 ({items.length})
       </div>
       {items.map((c) => {
@@ -578,7 +578,7 @@ function AssetChannelsList({
           >
             <span
               className={
-                'inline-flex h-5 w-7 shrink-0 items-center justify-center rounded border text-[10.5px] font-bold ' +
+                'inline-flex h-5 w-7 shrink-0 items-center justify-center rounded border text-[12px] font-bold ' +
                 badge.color
               }
             >
@@ -589,13 +589,13 @@ function AssetChannelsList({
                 href={url}
                 target="_blank"
                 rel="noreferrer"
-                className="min-w-0 flex-1 truncate text-[11.5px] hover:underline"
+                className="min-w-0 flex-1 truncate text-[13px] hover:underline"
                 title={display}
               >
                 {display}
               </a>
             ) : (
-              <span className="min-w-0 flex-1 truncate text-[11.5px]">{display}</span>
+              <span className="min-w-0 flex-1 truncate text-[13px]">{display}</span>
             )}
             <button
               onClick={() => remove(c.id)}

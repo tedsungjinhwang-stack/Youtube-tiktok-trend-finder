@@ -581,7 +581,7 @@ export default function CommentGeneratorPage() {
               📋 일괄 추가
             </button>
             <label
-              className="flex cursor-pointer items-center gap-1.5 text-[11px]"
+              className="flex cursor-pointer items-center gap-1.5 text-[13px]"
               title="추가할 때 닉네임/프사색/좋아요/시간을 자동 랜덤화"
             >
               <button
@@ -663,7 +663,7 @@ export default function CommentGeneratorPage() {
               <label className="text-xs font-semibold">
                 📋 일괄 추가 (한 줄당 하나의 댓글)
               </label>
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-[13px] text-muted-foreground">
                 {bulkText.split('\n').filter((s) => s.trim()).length}줄
               </span>
             </div>
@@ -821,7 +821,7 @@ export default function CommentGeneratorPage() {
       <aside className="w-80 shrink-0 overflow-auto border-l bg-background">
         <div className="border-b px-4 py-3">
           <h2 className="text-sm font-semibold">편집</h2>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
             선택된 댓글: {selected.authorName}
           </p>
         </div>
@@ -832,7 +832,7 @@ export default function CommentGeneratorPage() {
               <label className="block text-xs font-medium text-muted-foreground">
                 작성자
               </label>
-              <label className="flex cursor-pointer items-center gap-1.5 text-[11px]">
+              <label className="flex cursor-pointer items-center gap-1.5 text-[13px]">
                 <button
                   type="button"
                   role="switch"
@@ -1199,7 +1199,7 @@ function CommentCard({
             {c.isVerified && (
               <span
                 title="인증됨"
-                className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-[10px]"
+                className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-[12px]"
                 style={{ backgroundColor: '#aaa', color: '#fff' }}
               >
                 ✓

@@ -481,7 +481,7 @@ export default function AudioShortsPage() {
         <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-bold">군림보형 영상생성기</h1>
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[12px] uppercase tracking-wide text-muted-foreground">
               Beta
             </span>
             <span className="num text-xs text-muted-foreground">
@@ -570,7 +570,7 @@ export default function AudioShortsPage() {
                           : 'hover:bg-secondary/30'
                     )}
                   >
-                    <div className="flex items-baseline justify-between gap-2 text-[11px] text-muted-foreground">
+                    <div className="flex items-baseline justify-between gap-2 text-[13px] text-muted-foreground">
                       <span>#{i + 1}</span>
                       <span className="num">
                         {fmt(s.start)} → {fmt(s.end)}
@@ -626,7 +626,7 @@ export default function AudioShortsPage() {
                     {t.emoji}
                   </span>
                   <span
-                    className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-center text-[9.5px] font-semibold"
+                    className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-center text-[12px] font-semibold"
                     style={{ color: t.captionTextColor }}
                   >
                     {t.label}

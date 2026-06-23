@@ -350,7 +350,7 @@ export function DiscoveryClient({
                     />
                   ) : (
                     <span
-                      className="mt-0.5 grid h-12 w-12 shrink-0 place-items-center rounded text-[10px] font-bold text-white"
+                      className="mt-0.5 grid h-12 w-12 shrink-0 place-items-center rounded text-[12px] font-bold text-white"
                       style={{ backgroundColor: colorFor(r.source) }}
                     >
                       {FLAG[r.country] ?? ''}
@@ -401,24 +401,24 @@ export function DiscoveryClient({
 function RankBadge({ rank, prevRank }: { rank: number; prevRank: number | null }) {
   if (prevRank == null) {
     return (
-      <span className="mt-0.5 rounded bg-pink-500/15 px-1 text-[9px] font-bold text-pink-400">
+      <span className="mt-0.5 rounded bg-pink-500/15 px-1 text-[12px] font-bold text-pink-400">
         NEW
       </span>
     );
   }
   const diff = prevRank - rank; // 양수 = 순위 상승
   if (diff === 0) {
-    return <span className="mt-0.5 text-[10px] text-muted-foreground/60">−</span>;
+    return <span className="mt-0.5 text-[12px] text-muted-foreground/60">−</span>;
   }
   if (diff > 0) {
     return (
-      <span className="mt-0.5 text-[10px] font-semibold text-emerald-400">
+      <span className="mt-0.5 text-[12px] font-semibold text-emerald-400">
         ▲{diff}
       </span>
     );
   }
   return (
-    <span className="mt-0.5 text-[10px] font-semibold text-rose-400">
+    <span className="mt-0.5 text-[12px] font-semibold text-rose-400">
       ▼{-diff}
     </span>
   );

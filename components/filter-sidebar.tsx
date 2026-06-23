@@ -126,7 +126,7 @@ function ChipBlock({ group }: { group: ChipGroup }) {
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-5">
-      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+      <div className="mb-2 text-[13px] font-semibold uppercase tracking-wider text-muted-foreground/80">
         {title}
       </div>
       {children}

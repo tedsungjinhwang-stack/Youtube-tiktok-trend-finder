@@ -175,7 +175,7 @@ export function SelectableVideoGrid({
             >
               ✕ 취소
             </button>
-            <span className="ml-2 text-[11.5px] text-muted-foreground">
+            <span className="ml-2 text-[13px] text-muted-foreground">
               빈 곳을 드래그해서 영역 선택, 카드 클릭으로 개별 토글, ESC로 종료
             </span>
           </>

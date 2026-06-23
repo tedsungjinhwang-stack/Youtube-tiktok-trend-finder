@@ -112,7 +112,7 @@ function Row({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold">{cred.label}</span>
-            <code className="rounded border border-border/60 bg-background/40 px-1.5 py-0.5 text-[11.5px] text-muted-foreground">
+            <code className="rounded border border-border/60 bg-background/40 px-1.5 py-0.5 text-[13px] text-muted-foreground">
               {cred.service}
             </code>
             <SourceBadge source={cred.source} />
@@ -216,7 +216,7 @@ function SourceBadge({ source }: { source: CredStatus['source'] }) {
   } as const;
   const m = map[source];
   return (
-    <span className={cn('rounded border px-1.5 py-0.5 text-[10.5px]', m.cls)}>
+    <span className={cn('rounded border px-1.5 py-0.5 text-[12px]', m.cls)}>
       {m.label}
     </span>
   );
@@ -224,7 +224,7 @@ function SourceBadge({ source }: { source: CredStatus['source'] }) {
 
 function BootOnlyBadge() {
   return (
-    <span className="rounded border border-border/60 bg-background/40 px-1.5 py-0.5 text-[10.5px] text-muted-foreground">
+    <span className="rounded border border-border/60 bg-background/40 px-1.5 py-0.5 text-[12px] text-muted-foreground">
       env 전용
     </span>
   );

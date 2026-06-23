@@ -88,11 +88,11 @@ export function HashtagManager({
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <div>
           <div className="text-[13.5px] font-semibold">해시태그 관리</div>
-          <div className="mt-0.5 text-[11.5px] text-muted-foreground">
+          <div className="mt-0.5 text-[13px] text-muted-foreground">
             태그를 클릭해서 켜고/끄기. 전체 끄면 모든 인기피드 표시.
           </div>
         </div>
-        <span className="num text-[11.5px] text-muted-foreground">
+        <span className="num text-[13px] text-muted-foreground">
           {items.length}개 등록 · {selectedIds.length}개 필터 중
         </span>
       </div>
@@ -158,7 +158,7 @@ export function HashtagManager({
             const list = grouped[p] ?? [];
             return (
               <div key={p}>
-                <div className="mb-1 flex items-center gap-1.5 text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                <div className="mb-1 flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                   <PlatformDot p={p} />
                   {p === 'TIKTOK' ? 'TikTok' : 'Instagram'}
                   <span className="num text-muted-foreground/60">
@@ -186,7 +186,7 @@ export function HashtagManager({
                           <button onClick={() => toggle(h.id)}>
                             #{h.tag}
                             {h.folder && (
-                              <span className="ml-1 text-[10.5px] opacity-70">
+                              <span className="ml-1 text-[12px] opacity-70">
                                 · {h.folder}
                               </span>
                             )}

@@ -123,7 +123,7 @@ export function YoutubeKeyList() {
       )}
 
       <div className="rounded-xl border bg-card p-4">
-        <div className="text-[11.5px] uppercase tracking-wider text-muted-foreground/80">
+        <div className="text-[13px] uppercase tracking-wider text-muted-foreground/80">
           전체 quota
         </div>
         <div className="num mt-1 text-2xl font-bold tabular-nums">
@@ -171,7 +171,7 @@ export function YoutubeKeyList() {
                       {k.preview}
                     </span>
                     {k.source === 'env' && (
-                      <span className="rounded border border-border/60 px-1.5 py-0.5 text-[10.5px] text-muted-foreground">
+                      <span className="rounded border border-border/60 px-1.5 py-0.5 text-[12px] text-muted-foreground">
                         .env
                       </span>
                     )}
@@ -183,7 +183,7 @@ export function YoutubeKeyList() {
                     </span>
                     <span
                       className={
-                        'rounded px-2 py-0.5 text-[11.5px] ' +
+                        'rounded px-2 py-0.5 text-[13px] ' +
                         (k.status === 'active'
                           ? 'border border-success/40 text-success'
                           : 'border border-warning/40 text-warning')

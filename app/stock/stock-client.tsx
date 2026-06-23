@@ -130,7 +130,7 @@ export function StockClient({ folders }: { folders: Folder[] }) {
               : 'border border-border/60 bg-background/40 text-muted-foreground hover:border-foreground/40 hover:text-foreground'
           )}
         >
-          전체 <span className="num ml-1 text-[11px] opacity-70">({items.length})</span>
+          전체 <span className="num ml-1 text-[13px] opacity-70">({items.length})</span>
         </button>
         {folders.map((f) => (
           <button
@@ -144,7 +144,7 @@ export function StockClient({ folders }: { folders: Folder[] }) {
             )}
           >
             {f.name}
-            <span className="num ml-1 text-[11px] opacity-70">
+            <span className="num ml-1 text-[13px] opacity-70">
               ({counts.get(f.id) ?? 0})
             </span>
           </button>
@@ -240,7 +240,7 @@ function StockCard({
         <select
           value={item.folderId}
           onChange={(e) => onUpdate(item.id, { folderId: e.target.value })}
-          className="h-6 rounded border bg-background px-1.5 text-[10.5px] font-semibold text-muted-foreground"
+          className="h-6 rounded border bg-background px-1.5 text-[12px] font-semibold text-muted-foreground"
           title="폴더 변경"
         >
           {folders.map((f) => (
@@ -270,13 +270,13 @@ function StockCard({
           href={item.url}
           target="_blank"
           rel="noreferrer"
-          className="block truncate text-[11.5px] text-blue-600 hover:underline dark:text-blue-400"
+          className="block truncate text-[13px] text-blue-600 hover:underline dark:text-blue-400"
           title={item.url}
         >
           {item.url}
         </a>
       ) : (
-        <span className="block truncate text-[11.5px]" title={item.url}>
+        <span className="block truncate text-[13px]" title={item.url}>
           {item.url}
         </span>
       )}
@@ -289,7 +289,7 @@ function StockCard({
         onSave={(v) => onUpdate(item.id, { description: v })}
       />
 
-      <div className="text-[10px] text-muted-foreground/60">
+      <div className="text-[12px] text-muted-foreground/60">
         {new Date(item.createdAt).toLocaleDateString('ko-KR')} · {folderName}
       </div>
     </li>
