@@ -175,9 +175,22 @@ export default function MySchedulePage() {
 
   const removeChannel = async (id: string) => {
     if (!confirm('이 채널과 모든 예약 영상을 삭제할까요?')) return;
-    await fetch(`/api/v1/my-schedule/channels/${id}`, { method: 'DELETE' });
-    if (selectedChannelId === id) setSelectedChannelId(null);
-    refresh();
+    try {
+      const res = await fetch(`/api/v1/my-schedule/channels/${id}`, {
+        method: 'DELETE',
+      });
+      const text = await res.text();
+      let data: { success?: boolean; error?: { message?: string } } | null = null;
+      try { data = text ? JSON.parse(text) : null; } catch {}
+      if (!res.ok || data?.success === false) {
+        alert(`삭제 실패 (HTTP ${res.status}): ${data?.error?.message ?? text.slice(0, 200)}`);
+        return;
+      }
+      if (selectedChannelId === id) setSelectedChannelId(null);
+      refresh();
+    } catch (e) {
+      alert(`삭제 중 네트워크 오류: ${(e as Error).message}`);
+    }
   };
 
   const updateChannel = async (id: string, patch: Partial<MyChannel>) => {
