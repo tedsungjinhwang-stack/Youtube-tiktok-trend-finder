@@ -41,7 +41,29 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
 export async function DELETE(_req: Request, { params }: Ctx) {
   const { id } = await params;
-  await unsyncMyChannel(id).catch(() => {});
-  await prisma.myChannel.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+  // 캘린더 이벤트는 best-effort 로 해제. 실패해도 DB 삭제는 진행.
+  await unsyncMyChannel(id).catch((e) => {
+    console.warn('[channel delete] unsync failed', id, (e as Error).message);
+  });
+  try {
+    await prisma.myChannel.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    const err = e as { code?: string; message?: string };
+    // P2025 = record not found → 이미 삭제됨, 성공으로 간주
+    if (err.code === 'P2025') {
+      return NextResponse.json({ success: true, warning: 'already deleted' });
+    }
+    console.error('[channel delete] failed', id, err.code, err.message);
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: err.code ?? 'DB_ERROR',
+          message: err.message ?? 'unknown error',
+        },
+      },
+      { status: 500 }
+    );
+  }
 }
