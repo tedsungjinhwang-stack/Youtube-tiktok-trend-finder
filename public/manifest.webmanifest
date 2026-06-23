@@ -38,10 +38,10 @@
   },
   "shortcuts": [
     {
-      "name": "커뮤니티/뉴스 (모바일)",
+      "name": "커뮤니티/뉴스",
       "short_name": "커뮤니티",
-      "description": "한국·일본 커뮤니티 인기글, 뉴스, 레딧 — 모바일 최적화",
-      "url": "/m",
+      "description": "한국·일본 커뮤니티 인기글, 뉴스, 레딧",
+      "url": "/share?type=community",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {

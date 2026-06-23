@@ -4,18 +4,61 @@ import { ShareClient } from './share-client';
 export const dynamic = 'force-dynamic';
 
 export default async function UnifiedSharePage() {
-  const [folders, myChannels, assetChannels] = await Promise.all([
+  const [folders, myChannels, assetChannels, community] = await Promise.all([
     safeFolders(),
     safeMyChannels(),
     safeAssetChannels(),
+    safeCommunity(),
   ]);
   return (
     <ShareClient
       folders={folders}
       myChannels={myChannels}
       assetChannels={assetChannels}
+      community={community.posts}
+      communityLastRunAt={community.lastRunAt}
     />
   );
+}
+
+async function safeCommunity() {
+  try {
+    const since = new Date(Date.now() - 7 * 86_400_000);
+    const posts = await prisma.discoveryPost.findMany({
+      where: { collectedAt: { gte: since } },
+      orderBy: [{ rank: 'asc' }],
+      take: 400,
+    });
+    const latest = await prisma.discoveryPost.aggregate({
+      _max: { collectedAt: true },
+    });
+    return {
+      posts: posts.map((p) => ({
+        id: p.id,
+        tab: p.tab,
+        country: p.country,
+        source: p.source,
+        sourceLabel: p.sourceLabel,
+        rank: p.rank,
+        prevRank: p.prevRank,
+        title: p.title,
+        url: p.url,
+        thumbnailUrl: p.thumbnailUrl,
+        commentCount: p.commentCount,
+        prevCommentCount: p.prevCommentCount,
+        viewCount: p.viewCount,
+        prevViewCount: p.prevViewCount,
+        score: p.score,
+        prevScore: p.prevScore,
+        lang: p.lang,
+        publishedAt: p.publishedAt?.toISOString() ?? null,
+        firstSeenAt: p.firstSeenAt.toISOString(),
+      })),
+      lastRunAt: latest._max.collectedAt?.toISOString() ?? null,
+    };
+  } catch {
+    return { posts: [], lastRunAt: null };
+  }
 }
 
 async function safeFolders() {
