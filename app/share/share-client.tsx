@@ -769,21 +769,42 @@ function CommunityFeed({
         byLang.set(p.lang!, arr);
       }
       const next: Record<string, string> = {};
+      let totalFail = 0;
+      const errSamples: string[] = [];
       for (const [lang, items] of byLang) {
         const r = await fetch('/api/v1/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ q: items.map((i) => i.title), sl: lang, tl: 'ko' }),
         });
-        const d = (await r.json()) as { translations?: string[] };
+        const d = (await r.json()) as {
+          translations?: string[];
+          stats?: { ok: number; fail: number };
+          errors?: string[];
+        };
         (d.translations ?? []).forEach((t, idx) => {
-          if (t) next[items[idx].id] = t;
+          // 원문과 다를 때만 번역된 걸로 간주 → 실패 시 토글이 헛돌지 않음
+          if (t && t.trim() && t.trim() !== items[idx].title.trim()) {
+            next[items[idx].id] = t;
+          }
         });
+        if (d.stats?.fail) totalFail += d.stats.fail;
+        if (d.errors?.length) errSamples.push(...d.errors);
+      }
+      if (Object.keys(next).length === 0) {
+        alert(
+          `번역 실패: 모든 항목 (${totalFail}개)\n${errSamples.slice(0, 2).join('\n') || '서버 응답 없음'}`
+        );
+        return;
       }
       setTmap((m) => ({ ...m, ...next }));
       setTranslated(true);
+      if (totalFail > 0) {
+        // 일부만 실패한 경우 — 콘솔에만 기록 (UX 방해 줄임)
+        console.warn('[translate] 일부 실패:', totalFail, errSamples);
+      }
     } catch {
-      alert('번역 실패');
+      alert('번역 실패 (네트워크)');
     } finally {
       setTranslating(false);
     }

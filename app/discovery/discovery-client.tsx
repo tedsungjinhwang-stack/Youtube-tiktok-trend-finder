@@ -184,19 +184,36 @@ export function DiscoveryClient({
         byLang.set(r.lang!, arr);
       }
       const next: Record<string, string> = {};
+      let totalFail = 0;
+      const errSamples: string[] = [];
       for (const [lang, items] of byLang) {
         const res = await fetch('/api/v1/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ q: items.map((i) => i.title), sl: lang, tl: 'ko' }),
         });
-        const data = (await res.json()) as { translations?: string[] };
+        const data = (await res.json()) as {
+          translations?: string[];
+          stats?: { ok: number; fail: number };
+          errors?: string[];
+        };
         (data.translations ?? []).forEach((t, idx) => {
-          if (t) next[items[idx].id] = t;
+          if (t && t.trim() && t.trim() !== items[idx].title.trim()) {
+            next[items[idx].id] = t;
+          }
         });
+        if (data.stats?.fail) totalFail += data.stats.fail;
+        if (data.errors?.length) errSamples.push(...data.errors);
+      }
+      if (Object.keys(next).length === 0) {
+        alert(
+          `번역 실패 (${totalFail}개)\n${errSamples.slice(0, 2).join('\n') || '서버 응답 없음'}`
+        );
+        return;
       }
       setTmap((m) => ({ ...m, ...next }));
       setTranslated(true);
+      if (totalFail > 0) console.warn('[translate] 일부 실패:', totalFail, errSamples);
     } catch {
       alert('번역에 실패했습니다. 잠시 후 다시 시도하세요.');
     } finally {
