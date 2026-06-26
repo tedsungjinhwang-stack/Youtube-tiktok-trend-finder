@@ -51,7 +51,7 @@ export function PlatformPivot({ platforms }: { platforms: Platform[] }) {
   );
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-xl border bg-card/40 p-1.5">
+    <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap rounded-xl border bg-card/40 p-1.5 sm:flex-wrap sm:overflow-visible sm:whitespace-normal [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {GROUPS.map((g) => (
         <button
           key={g.key}
