@@ -33,13 +33,10 @@ export async function runPreset(preset: ScrapePreset): Promise<{
   try {
     // 1) 재스크랩 — 폴더 + 플랫폼 한정. minAgeDays/recencyDays 가 클수록 깊게 파야 함.
     //    minAgeDays N일 → 50일치 정도면 평균 채널 N일 커버. 너무 깊으면 quota 낭비.
+    // 기간 조건(minAgeDays/recencyDays) 있으면 그냥 풀로 1000개까지 파기.
+    // 채널당 40 unit, 10채널이어도 400 unit (일일 10K 의 4%) 라 여유 충분.
     const maxRangeDays = Math.max(preset.minAgeDays ?? 0, preset.recencyDays ?? 0);
-    let maxVideos = 50; // 기본 (일반 cron 과 동일)
-    if (maxRangeDays > 0) {
-      // 일당 ~5개로 계산 (활발한 쇼츠 채널 가정), 상한 1000.
-      // 60일 → 300, 1년(365) → 1000(cap).
-      maxVideos = Math.min(1000, Math.max(50, maxRangeDays * 5));
-    }
+    const maxVideos = maxRangeDays > 0 ? 1000 : 50;
     scraped = await scrapeByPlatforms(
       platform ? [platform] : undefined,
       folderId,
