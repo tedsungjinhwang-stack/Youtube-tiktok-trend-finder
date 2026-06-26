@@ -38,10 +38,14 @@ export type ScrapeResult = {
 };
 
 const API = 'https://www.googleapis.com/youtube/v3';
-const MAX_VIDEOS_PER_SCRAPE = 250;
+const MAX_VIDEOS_PER_SCRAPE = 50;
 
-export async function scrapeYoutube(channel: Channel): Promise<ScrapeResult> {
+export async function scrapeYoutube(
+  channel: Channel,
+  opts: { maxVideos?: number } = {}
+): Promise<ScrapeResult> {
   let quotaUsed = 0;
+  const maxVideos = opts.maxVideos ?? MAX_VIDEOS_PER_SCRAPE;
 
   // 1. Resolve channelId (UCxxx). 이미 UC로 시작하면 그대로.
   const { channelId, meta, units } = await resolveChannelId(channel);
@@ -70,10 +74,10 @@ export async function scrapeYoutube(channel: Channel): Promise<ScrapeResult> {
   }
   const uploadsPlaylistId = 'UU' + channelId.slice(2);
 
-  // 3. playlistItems.list → videoIds
+  // 3. playlistItems.list → videoIds (페이지네이션, opts.maxVideos 만큼)
   const { videoIds, units: u2 } = await fetchUploadsVideoIds(
     uploadsPlaylistId,
-    MAX_VIDEOS_PER_SCRAPE
+    maxVideos
   );
   quotaUsed += u2;
 
