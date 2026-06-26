@@ -53,6 +53,38 @@ export function PresetsClient({
   const [adding, setAdding] = useState(false);
   const [runningId, setRunningId] = useState<string | null>(null);
   const [resultMsg, setResultMsg] = useState<string | null>(null);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
+
+  async function runBackfill() {
+    if (backfilling) return;
+    setBackfilling(true);
+    setBackfillMsg(null);
+    let totalDone = 0;
+    try {
+      while (true) {
+        const r = await fetch('/api/v1/backfill-channels', { method: 'POST' });
+        const txt = await r.text();
+        let j: { success?: boolean; data?: { processed: number; remaining: number; results?: Array<{name: string; ok: boolean; videos?: number; error?: string}> }; error?: { message?: string } } | null = null;
+        try { j = JSON.parse(txt); } catch {}
+        if (!r.ok || !j?.success) {
+          setBackfillMsg(`❌ 백필 실패: ${j?.error?.message ?? `HTTP ${r.status}`}`);
+          return;
+        }
+        const d = j.data!;
+        totalDone += d.processed;
+        if (d.processed === 0 || d.remaining === 0) {
+          setBackfillMsg(`✅ 백필 완료 — 총 ${totalDone} 채널 처리됨`);
+          break;
+        }
+        setBackfillMsg(`백필 중… ${totalDone} 채널 완료, 남은 채널 ${d.remaining}개`);
+      }
+    } catch (e) {
+      setBackfillMsg(`❌ ${(e as Error).message}`);
+    } finally {
+      setBackfilling(false);
+    }
+  }
 
   async function refresh() {
     const r = await fetch('/api/v1/scrape-presets', { cache: 'no-store' });
@@ -201,12 +233,34 @@ export function PresetsClient({
         ))}
       </ul>
 
-      <div className="mt-6 rounded-lg border bg-secondary/30 p-3 text-[13px] text-muted-foreground">
-        <p className="mb-1 font-semibold text-foreground">⏰ 자동 실행 (cron)</p>
-        활성화된 모든 프리셋을 자동 실행하려면 cron-job.org 에 등록:
-        <code className="ml-1 rounded bg-background px-1.5 py-0.5 text-[12px]">
-          {'/api/cron/scrape-presets?secret=<CRON_SECRET>'}
-        </code>
+      <div className="mt-6 space-y-3">
+        <div className="rounded-lg border bg-card/40 p-3">
+          <p className="mb-1 text-[14px] font-semibold">🗂️ 채널 백필 (옛날 영상)</p>
+          <p className="mb-2 text-[12px] text-muted-foreground">
+            아직 깊이 스크랩 안 된 채널들의 옛날 영상 1000개씩 가져옵니다.
+            수동 트리거 — 채널 새로 추가하고 옛날 viral 영상 필요할 때만 누르세요.
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={runBackfill}
+              disabled={backfilling}
+              className="rounded-md bg-primary px-3 py-1.5 text-[13px] font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              {backfilling ? '백필 중…' : '▶ 백필 시작'}
+            </button>
+            {backfillMsg && (
+              <span className="text-[13px] text-muted-foreground">{backfillMsg}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-lg border bg-secondary/30 p-3 text-[13px] text-muted-foreground">
+          <p className="mb-1 font-semibold text-foreground">⏰ 자동 실행 (cron)</p>
+          활성화된 모든 프리셋을 자동 실행하려면 cron-job.org 에 등록:
+          <code className="ml-1 rounded bg-background px-1.5 py-0.5 text-[12px]">
+            {'/api/cron/scrape-presets?secret=<CRON_SECRET>'}
+          </code>
+        </div>
       </div>
     </div>
   );
@@ -278,6 +332,14 @@ function PresetRow({
             {!p.enabled && (
               <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                 OFF
+              </span>
+            )}
+            {p.minAgeDays != null && (
+              <span
+                className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-semibold text-amber-400"
+                title="이전 N일 조건이 있어 cron 자동 실행 제외. 수동 ▶ 실행으로만 돌아감"
+              >
+                수동 전용
               </span>
             )}
           </div>

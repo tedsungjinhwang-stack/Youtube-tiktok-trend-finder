@@ -24,8 +24,10 @@ export async function GET(req: NextRequest) {
       { status: 401 }
     );
   }
+  // minAgeDays(이전 N일) 가 설정된 프리셋은 cron 자동에서 제외 — 수동 ▶ 실행 전용
+  // (옛날 영상 깊이 스크랩이라 무겁고, 매번 돌릴 필요 없음).
   const presets = await prisma.scrapePreset.findMany({
-    where: { enabled: true },
+    where: { enabled: true, minAgeDays: null },
     orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
   });
   const results: Array<{
