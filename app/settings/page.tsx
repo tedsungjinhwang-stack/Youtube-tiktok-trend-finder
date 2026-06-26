@@ -32,6 +32,17 @@ export default async function SettingsPage() {
       </p>
 
       <div className="mt-5 space-y-3">
+        <Card title="스크랩 프리셋" subtitle="카테고리·플랫폼·조건별 자동 수집/매칭. 활성화된 프리셋은 cron 으로 자동 실행.">
+          <div className="px-4 py-3">
+            <a
+              href="/settings/presets"
+              className="inline-block rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground"
+            >
+              프리셋 관리 →
+            </a>
+          </div>
+        </Card>
+
         <Card title="기본 임계치" subtitle="홈/YouTube/Social 페이지 필터의 초기값. URL 파라미터로 덮어쓸 수 있음.">
           <div className="px-4 py-3">
             <ThresholdsForm initial={defaults} />
