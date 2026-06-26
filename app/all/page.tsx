@@ -40,6 +40,7 @@ type SearchParams = {
   minViews?: string;
   minAgeDays?: string;
   isShorts?: 'true' | 'false';
+  kind?: 'REFERENCE' | 'SOURCE';
 };
 
 export default async function FeedPage({
@@ -73,6 +74,10 @@ export default async function FeedPage({
         : searchParams.isShorts === 'false'
           ? false
           : undefined,
+    kind:
+      searchParams.kind === 'REFERENCE' || searchParams.kind === 'SOURCE'
+        ? searchParams.kind
+        : undefined,
   });
 
   const groupLabel = detectGroupLabel(platforms);
