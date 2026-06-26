@@ -42,8 +42,21 @@ export async function GET(req: NextRequest) {
       results.push({ name: p.name, error: (e as Error).message.slice(0, 200) });
     }
   }
+
+  // 관심영상(별표) 안 한 영상 중 30일 지난 거 자동 정리.
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  let cleanedVideos = 0;
+  try {
+    const r = await prisma.video.deleteMany({
+      where: { isStarred: false, fetchedAt: { lt: cutoff } },
+    });
+    cleanedVideos = r.count;
+  } catch (e) {
+    console.error('[preset cron cleanup]', (e as Error).message);
+  }
+
   return NextResponse.json({
     success: true,
-    data: { total: presets.length, results },
+    data: { total: presets.length, results, cleanedVideos },
   });
 }

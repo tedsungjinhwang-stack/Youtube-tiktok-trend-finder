@@ -81,8 +81,9 @@ export async function GET(req: Request) {
     }
   }
 
-  // 별표 안 한 영상 중 7일 지난 거 자동 정리 (DB 용량 절약)
-  const cleanupCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  // 별표(관심영상) 안 한 영상 중 30일 지난 거 자동 정리 (DB 용량 절약).
+  // 사용자가 관심영상 체크했으면 30일 지나도 유지.
+  const cleanupCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   let cleanedVideos = 0;
   try {
     const r = await prisma.video.deleteMany({
