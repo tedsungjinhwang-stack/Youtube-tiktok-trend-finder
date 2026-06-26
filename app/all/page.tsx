@@ -1,11 +1,13 @@
 import { cookies } from 'next/headers';
 import { CategoryTabs } from '@/components/category-tabs';
 import { PageFilters } from '@/components/page-filters';
+import type { SavedPreset } from '@/components/page-filters';
 import { PlatformPivot } from '@/components/platform-pivot';
 import { SelectableVideoGrid } from '@/components/selectable-video-grid';
 import { ScrapeButton } from '@/components/scrape-button';
 import { queryVideos } from '@/lib/queries/videos';
 import { getFoldersWithChannelCount } from '@/lib/queries/folders';
+import { prisma } from '@/lib/db';
 import {
   BUILTIN_DEFAULTS,
   COOKIE_KEY_MIN_VIEWS,
@@ -53,6 +55,7 @@ export default async function FeedPage({
 
   // 폴더 카운트는 현재 플랫폼 기준
   const folders = await getFoldersWithChannelCount(platforms);
+  const savedPresets = await fetchSavedPresets();
   const c = cookies();
   const defaults = {
     minViews: numFromCookie(
@@ -111,6 +114,7 @@ export default async function FeedPage({
             platforms={platforms}
             showPlatformToggle={false}
             defaults={defaults}
+            savedPresets={savedPresets}
           />
         </div>
 
@@ -187,5 +191,27 @@ async function safeQuery(filters: Parameters<typeof queryVideos>[0]) {
     return await queryVideos(filters);
   } catch {
     return { rows: [], scoreThreshold: null, nextCursor: null };
+  }
+}
+
+async function fetchSavedPresets(): Promise<SavedPreset[]> {
+  try {
+    const rows = await prisma.scrapePreset.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        folderId: true,
+        platform: true,
+        kind: true,
+        videoType: true,
+        recencyDays: true,
+        minAgeDays: true,
+        minViews: true,
+      },
+    });
+    return rows;
+  } catch {
+    return [];
   }
 }

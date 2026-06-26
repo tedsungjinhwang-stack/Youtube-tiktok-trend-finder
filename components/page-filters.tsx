@@ -58,16 +58,31 @@ const SORTS: { value: SortBy; label: string }[] = [
   { value: 'publishedAt', label: '최신' },
 ];
 
+export type SavedPreset = {
+  id: string;
+  name: string;
+  folderId: string | null;
+  platform: string;
+  kind: string;
+  videoType: string;
+  recencyDays: number | null;
+  minAgeDays: number | null;
+  minViews: number;
+};
+
 export function PageFilters({
   platforms = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM'],
   showPlatformToggle = true,
   defaults,
+  savedPresets = [],
 }: {
   /** 이 페이지에서 토글 가능한 플랫폼 (예: /youtube는 [YOUTUBE]만) */
   platforms?: Platform[];
   showPlatformToggle?: boolean;
   /** 사용자 기본값 (쿠키에서 서버가 읽어 전달) */
   defaults: { minViews: number };
+  /** 설정 페이지에서 저장한 스크랩 프리셋들 */
+  savedPresets?: SavedPreset[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -126,9 +141,50 @@ export function PageFilters({
     }
   };
 
+  const applySavedPreset = (id: string) => {
+    if (!id) return;
+    const p = savedPresets.find((sp) => sp.id === id);
+    if (!p) return;
+    const params = new URLSearchParams();
+    if (p.folderId) params.set('folderId', p.folderId);
+    params.set('platforms', p.platform);
+    if (p.kind === 'REFERENCE' || p.kind === 'SOURCE') params.set('kind', p.kind);
+    if (p.recencyDays != null) {
+      const d = p.recencyDays;
+      params.set(
+        'period',
+        d <= 1 ? '24h' : d <= 2 ? '48h' : d <= 7 ? '7d' : d <= 30 ? '30d' : 'all'
+      );
+    }
+    if (p.minAgeDays != null) params.set('minAgeDays', String(p.minAgeDays));
+    if (p.minViews > 0) params.set('minViews', String(p.minViews));
+    if (p.videoType === 'SHORTS') params.set('isShorts', 'true');
+    else if (p.videoType === 'LONG') params.set('isShorts', 'false');
+    params.set('sortBy', 'views');
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1.5 text-[13px]">
+        {savedPresets.length > 0 && (
+          <>
+            <select
+              value=""
+              onChange={(e) => applySavedPreset(e.target.value)}
+              className="h-7 rounded-md border bg-background px-2 text-[12.5px] font-semibold"
+              title="저장한 스크랩 프리셋 적용"
+            >
+              <option value="">📌 프리셋…</option>
+              {savedPresets.map((sp) => (
+                <option key={sp.id} value={sp.id}>
+                  {sp.name}
+                </option>
+              ))}
+            </select>
+            <span className="mx-1 h-4 w-px bg-border" />
+          </>
+        )}
         {(Object.keys(PRESETS) as Preset[]).map((p) => (
           <PresetButton
             key={p}
