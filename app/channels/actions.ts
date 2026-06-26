@@ -25,7 +25,7 @@ export async function addChannelAction(formData: FormData): Promise<ActionResult
   if ('error' in r) return { ok: false, error: r.error };
 
   try {
-    await prisma.channel.create({
+    const created = await prisma.channel.create({
       data: {
         platform: r.platform,
         externalId: r.externalId,
@@ -34,6 +34,18 @@ export async function addChannelAction(formData: FormData): Promise<ActionResult
         kind,
       },
     });
+    // YouTube 만 백필 (TikTok/Insta 등 Apify 는 페이지네이션 미구현).
+    // 비동기 fire-and-forget — 응답 지연 방지.
+    if (r.platform === 'YOUTUBE') {
+      void scrapeChannel(created, { maxVideos: 1000 })
+        .then(() =>
+          prisma.channel.update({
+            where: { id: created.id },
+            data: { backfilledAt: new Date() },
+          })
+        )
+        .catch((err) => console.error('[backfill on add]', created.id, err));
+    }
     revalidatePath('/channels');
     return { ok: true };
   } catch (e: any) {

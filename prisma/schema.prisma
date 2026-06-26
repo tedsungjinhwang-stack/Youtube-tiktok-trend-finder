@@ -84,6 +84,8 @@ model Channel {
   kind            String    @default("REFERENCE")
   addedAt         DateTime  @default(now())
   lastScrapedAt   DateTime?
+  /// 옛날 영상 깊이 스크랩 완료 시점. null = 아직 미실행. 채널 추가 시 백필 cron 이 처리.
+  backfilledAt    DateTime?
 
   @@unique([platform, externalId])
   @@index([folderId])
