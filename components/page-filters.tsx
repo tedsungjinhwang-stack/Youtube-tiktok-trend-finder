@@ -178,7 +178,7 @@ export function PageFilters({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-1.5 text-[13px]">
+      <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap pb-1 text-[13px] sm:flex-wrap sm:overflow-visible sm:whitespace-normal sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {savedPresets.length > 0 && (
           <>
             <select

@@ -92,20 +92,25 @@ export default async function FeedPage({
     <>
       <CategoryTabs folders={folders} />
 
-      <div className="px-4 py-4">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
+      <div className="px-3 py-3 sm:px-4 sm:py-4">
+        <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4 sm:items-start">
+          <div className="min-w-0">
             <h1 className="text-lg font-bold tracking-tight">영상 조회</h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">
               플랫폼 선택 + 카테고리/기간/임계치 필터 — 현재: <b>{groupLabel}</b>
             </p>
+            <p className="mt-0.5 text-[12px] font-semibold text-muted-foreground sm:hidden">
+              {groupLabel}
+            </p>
           </div>
-          <ScrapeButton
-            platforms={
-              platforms.length === ALL_PLATFORMS.length ? [] : platforms
-            }
-            label={`${groupLabel} 에셋 조회`}
-          />
+          <div className="shrink-0">
+            <ScrapeButton
+              platforms={
+                platforms.length === ALL_PLATFORMS.length ? [] : platforms
+              }
+              label={`${groupLabel} 에셋 조회`}
+            />
+          </div>
         </div>
 
         <div className="mb-3">
