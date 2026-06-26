@@ -70,11 +70,19 @@ export type SavedPreset = {
   minViews: number;
 };
 
+export type ChannelOption = {
+  id: string;
+  displayName: string | null;
+  handle: string | null;
+  platform: string;
+};
+
 export function PageFilters({
   platforms = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM'],
   showPlatformToggle = true,
   defaults,
   savedPresets = [],
+  channels = [],
 }: {
   /** 이 페이지에서 토글 가능한 플랫폼 (예: /youtube는 [YOUTUBE]만) */
   platforms?: Platform[];
@@ -83,6 +91,8 @@ export function PageFilters({
   defaults: { minViews: number };
   /** 설정 페이지에서 저장한 스크랩 프리셋들 */
   savedPresets?: SavedPreset[];
+  /** 채널 필터용 — 현재 폴더의 활성 채널 목록 */
+  channels?: ChannelOption[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -164,6 +174,8 @@ export function PageFilters({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
+  const selectedChannelId = searchParams.get('channelId') ?? '';
+
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1.5 text-[13px]">
@@ -179,6 +191,26 @@ export function PageFilters({
               {savedPresets.map((sp) => (
                 <option key={sp.id} value={sp.id}>
                   {sp.name}
+                </option>
+              ))}
+            </select>
+            <span className="mx-1 h-4 w-px bg-border" />
+          </>
+        )}
+        {channels.length > 0 && (
+          <>
+            <select
+              value={selectedChannelId}
+              onChange={(e) =>
+                updateParams({ channelId: e.target.value || null })
+              }
+              className="h-7 max-w-[180px] rounded-md border bg-background px-2 text-[12.5px] font-semibold"
+              title="특정 채널만 보기"
+            >
+              <option value="">📺 채널 (전체)</option>
+              {channels.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.displayName ?? c.handle ?? c.id.slice(0, 8)}
                 </option>
               ))}
             </select>
