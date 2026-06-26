@@ -38,7 +38,7 @@ export type ScrapeResult = {
 };
 
 const API = 'https://www.googleapis.com/youtube/v3';
-const MAX_VIDEOS_PER_SCRAPE = 50;
+const MAX_VIDEOS_PER_SCRAPE = 250;
 
 export async function scrapeYoutube(channel: Channel): Promise<ScrapeResult> {
   let quotaUsed = 0;
@@ -137,21 +137,35 @@ async function resolveChannelId(
 
 /* ------------------------ playlistItems.list ----------------------------- */
 
+/**
+ * 페이지네이션으로 최신 → 옛날 순서대로 videoIds 가져옴.
+ * playlistItems.list 한 호출당 최대 50개, 1 quota unit.
+ * maxResults 까지 또는 페이지 끝까지 (nextPageToken 없음) 반복.
+ */
 async function fetchUploadsVideoIds(
   playlistId: string,
   maxResults: number
 ): Promise<{ videoIds: string[]; units: number }> {
-  const json = await ytFetch('/playlistItems', {
-    part: 'contentDetails',
-    playlistId,
-    maxResults: String(Math.min(maxResults, 50)),
-  });
-
-  const ids = (json.items ?? [])
-    .map((it: any) => it.contentDetails?.videoId)
-    .filter((v: any): v is string => typeof v === 'string' && v.length > 0);
-
-  return { videoIds: ids, units: 1 };
+  const ids: string[] = [];
+  let units = 0;
+  let pageToken: string | undefined;
+  while (ids.length < maxResults) {
+    const params: Record<string, string> = {
+      part: 'contentDetails',
+      playlistId,
+      maxResults: String(Math.min(maxResults - ids.length, 50)),
+    };
+    if (pageToken) params.pageToken = pageToken;
+    const json = await ytFetch('/playlistItems', params);
+    units += 1;
+    const pageIds = (json.items ?? [])
+      .map((it: any) => it.contentDetails?.videoId)
+      .filter((v: any): v is string => typeof v === 'string' && v.length > 0);
+    ids.push(...pageIds);
+    pageToken = json.nextPageToken;
+    if (!pageToken || pageIds.length === 0) break;
+  }
+  return { videoIds: ids.slice(0, maxResults), units };
 }
 
 /* ----------------------------- videos.list ------------------------------- */
@@ -159,39 +173,43 @@ async function fetchUploadsVideoIds(
 async function fetchVideosDetail(
   videoIds: string[]
 ): Promise<{ videos: ScrapedVideo[]; units: number }> {
-  // videos.list는 한 번에 50개까지 — 우리는 이미 50 이하로 제한하므로 한 호출로 충분.
-  const json = await ytFetch('/videos', {
-    part: 'snippet,statistics,contentDetails',
-    id: videoIds.join(','),
-  });
-
-  const videos: ScrapedVideo[] = (json.items ?? []).map((it: any) => {
-    const dur = parseIsoDurationSeconds(it.contentDetails?.duration ?? '');
-    return {
-      externalId: it.id,
-      url: `https://www.youtube.com/watch?v=${it.id}`,
-      caption: it.snippet?.title ?? null,
-      thumbnailUrl:
-        it.snippet?.thumbnails?.medium?.url ??
-        it.snippet?.thumbnails?.default?.url ??
-        null,
-      viewCount: BigInt(it.statistics?.viewCount ?? 0),
-      likeCount:
-        it.statistics?.likeCount != null
-          ? Number(it.statistics.likeCount)
-          : null,
-      commentCount:
-        it.statistics?.commentCount != null
-          ? Number(it.statistics.commentCount)
-          : null,
-      durationSeconds: dur,
-      // YouTube Shorts 정의: 최대 3분(180초)
-      isShorts: dur > 0 && dur <= 180,
-      publishedAt: new Date(it.snippet?.publishedAt ?? Date.now()),
-    };
-  });
-
-  return { videos, units: 1 };
+  // videos.list 는 한 번에 50개까지 — 50개씩 묶어 여러 번 호출.
+  const videos: ScrapedVideo[] = [];
+  let units = 0;
+  for (let i = 0; i < videoIds.length; i += 50) {
+    const slice = videoIds.slice(i, i + 50);
+    const json = await ytFetch('/videos', {
+      part: 'snippet,statistics,contentDetails',
+      id: slice.join(','),
+    });
+    units += 1;
+    for (const it of (json.items ?? []) as Array<any>) {
+      const dur = parseIsoDurationSeconds(it.contentDetails?.duration ?? '');
+      videos.push({
+        externalId: it.id,
+        url: `https://www.youtube.com/watch?v=${it.id}`,
+        caption: it.snippet?.title ?? null,
+        thumbnailUrl:
+          it.snippet?.thumbnails?.medium?.url ??
+          it.snippet?.thumbnails?.default?.url ??
+          null,
+        viewCount: BigInt(it.statistics?.viewCount ?? 0),
+        likeCount:
+          it.statistics?.likeCount != null
+            ? Number(it.statistics.likeCount)
+            : null,
+        commentCount:
+          it.statistics?.commentCount != null
+            ? Number(it.statistics.commentCount)
+            : null,
+        durationSeconds: dur,
+        // YouTube Shorts 정의: 최대 3분(180초)
+        isShorts: dur > 0 && dur <= 180,
+        publishedAt: new Date(it.snippet?.publishedAt ?? Date.now()),
+      });
+    }
+  }
+  return { videos, units };
 }
 
 /* ---------------------- fetch with key rotation -------------------------- */
