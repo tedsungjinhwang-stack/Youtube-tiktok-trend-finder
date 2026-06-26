@@ -109,9 +109,14 @@ export function PresetsClient({
       }
       const d = j.data!;
       setResultMsg(
-        `✅ ${p.name} — 스크랩 ${d.scraped.ok}/${d.scraped.dispatched} 채널, 조건 만족 ${d.matched}개 영상`
+        `✅ ${p.name} — 스크랩 ${d.scraped.ok}/${d.scraped.dispatched} 채널, 조건 만족 ${d.matched}개 영상. ` +
+          (d.matched > 0 ? '결과 보기 버튼을 누르면 영상 조회 페이지로 이동합니다.' : '')
       );
       refresh();
+      // 매칭이 있으면 자동으로 결과 페이지로 이동
+      if (d.matched > 0) {
+        setTimeout(() => openResults(p), 800);
+      }
     } catch (e) {
       setResultMsg(`❌ ${p.name}: ${(e as Error).message}`);
     } finally {
@@ -123,11 +128,18 @@ export function PresetsClient({
     const params = new URLSearchParams();
     if (p.folderId) params.set('folderId', p.folderId);
     params.set('platforms', p.platform);
+    if (p.kind === 'REFERENCE' || p.kind === 'SOURCE') params.set('kind', p.kind);
     if (p.recencyDays != null) {
       const d = p.recencyDays;
-      params.set('period', d <= 1 ? '24h' : d <= 2 ? '48h' : d <= 7 ? '7d' : d <= 30 ? '30d' : 'all');
+      params.set(
+        'period',
+        d <= 1 ? '24h' : d <= 2 ? '48h' : d <= 7 ? '7d' : d <= 30 ? '30d' : 'all'
+      );
     }
+    if (p.minAgeDays != null) params.set('minAgeDays', String(p.minAgeDays));
     if (p.minViews > 0) params.set('minViews', String(p.minViews));
+    if (p.videoType === 'SHORTS') params.set('isShorts', 'true');
+    else if (p.videoType === 'LONG') params.set('isShorts', 'false');
     params.set('sortBy', 'views');
     router.push(`/all?${params.toString()}`);
   }

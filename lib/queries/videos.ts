@@ -16,6 +16,8 @@ export type VideoFilters = {
   q?: string;
   format?: VideoFormat;
   isShorts?: boolean;
+  /** 채널 종류 필터 — 'REFERENCE' | 'SOURCE' */
+  kind?: string;
   cursor?: string;
   limit?: number;
 };
@@ -108,8 +110,18 @@ export async function queryVideos(filters: VideoFilters): Promise<VideoQueryResu
     // 시스템 폴더(__hashtag_discovery__) 채널 영상 제외.
     // Prisma startsWith는 LIKE '__%'가 모든 행 매치되는 문제로 못 씀 → 정확 이름 매칭.
     ...(folderId
-      ? { channel: { folderId } }
-      : { channel: { folder: { name: { not: '__hashtag_discovery__' } } } }),
+      ? {
+          channel: {
+            folderId,
+            ...(filters.kind ? { kind: filters.kind } : {}),
+          },
+        }
+      : {
+          channel: {
+            folder: { name: { not: '__hashtag_discovery__' } },
+            ...(filters.kind ? { kind: filters.kind } : {}),
+          },
+        }),
     ...(filters.q
       ? { caption: { contains: filters.q, mode: 'insensitive' as const } }
       : {}),
