@@ -16,7 +16,10 @@ import {
 import { inferFormat } from '@/lib/format';
 import { getScrapeSettings } from '@/lib/scrape-settings';
 
-export async function scrapeChannel(c: Channel): Promise<ScrapeResult> {
+export async function scrapeChannel(
+  c: Channel,
+  opts: { maxVideos?: number } = {}
+): Promise<ScrapeResult> {
   const start = Date.now();
   const run = await prisma.scrapeRun.create({
     data: {
@@ -29,7 +32,7 @@ export async function scrapeChannel(c: Channel): Promise<ScrapeResult> {
   try {
     const result =
       c.platform === 'YOUTUBE'
-        ? await scrapeYoutube(c)
+        ? await scrapeYoutube(c, opts)
         : c.platform === 'TIKTOK'
           ? await scrapeApifyTiktok(c)
           : c.platform === 'INSTAGRAM'
@@ -151,7 +154,8 @@ export async function scrapeAllActive(): Promise<{
 
 export async function scrapeByPlatforms(
   platforms?: Channel['platform'][],
-  folderId?: string
+  folderId?: string,
+  opts: { maxVideos?: number } = {}
 ): Promise<{ dispatched: number; ok: number; failed: number }> {
   const channels = await prisma.channel.findMany({
     where: {
@@ -164,7 +168,7 @@ export async function scrapeByPlatforms(
     failed = 0;
   for (const c of channels) {
     try {
-      await scrapeChannel(c);
+      await scrapeChannel(c, opts);
       ok++;
     } catch {
       failed++;

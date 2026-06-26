@@ -31,8 +31,20 @@ export async function runPreset(preset: ScrapePreset): Promise<{
   let error: string | null = null;
 
   try {
-    // 1) 재스크랩 — 폴더 + 플랫폼 한정
-    scraped = await scrapeByPlatforms(platform ? [platform] : undefined, folderId);
+    // 1) 재스크랩 — 폴더 + 플랫폼 한정. minAgeDays/recencyDays 가 클수록 깊게 파야 함.
+    //    minAgeDays N일 → 50일치 정도면 평균 채널 N일 커버. 너무 깊으면 quota 낭비.
+    const maxRangeDays = Math.max(preset.minAgeDays ?? 0, preset.recencyDays ?? 0);
+    let maxVideos = 50; // 기본 (일반 cron 과 동일)
+    if (maxRangeDays > 0) {
+      // 일당 ~5개로 계산 (활발한 쇼츠 채널 가정), 상한 1000.
+      // 60일 → 300, 1년(365) → 1000(cap).
+      maxVideos = Math.min(1000, Math.max(50, maxRangeDays * 5));
+    }
+    scraped = await scrapeByPlatforms(
+      platform ? [platform] : undefined,
+      folderId,
+      { maxVideos }
+    );
 
     // 2) 필터 조건으로 매칭 영상 수 카운트
     matched = await prisma.video.count({ where: buildVideoWhere(preset, now) });
