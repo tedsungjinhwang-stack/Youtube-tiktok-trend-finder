@@ -18,6 +18,8 @@ export type VideoFilters = {
   isShorts?: boolean;
   /** 채널 종류 필터 — 'REFERENCE' | 'SOURCE' */
   kind?: string;
+  /** 특정 채널 ID 로 좁히기 */
+  channelId?: string;
   cursor?: string;
   limit?: number;
 };
@@ -102,6 +104,7 @@ export async function queryVideos(filters: VideoFilters): Promise<VideoQueryResu
 
   const baseWhere: Prisma.VideoWhereInput = {
     ...platformWhere,
+    ...(filters.channelId ? { channelId: filters.channelId } : {}),
     ...(publishedAtRange ? { publishedAt: publishedAtRange } : {}),
     viewCount: { gte: BigInt(minViews) },
     // 통합/YT/Social 등 일반 페이지에서는 해시태그 발견 영상 제외 (sourceHashtag null만).

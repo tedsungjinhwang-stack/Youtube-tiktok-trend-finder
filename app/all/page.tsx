@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { CategoryTabs } from '@/components/category-tabs';
 import { PageFilters } from '@/components/page-filters';
-import type { SavedPreset } from '@/components/page-filters';
+import type { SavedPreset, ChannelOption } from '@/components/page-filters';
 import { PlatformPivot } from '@/components/platform-pivot';
 import { SelectableVideoGrid } from '@/components/selectable-video-grid';
 import { ScrapeButton } from '@/components/scrape-button';
@@ -43,6 +43,7 @@ type SearchParams = {
   minAgeDays?: string;
   isShorts?: 'true' | 'false';
   kind?: 'REFERENCE' | 'SOURCE';
+  channelId?: string;
 };
 
 export default async function FeedPage({
@@ -56,6 +57,7 @@ export default async function FeedPage({
   // 폴더 카운트는 현재 플랫폼 기준
   const folders = await getFoldersWithChannelCount(platforms);
   const savedPresets = await fetchSavedPresets();
+  const channelOptions = await fetchChannels(platforms, searchParams.folderId);
   const c = cookies();
   const defaults = {
     minViews: numFromCookie(
@@ -81,6 +83,7 @@ export default async function FeedPage({
       searchParams.kind === 'REFERENCE' || searchParams.kind === 'SOURCE'
         ? searchParams.kind
         : undefined,
+    channelId: searchParams.channelId,
   });
 
   const groupLabel = detectGroupLabel(platforms);
@@ -115,6 +118,7 @@ export default async function FeedPage({
             showPlatformToggle={false}
             defaults={defaults}
             savedPresets={savedPresets}
+            channels={channelOptions}
           />
         </div>
 
@@ -209,6 +213,27 @@ async function fetchSavedPresets(): Promise<SavedPreset[]> {
         minAgeDays: true,
         minViews: true,
       },
+    });
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
+async function fetchChannels(
+  platforms: Platform[],
+  folderId?: string
+): Promise<ChannelOption[]> {
+  try {
+    const rows = await prisma.channel.findMany({
+      where: {
+        isActive: true,
+        platform: { in: platforms },
+        ...(folderId ? { folderId } : {}),
+      },
+      orderBy: [{ displayName: 'asc' }],
+      select: { id: true, displayName: true, handle: true, platform: true },
+      take: 200,
     });
     return rows;
   } catch {
