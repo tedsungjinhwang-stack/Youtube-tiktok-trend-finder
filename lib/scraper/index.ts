@@ -68,13 +68,12 @@ export async function scrapeChannel(c: Channel): Promise<ScrapeResult> {
   }
 }
 
-/** 자동 스크래핑 정책: ScrapeSettings(최근 N일 + 조회수 ≥ M) 통과한 신규 영상만 저장 */
+/** 자동 스크래핑 정책: 조회수 ≥ M 통과한 신규 영상만 저장.
+ *  publishedAt 기간 필터는 제거 — '심정지/리바이벌' 같은 오래된 인기영상 프리셋이
+ *  동작하려면 옛날 영상도 받아둬야 함. DB 용량은 30일 cleanup 으로 자동 관리. */
 async function persistVideos(c: Channel, videos: ScrapedVideo[]) {
-  const { recencyDays, minViews } = await getScrapeSettings();
-  const cutoff = new Date(Date.now() - recencyDays * 24 * 60 * 60 * 1000);
-  const recent = videos.filter(
-    (v) => v.publishedAt >= cutoff && Number(v.viewCount) >= minViews
-  );
+  const { minViews } = await getScrapeSettings();
+  const recent = videos.filter((v) => Number(v.viewCount) >= minViews);
   if (recent.length === 0) return;
 
   const externalIds = recent.map((v) => v.externalId);
