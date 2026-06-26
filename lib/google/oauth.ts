@@ -120,11 +120,17 @@ export function emailFromIdToken(idToken?: string): string | null {
   }
 }
 
-export async function getValidAccessToken(): Promise<string | null> {
-  const row = await prisma.googleOAuth.findUnique({ where: { id: 'default' } }).catch(() => null);
+export async function getValidAccessToken(
+  opts: { force?: boolean } = {}
+): Promise<string | null> {
+  const row = await prisma.googleOAuth
+    .findUnique({ where: { id: 'default' } })
+    .catch(() => null);
   if (!row) return null;
-  if (row.expiresAt.getTime() > Date.now() + 60_000) return row.accessToken;
-  // refresh
+  if (!opts.force && row.expiresAt.getTime() > Date.now() + 60_000) {
+    return row.accessToken;
+  }
+  // refresh — opts.force=true 면 만료시각 무시하고 무조건 갱신
   try {
     const t = await refresh(row.refreshToken);
     await prisma.googleOAuth.update({
