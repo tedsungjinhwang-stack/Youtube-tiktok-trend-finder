@@ -52,7 +52,8 @@ export async function GET(req: Request) {
       hint: '/my-schedule 페이지에서 Google 캘린더 연결을 먼저 해주세요.',
     }, { status: 200 });
   }
-  const token = await getValidAccessToken();
+  // 매 cron 호출 시 access token 강제 갱신 — DB 캐시가 죽어있던 케이스 회피
+  const token = await getValidAccessToken({ force: true });
   if (!token) {
     return NextResponse.json({
       success: false,

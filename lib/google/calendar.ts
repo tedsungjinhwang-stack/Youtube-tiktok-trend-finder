@@ -19,14 +19,23 @@ async function call(
 ): Promise<Response> {
   const token = await getValidAccessToken();
   if (!token) throw new Error('Google 캘린더 연결 없음');
-  return fetch(`${API}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const doFetch = (tok: string) =>
+    fetch(`${API}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${tok}`,
+        'Content-Type': 'application/json',
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  const res = await doFetch(token);
+  // 캐시된 token 이 죽어있으면 401 — 강제 refresh 후 1회 재시도
+  if (res.status === 401) {
+    const fresh = await getValidAccessToken({ force: true });
+    if (!fresh) throw new Error('Google 캘린더 연결 만료 (refresh 실패) — /my-schedule 에서 재연결 필요');
+    return doFetch(fresh);
+  }
+  return res;
 }
 
 function calendarPath(calendarId: string) {
@@ -117,10 +126,16 @@ async function findExistingChannelEvents(
     singleEvents: 'true',
     maxResults: '50',
   });
-  const r = await fetch(
-    `${API}${calendarPath(calendarId)}?${params.toString()}`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
+  const list = (tok: string) =>
+    fetch(`${API}${calendarPath(calendarId)}?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${tok}` },
+    });
+  let r = await list(token);
+  if (r.status === 401) {
+    const fresh = await getValidAccessToken({ force: true });
+    if (!fresh) return [];
+    r = await list(fresh);
+  }
   if (!r.ok) return [];
   const j = (await r.json()) as { items?: Array<{ id: string; summary?: string }> };
   const items = j.items ?? [];
