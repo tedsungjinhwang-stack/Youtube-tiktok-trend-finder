@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { syncMyChannel } from '@/lib/google/calendar';
+import { getValidAccessToken } from '@/lib/google/oauth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -42,19 +43,40 @@ export async function GET(req: Request) {
     );
   }
 
+  // Preflight — OAuth 살아있는지 미리 확인. 죽었으면 채널 이벤트 다 날리지 않고 즉시 종료.
+  const hasOAuth = await prisma.googleOAuth.findUnique({ where: { id: 'default' } }).catch(() => null);
+  if (!hasOAuth) {
+    return NextResponse.json({
+      success: false,
+      error: 'NO_GOOGLE_OAUTH',
+      hint: '/my-schedule 페이지에서 Google 캘린더 연결을 먼저 해주세요.',
+    }, { status: 200 });
+  }
+  const token = await getValidAccessToken();
+  if (!token) {
+    return NextResponse.json({
+      success: false,
+      error: 'OAUTH_EXPIRED',
+      hint: 'Google OAuth refresh token 만료. /my-schedule 에서 연결 해제 → 재연결 필요.',
+    }, { status: 200 });
+  }
+
   const channels = await prisma.myChannel.findMany({
     where: { isActive: true },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   let ok = 0;
   let failed = 0;
+  const failedDetails: Array<{ name: string; reason: string }> = [];
   for (const c of channels) {
     try {
       await syncMyChannel(c.id);
       ok++;
     } catch (e) {
       failed++;
-      console.error('[gcal cron]', c.id, (e as Error).message);
+      const reason = (e as Error).message.slice(0, 120);
+      failedDetails.push({ name: c.name, reason });
+      console.error('[gcal cron]', c.id, reason);
     }
   }
 
@@ -90,6 +112,7 @@ export async function GET(req: Request) {
       calSynced: ok,
       calFailed: failed,
       cleanedVideos,
+      ...(failedDetails.length > 0 ? { failures: failedDetails.slice(0, 10) } : {}),
     },
   });
 }

@@ -190,31 +190,25 @@ export async function syncMyChannel(channelId: string): Promise<void> {
     };
   }
 
+  // 중복 정리: 캘린더에서 이 채널명으로 시작하는 기존 이벤트 모두 찾아냄.
+  // 호출자(cron) 가 에러를 받아 실패 카운트에 반영할 수 있도록 try/catch 제거.
+  let existingIds: string[] = [];
   try {
-    // 중복 정리: 캘린더에서 이 채널명으로 시작하는 기존 이벤트 모두 찾아냄
-    let existingIds: string[] = [];
-    try {
-      existingIds = await findExistingChannelEvents(auth.calendarId, ch.name);
-    } catch {
-      /* search 실패해도 sync 는 계속 */
-    }
-    // ch.gcalEventId 가 검색 결과에 없으면 추가 (확실히 우리 이벤트)
-    if (ch.gcalEventId && !existingIds.includes(ch.gcalEventId)) {
-      existingIds.unshift(ch.gcalEventId);
-    }
-
-    // 기존 이벤트 있으면 모두 삭제하고 신규 생성 (PATCH 가 시각↔종일 전환 불안정해서).
-    for (const eid of existingIds) {
-      await deleteEvent(eid, auth.calendarId).catch(() => {});
-    }
-    const id = await createEvent(input);
-    await prisma.myChannel.update({
-      where: { id: channelId },
-      data: { gcalEventId: id, gcalSyncedAt: new Date() },
-    });
-  } catch (e) {
-    console.error('[gcal channel sync]', (e as Error).message);
+    existingIds = await findExistingChannelEvents(auth.calendarId, ch.name);
+  } catch {
+    /* list 실패해도 createEvent 는 계속 시도 — 거기서 실패하면 throw */
   }
+  if (ch.gcalEventId && !existingIds.includes(ch.gcalEventId)) {
+    existingIds.unshift(ch.gcalEventId);
+  }
+  for (const eid of existingIds) {
+    await deleteEvent(eid, auth.calendarId).catch(() => {});
+  }
+  const id = await createEvent(input);
+  await prisma.myChannel.update({
+    where: { id: channelId },
+    data: { gcalEventId: id, gcalSyncedAt: new Date() },
+  });
 }
 
 export async function unsyncMyChannel(channelId: string): Promise<void> {
