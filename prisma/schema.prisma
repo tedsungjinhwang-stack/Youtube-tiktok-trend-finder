@@ -206,6 +206,34 @@ model ScrapeSettings {
   updatedAt   DateTime @updatedAt
 }
 
+/// 카테고리별 자동 스크래핑/필터 프리셋.
+/// 예) '정치_보수 / YouTube / SOURCE / 최근 7일 / 5만 조회수 이상'
+model ScrapePreset {
+  id            String   @id @default(cuid())
+  name          String
+  folderId      String?
+  /// 'YOUTUBE'|'TIKTOK'|'INSTAGRAM'|'XIAOHONGSHU'|'DOUYIN' (단일)
+  platform      String
+  /// 'ALL'|'REFERENCE'|'SOURCE'
+  kind          String   @default("ALL")
+  /// '최근 N일' (publishedAt >= now-N). null = 제한 없음.
+  recencyDays   Int?
+  /// '이전 N일' (publishedAt <= now-N). null = 제한 없음. recencyDays 와 동시 사용 가능.
+  minAgeDays    Int?
+  minViews      Int      @default(0)
+  /// 'ALL'|'SHORTS'|'LONG'
+  videoType     String   @default("ALL")
+  enabled       Boolean  @default(true)
+  lastRunAt     DateTime?
+  lastMatched   Int?
+  lastError     String?
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([enabled])
+}
+
 /// OpenAI OAuth (Codex CLI 방식 우회 — Sign in with ChatGPT, device flow).
 /// 싱글톤 (id='default'). ⚠️ TOS 회색지대 — OpenAI가 차단할 가능성 있음.
 model OpenAIOAuth {
