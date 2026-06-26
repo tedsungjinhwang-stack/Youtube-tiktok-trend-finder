@@ -38,7 +38,7 @@ export type ScrapeResult = {
 };
 
 const API = 'https://www.googleapis.com/youtube/v3';
-const MAX_VIDEOS_PER_SCRAPE = 250;
+const MAX_VIDEOS_PER_SCRAPE = 50;
 
 export async function scrapeYoutube(
   channel: Channel,
