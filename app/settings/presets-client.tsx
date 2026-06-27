@@ -143,8 +143,10 @@ export function PresetsClient({
       const d = j.data!;
       const scrapeNote =
         d.scraped.dispatched === 0
-          ? '⚠️ 이 폴더+플랫폼에 채널이 없습니다 (스크랩 0). 카테고리/플랫폼을 확인하세요.'
-          : `스크랩 ${d.scraped.ok}/${d.scraped.dispatched} 채널`;
+          ? d.matched > 0
+            ? '재수집할 활성 채널 없음 (기존 데이터로 조회)'
+            : '⚠️ 이 폴더+플랫폼에 채널이 없습니다. 카테고리/플랫폼을 확인하세요.'
+          : `재수집 ${d.scraped.ok}/${d.scraped.dispatched} 채널`;
       setResultMsg(
         `✅ ${p.name} — ${scrapeNote}, 조건 만족 ${d.matched}개 영상.` +
           (d.matched > 0 ? ' "결과 보기" 로 영상 확인.' : '')
@@ -358,9 +360,15 @@ function PresetRow({
           </div>
           {p.lastRunAt && (
             <p className="mt-1 text-[12px] text-muted-foreground/80">
-              마지막 실행: {fmtTime(p.lastRunAt)} · 스크랩 {p.lastScraped ?? 0}채널 · 매칭{' '}
+              마지막 실행: {fmtTime(p.lastRunAt)} · 재수집 {p.lastScraped ?? 0}채널 · 매칭{' '}
               {p.lastMatched ?? 0}개
-              {p.lastScraped === 0 && (
+              {p.lastScraped === 0 && (p.lastMatched ?? 0) > 0 && (
+                <span className="text-muted-foreground/60">
+                  {' '}
+                  · (활성 채널 없음 — 기존 데이터로 조회)
+                </span>
+              )}
+              {p.lastScraped === 0 && (p.lastMatched ?? 0) === 0 && (
                 <span className="text-amber-400"> · ⚠️ 폴더/플랫폼에 채널 없음</span>
               )}
               {p.lastError && <span className="text-rose-400"> · ⚠️ {p.lastError}</span>}
