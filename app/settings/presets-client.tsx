@@ -17,6 +17,7 @@ type Preset = {
   enabled: boolean;
   lastRunAt: string | null;
   lastMatched: number | null;
+  lastScraped: number | null;
   lastError: string | null;
 };
 
@@ -140,15 +141,16 @@ export function PresetsClient({
         return;
       }
       const d = j.data!;
+      const scrapeNote =
+        d.scraped.dispatched === 0
+          ? '⚠️ 이 폴더+플랫폼에 채널이 없습니다 (스크랩 0). 카테고리/플랫폼을 확인하세요.'
+          : `스크랩 ${d.scraped.ok}/${d.scraped.dispatched} 채널`;
       setResultMsg(
-        `✅ ${p.name} — 스크랩 ${d.scraped.ok}/${d.scraped.dispatched} 채널, 조건 만족 ${d.matched}개 영상. ` +
-          (d.matched > 0 ? '결과 보기 버튼을 누르면 영상 조회 페이지로 이동합니다.' : '')
+        `✅ ${p.name} — ${scrapeNote}, 조건 만족 ${d.matched}개 영상.` +
+          (d.matched > 0 ? ' "결과 보기" 로 영상 확인.' : '')
       );
+      // 자동 이동 제거 — 사용자가 결과 보기 버튼으로 직접 이동 (카드 업데이트를 볼 수 있게)
       refresh();
-      // 매칭이 있으면 자동으로 결과 페이지로 이동
-      if (d.matched > 0) {
-        setTimeout(() => openResults(p), 800);
-      }
     } catch (e) {
       setResultMsg(`❌ ${p.name}: ${(e as Error).message}`);
     } finally {
@@ -356,7 +358,11 @@ function PresetRow({
           </div>
           {p.lastRunAt && (
             <p className="mt-1 text-[12px] text-muted-foreground/80">
-              마지막 실행: {fmtTime(p.lastRunAt)} · 조건 매칭 {p.lastMatched ?? 0}개
+              마지막 실행: {fmtTime(p.lastRunAt)} · 스크랩 {p.lastScraped ?? 0}채널 · 매칭{' '}
+              {p.lastMatched ?? 0}개
+              {p.lastScraped === 0 && (
+                <span className="text-amber-400"> · ⚠️ 폴더/플랫폼에 채널 없음</span>
+              )}
               {p.lastError && <span className="text-rose-400"> · ⚠️ {p.lastError}</span>}
             </p>
           )}
