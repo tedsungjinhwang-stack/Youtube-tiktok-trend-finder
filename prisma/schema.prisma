@@ -228,6 +228,8 @@ model ScrapePreset {
   enabled       Boolean  @default(true)
   lastRunAt     DateTime?
   lastMatched   Int?
+  /// 마지막 실행 때 스크랩한 채널 수 (dispatched). 0 이면 폴더+플랫폼에 채널 없음.
+  lastScraped   Int?
   lastError     String?
   sortOrder     Int      @default(0)
   createdAt     DateTime @default(now())

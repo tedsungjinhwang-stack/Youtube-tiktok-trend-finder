@@ -51,7 +51,12 @@ export async function runPreset(preset: ScrapePreset): Promise<{
 
   await prisma.scrapePreset.update({
     where: { id: preset.id },
-    data: { lastRunAt: now, lastMatched: matched, lastError: error },
+    data: {
+      lastRunAt: now,
+      lastMatched: matched,
+      lastScraped: scraped.dispatched,
+      lastError: error,
+    },
   });
 
   if (error) throw new Error(error);
