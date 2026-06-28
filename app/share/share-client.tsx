@@ -1057,6 +1057,7 @@ function ScheduleForm({ myChannels }: { myChannels: MyChannel[] }) {
           title: title.trim(),
           scheduledAt: kstLocalToISO(when),
           notes: notes.trim(),
+          replace: true, // 빠른추가는 채널당 1예약 — 기존 미래 예약 대체
         }),
       });
       const j = await r.json();
