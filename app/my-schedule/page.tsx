@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { kstLocalToISO, isoToKstLocal, tomorrowKstLocal } from '@/lib/kst';
 
 type ScheduledVideo = {
   id: string;
@@ -72,20 +73,13 @@ type GoogleStatus = {
 };
 
 function fmt(iso: string): string {
-  const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${y}-${m}-${day} ${hh}:${mm}`;
+  // 항상 KST 기준 표시
+  return isoToKstLocal(iso).replace('T', ' ');
 }
 
 function toInputValue(iso: string): string {
-  // datetime-local input 형식: YYYY-MM-DDTHH:mm (로컬 타임존)
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  // datetime-local input 형식: YYYY-MM-DDTHH:mm (항상 KST 기준)
+  return isoToKstLocal(iso);
 }
 
 export default function MySchedulePage() {
@@ -210,7 +204,7 @@ export default function MySchedulePage() {
       body: JSON.stringify({
         channelId: selected.id,
         title: vTitle,
-        scheduledAt: new Date(vWhen).toISOString(),
+        scheduledAt: kstLocalToISO(vWhen),
         notes: vNotes,
       }),
     });
@@ -306,7 +300,7 @@ export default function MySchedulePage() {
         body: JSON.stringify({
           channelIds: ids,
           title: bulkTitle,
-          scheduledAt: new Date(bulkWhen).toISOString(),
+          scheduledAt: kstLocalToISO(bulkWhen),
         }),
       });
       const j = await r.json();
@@ -673,7 +667,7 @@ export default function MySchedulePage() {
                             body: JSON.stringify({
                               channelId: c.id,
                               title: t,
-                              scheduledAt: new Date(w).toISOString(),
+                              scheduledAt: kstLocalToISO(w),
                               notes: n,
                             }),
                           });
@@ -964,7 +958,7 @@ function DashRow({
                       value={toInputValue(v.scheduledAt)}
                       onChange={(e) =>
                         onUpdateVideo(v.id, {
-                          scheduledAt: new Date(e.target.value).toISOString(),
+                          scheduledAt: kstLocalToISO(e.target.value),
                         })
                       }
                       className="h-8 w-[170px] rounded border bg-background px-1.5 text-[13px]"
@@ -973,9 +967,9 @@ function DashRow({
                       type="button"
                       onClick={() =>
                         onUpdateVideo(v.id, {
-                          scheduledAt: new Date(
+                          scheduledAt: kstLocalToISO(
                             toggleAmPmInput(toInputValue(v.scheduledAt))
-                          ).toISOString(),
+                          ),
                         })
                       }
                       className="h-8 shrink-0 rounded border bg-card px-1.5 text-[12px] font-semibold hover:border-foreground/40"
@@ -1110,7 +1104,7 @@ function InlineDateCell({
     setEditing(false);
     if (!draft) return;
     if (last) {
-      const iso = new Date(draft).toISOString();
+      const iso = kstLocalToISO(draft);
       if (iso !== new Date(last.scheduledAt).toISOString()) {
         onSaveExisting(last.id, iso);
       }
@@ -1157,12 +1151,8 @@ function InlineDateCell({
 }
 
 function todayKstInputValue(): string {
-  // 기본값: 내일 오후 4시 30분 (16:30)
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(16, 30, 0, 0);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  // 기본값: 내일 오후 4시 30분 (16:30 KST)
+  return tomorrowKstLocal(16, 30);
 }
 
 /** datetime-local 문자열이 오전(12시 미만)인지 */

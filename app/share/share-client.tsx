@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { addChannelAction, deleteChannelAction } from '../channels/actions';
+import { kstLocalToISO, tomorrowKstLocal } from '@/lib/kst';
 
 type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN';
 type Kind = 'REFERENCE' | 'SOURCE';
@@ -1054,7 +1055,7 @@ function ScheduleForm({ myChannels }: { myChannels: MyChannel[] }) {
         body: JSON.stringify({
           channelId,
           title: title.trim(),
-          scheduledAt: new Date(when).toISOString(),
+          scheduledAt: kstLocalToISO(when),
           notes: notes.trim(),
         }),
       });
@@ -1197,18 +1198,13 @@ function ScheduleForm({ myChannels }: { myChannels: MyChannel[] }) {
 }
 
 function sfDefaultWhen(): string {
-  // 내일 16:30 (KST 기준 로컬)
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(16, 30, 0, 0);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  // 내일 16:30 (KST)
+  return tomorrowKstLocal(16, 30);
 }
 function sfFmtKst(local: string): string {
-  // datetime-local 입력값 → 'MM/DD HH:mm' 표시용
-  const d = new Date(local);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  // local 은 이미 KST 벽시계 문자열("YYYY-MM-DDTHH:mm") → 파싱 없이 직접 표시
+  if (!local || local.length < 16) return local;
+  return `${local.slice(5, 7)}/${local.slice(8, 10)} ${local.slice(11, 16)}`;
 }
 
 /** datetime-local 문자열의 시각이 오전(12시 미만)인지 */
