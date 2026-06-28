@@ -1014,6 +1014,8 @@ function ScheduleForm({ myChannels }: { myChannels: MyChannel[] }) {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1021,6 +1023,25 @@ function ScheduleForm({ myChannels }: { myChannels: MyChannel[] }) {
     if (last && myChannels.some((c) => c.id === last)) setChannelId(last);
     else if (myChannels[0]) setChannelId(myChannels[0].id);
   }, [myChannels]);
+
+  const syncCalendar = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const r = await fetch('/api/v1/my-schedule/sync-gcal-all', { method: 'POST' });
+      const j = await r.json();
+      if (!r.ok || !j.success) {
+        setSyncMsg(`❌ ${j.error?.message ?? `HTTP ${r.status}`}`);
+        return;
+      }
+      setSyncMsg(`✅ 캘린더 동기화 완료 (${j.data.synced}/${j.data.total} 채널)`);
+    } catch (e) {
+      setSyncMsg(`❌ ${(e as Error).message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const submit = async () => {
     if (!channelId || !when) return;
@@ -1130,6 +1151,21 @@ function ScheduleForm({ myChannels }: { myChannels: MyChannel[] }) {
       >
         {submitting ? '저장 중…' : '📅 예약 저장'}
       </button>
+
+      {/* 수동 캘린더 동기화 */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={syncCalendar}
+          disabled={syncing}
+          className="h-10 flex-1 rounded-md border bg-card text-[13px] font-semibold hover:border-foreground/40 disabled:opacity-50"
+          title="활성 채널 예약 전부를 Google 캘린더에 반영"
+        >
+          {syncing ? '동기화 중…' : '🗓️ 캘린더 수동 동기화'}
+        </button>
+      </div>
+      {syncMsg && (
+        <p className="text-[12px] text-muted-foreground">{syncMsg}</p>
+      )}
 
       {done && (
         <div className="rounded-md border border-emerald-500/40 bg-emerald-50 p-3 text-xs text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
