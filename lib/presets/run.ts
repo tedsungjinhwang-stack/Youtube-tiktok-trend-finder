@@ -31,12 +31,10 @@ export async function runPreset(preset: ScrapePreset): Promise<{
   let error: string | null = null;
 
   try {
-    // 1) 재스크랩 — 폴더 + 플랫폼 한정. minAgeDays/recencyDays 가 클수록 깊게 파야 함.
-    //    minAgeDays N일 → 50일치 정도면 평균 채널 N일 커버. 너무 깊으면 quota 낭비.
-    // 기간 조건(minAgeDays/recencyDays) 있으면 그냥 풀로 1000개까지 파기.
-    // 채널당 40 unit, 10채널이어도 400 unit (일일 10K 의 4%) 라 여유 충분.
-    const maxRangeDays = Math.max(preset.minAgeDays ?? 0, preset.recencyDays ?? 0);
-    const maxVideos = maxRangeDays > 0 ? 1000 : 50;
+    // 1) 재스크랩 — 폴더 + 플랫폼 한정.
+    //    최근(recencyDays)만이면 최신 50개로 충분 → 빠름.
+    //    옛날(minAgeDays)이 있으면 깊이 파야 함 → 1000개 (단, 수동 전용이라 504 위험 낮음).
+    const maxVideos = preset.minAgeDays != null ? 1000 : 50;
     scraped = await scrapeByPlatforms(
       platform ? [platform] : undefined,
       folderId,
