@@ -9,6 +9,7 @@
 
 import { getValidAccessToken } from './oauth';
 import { prisma } from '@/lib/db';
+import { isoToKstLocal } from '@/lib/kst';
 
 const API = 'https://www.googleapis.com/calendar/v3';
 
@@ -147,6 +148,7 @@ async function findExistingChannelEvents(
         s.startsWith(`${channelName}, `) ||
         s.startsWith(`${channelName}(`) ||
         s.startsWith(`${channelName} (`) ||
+        s.startsWith(`${channelName}_`) ||
         s.startsWith(`${channelName} 영상업로드`) ||
         s === channelName
       );
@@ -195,8 +197,11 @@ export async function syncMyChannel(channelId: string): Promise<void> {
       notes: '예약된 영상이 없습니다',
     };
   } else {
-    // 제목: "채널명(카테고리)" — 시각은 이벤트 자체에 들어있어서 중복 표기 안 함.
-    const titleStr = ch.category ? `${ch.name}(${ch.category})` : ch.name;
+    // 제목: "채널명_카테고리_16:30" (KST 시각 포함)
+    const hhmm = isoToKstLocal(latest.scheduledAt).slice(11, 16); // "HH:mm"
+    const titleStr = ch.category
+      ? `${ch.name}_${ch.category}_${hhmm}`
+      : `${ch.name}_${hhmm}`;
     input = {
       calendarId: auth.calendarId,
       title: titleStr,
