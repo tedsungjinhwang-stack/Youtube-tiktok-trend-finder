@@ -546,6 +546,14 @@ export default function MySchedulePage() {
               className="h-7 rounded border bg-background px-2 text-sm"
             />
             <button
+              type="button"
+              onClick={() => setBulkWhen((w) => toggleAmPmInput(w))}
+              className="h-7 shrink-0 rounded border bg-card px-1.5 text-[12px] font-semibold hover:border-foreground/40"
+              title="오전 07:00 ↔ 오후 16:30"
+            >
+              {isAmInput(bulkWhen) ? '오전' : '오후'}
+            </button>
+            <button
               onClick={bulkAdd}
               disabled={!bulkWhen || bulkBusy}
               className="h-7 rounded-md bg-primary px-3 text-[13px] font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
@@ -903,12 +911,22 @@ function DashRow({
                 placeholder="영상 제목 (선택)"
                 className="col-span-5 h-8 rounded border bg-background px-2 text-sm"
               />
-              <input
-                type="datetime-local"
-                value={vWhen}
-                onChange={(e) => setVWhen(e.target.value)}
-                className="col-span-3 h-8 rounded border bg-background px-2 text-sm"
-              />
+              <div className="col-span-3 flex items-center gap-1">
+                <input
+                  type="datetime-local"
+                  value={vWhen}
+                  onChange={(e) => setVWhen(e.target.value)}
+                  className="h-8 min-w-0 flex-1 rounded border bg-background px-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setVWhen((w) => toggleAmPmInput(w))}
+                  className="h-8 shrink-0 rounded border bg-card px-1.5 text-[12px] font-semibold hover:border-foreground/40"
+                  title="오전 07:00 ↔ 오후 16:30"
+                >
+                  {isAmInput(vWhen) ? '오전' : '오후'}
+                </button>
+              </div>
               <input
                 value={vNotes}
                 onChange={(e) => setVNotes(e.target.value)}
@@ -949,8 +967,22 @@ function DashRow({
                           scheduledAt: new Date(e.target.value).toISOString(),
                         })
                       }
-                      className="h-8 w-[180px] rounded border bg-background px-1.5 text-[13px]"
+                      className="h-8 w-[170px] rounded border bg-background px-1.5 text-[13px]"
                     />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onUpdateVideo(v.id, {
+                          scheduledAt: new Date(
+                            toggleAmPmInput(toInputValue(v.scheduledAt))
+                          ).toISOString(),
+                        })
+                      }
+                      className="h-8 shrink-0 rounded border bg-card px-1.5 text-[12px] font-semibold hover:border-foreground/40"
+                      title="오전 07:00 ↔ 오후 16:30"
+                    >
+                      {isAmInput(toInputValue(v.scheduledAt)) ? '오전' : '오후'}
+                    </button>
                     <input
                       value={v.title}
                       onChange={(e) => onUpdateVideo(v.id, { title: e.target.value })}
@@ -1090,11 +1122,10 @@ function InlineDateCell({
 
   if (editing) {
     return (
-      <input
+      <DateTimeWithToggle
         autoFocus
-        type="datetime-local"
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={setDraft}
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
@@ -1132,6 +1163,68 @@ function todayKstInputValue(): string {
   d.setHours(16, 30, 0, 0);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** datetime-local 문자열이 오전(12시 미만)인지 */
+function isAmInput(local: string): boolean {
+  const h = Number(local.slice(11, 13));
+  return Number.isFinite(h) && h < 12;
+}
+
+/** 오전(07:00) ↔ 오후(16:30) 토글. 날짜 유지, 시:분만 교체 */
+function toggleAmPmInput(local: string): string {
+  if (!local || local.length < 16) {
+    // 값 없으면 내일 기준으로 생성
+    const base = todayKstInputValue().slice(0, 10);
+    return `${base}T07:00`;
+  }
+  const datePart = local.slice(0, 10);
+  return isAmInput(local) ? `${datePart}T16:30` : `${datePart}T07:00`;
+}
+
+/** datetime-local + 오전/오후 토글 버튼 묶음 */
+function DateTimeWithToggle({
+  value,
+  onChange,
+  className,
+  autoFocus,
+  onBlur,
+  onKeyDown,
+  onClick,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+  autoFocus?: boolean;
+  onBlur?: () => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+  onClick?: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input
+        autoFocus={autoFocus}
+        type="datetime-local"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
+        onClick={onClick}
+        className={className}
+      />
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onChange(toggleAmPmInput(value));
+        }}
+        className="h-7 shrink-0 rounded border bg-card px-1.5 text-[12px] font-semibold hover:border-foreground/40"
+        title="오전 07:00 ↔ 오후 16:30"
+      >
+        {isAmInput(value) ? '오전' : '오후'}
+      </button>
+    </span>
+  );
 }
 
 function InlineTextCell({
