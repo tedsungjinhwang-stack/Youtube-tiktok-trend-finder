@@ -1085,12 +1085,22 @@ function ScheduleForm({ myChannels }: { myChannels: MyChannel[] }) {
 
       <label className="block">
         <span className="mb-1 block text-xs font-semibold">예약일시</span>
-        <input
-          type="datetime-local"
-          value={when}
-          onChange={(e) => setWhen(e.target.value)}
-          className="h-11 w-full rounded-md border bg-background px-3 text-sm"
-        />
+        <div className="flex gap-2">
+          <input
+            type="datetime-local"
+            value={when}
+            onChange={(e) => setWhen(e.target.value)}
+            className="h-11 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => setWhen((w) => toggleAmPm(w))}
+            className="h-11 shrink-0 rounded-md border bg-card px-3 text-sm font-semibold hover:border-foreground/40"
+            title="오전 07:00 ↔ 오후 16:30 토글"
+          >
+            {isAm(when) ? '오전' : '오후'}
+          </button>
+        </div>
       </label>
 
       <label className="block">
@@ -1163,4 +1173,17 @@ function sfFmtKst(local: string): string {
   const d = new Date(local);
   const p = (n: number) => String(n).padStart(2, '0');
   return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** datetime-local 문자열의 시각이 오전(12시 미만)인지 */
+function isAm(local: string): boolean {
+  const h = Number(local.slice(11, 13));
+  return Number.isFinite(h) && h < 12;
+}
+
+/** 오전(07:00) ↔ 오후(16:30) 토글. 날짜는 유지, 시:분만 교체 */
+function toggleAmPm(local: string): string {
+  if (!local || local.length < 16) return local;
+  const datePart = local.slice(0, 10);
+  return isAm(local) ? `${datePart}T16:30` : `${datePart}T07:00`;
 }
