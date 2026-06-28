@@ -54,6 +54,9 @@ type EventInput = {
   notes?: string;
 };
 
+// Google Calendar colorId: '6' = Tangerine(주황)
+const EVENT_COLOR_ID = '6';
+
 function buildEventBody(e: EventInput) {
   if (e.allDayDate) {
     const startStr = e.allDayDate;
@@ -63,6 +66,7 @@ function buildEventBody(e: EventInput) {
     return {
       summary: e.title,
       description: e.notes || undefined,
+      colorId: EVENT_COLOR_ID,
       start: { date: startStr },
       end: { date: endStr },
     };
@@ -72,6 +76,7 @@ function buildEventBody(e: EventInput) {
   return {
     summary: e.title,
     description: e.notes || undefined,
+    colorId: EVENT_COLOR_ID,
     start: { dateTime: start.toISOString(), timeZone: 'Asia/Seoul' },
     end: { dateTime: end.toISOString(), timeZone: 'Asia/Seoul' },
   };
