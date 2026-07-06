@@ -12,6 +12,7 @@ export type PixiStyle = {
   bgAngle: number; // deg
   showProfile: boolean;
   avatarUrl: string | null; // dataURL
+  avatarRing: string; // 프로필 사진 테두리 색
   name: string;
   handle: string;
   title: string; // \n 줄바꿈
@@ -23,6 +24,13 @@ export type PixiStyle = {
   titleSize: number; // px @1080
   captionSize: number;
   font: string;
+  // 영상 들어가는 투명 영역 (내보낼 때 뚫린 구멍 = 투명)
+  slot: boolean;
+  slotX: number; // 좌 (px @1080)
+  slotY: number; // 위 (px @1080)
+  slotW: number; // 폭
+  slotH: number; // 높이
+  slotRadius: number; // 모서리 둥글기
 };
 
 export type SavedTemplate = { id: string; name: string; style: PixiStyle };
@@ -36,35 +44,42 @@ const FONTS = [
 ];
 
 const DEFAULT_STYLE: PixiStyle = {
-  bgType: 'gradient',
-  bg1: '#2a1250',
-  bg2: '#7c3aed',
+  bgType: 'solid',
+  bg1: '#ffffff',
+  bg2: '#ffffff',
   bgAngle: 160,
   showProfile: true,
   avatarUrl: null,
+  avatarRing: '#111111',
   name: '군림보',
   handle: '@custom_preset',
   title: '제목을\n입력하세요',
   caption: '자막을 입력하세요',
-  nameColor: '#ffffff',
-  handleColor: '#c4b5fd',
-  titleColor: '#ffffff',
-  captionColor: '#e9d5ff',
+  nameColor: '#111111',
+  handleColor: '#2563eb',
+  titleColor: '#111111',
+  captionColor: '#444444',
   titleSize: 104,
   captionSize: 44,
   font: 'Noto Sans KR',
+  slot: true,
+  slotX: 84,
+  slotY: 720,
+  slotW: 912,
+  slotH: 760,
+  slotRadius: 32,
 };
 
 /* ─────────────── 기본 프리셋 ─────────────── */
 
 type Preset = { name: string; patch: Partial<PixiStyle> };
 const PRESETS: Preset[] = [
-  { name: '퍼플', patch: { bgType: 'gradient', bg1: '#2a1250', bg2: '#7c3aed', bgAngle: 160, titleColor: '#fff', nameColor: '#fff', handleColor: '#c4b5fd', captionColor: '#e9d5ff' } },
-  { name: '다크', patch: { bgType: 'solid', bg1: '#141414', bg2: '#141414', titleColor: '#fff', nameColor: '#fff', handleColor: '#f59e0b', captionColor: '#d4d4d4' } },
-  { name: '블루', patch: { bgType: 'gradient', bg1: '#1e3a8a', bg2: '#3b82f6', bgAngle: 160, titleColor: '#fff', nameColor: '#fff', handleColor: '#bfdbfe', captionColor: '#dbeafe' } },
-  { name: '선셋', patch: { bgType: 'gradient', bg1: '#ec4899', bg2: '#8b5cf6', bgAngle: 160, titleColor: '#fff', nameColor: '#fff', handleColor: '#fce7f3', captionColor: '#fbcfe8' } },
-  { name: '기본', patch: { bgType: 'solid', bg1: '#ffffff', bg2: '#ffffff', titleColor: '#111111', nameColor: '#111111', handleColor: '#2563eb', captionColor: '#444444' } },
-  { name: '민트', patch: { bgType: 'gradient', bg1: '#a7f3d0', bg2: '#34d399', bgAngle: 160, titleColor: '#064e3b', nameColor: '#064e3b', handleColor: '#047857', captionColor: '#065f46' } },
+  { name: '기본', patch: { bgType: 'solid', bg1: '#ffffff', bg2: '#ffffff', titleColor: '#111111', nameColor: '#111111', handleColor: '#2563eb', captionColor: '#444444', avatarRing: '#111111' } },
+  { name: '퍼플', patch: { bgType: 'gradient', bg1: '#2a1250', bg2: '#7c3aed', bgAngle: 160, titleColor: '#fff', nameColor: '#fff', handleColor: '#c4b5fd', captionColor: '#e9d5ff', avatarRing: '#ffffff' } },
+  { name: '다크', patch: { bgType: 'solid', bg1: '#141414', bg2: '#141414', titleColor: '#fff', nameColor: '#fff', handleColor: '#f59e0b', captionColor: '#d4d4d4', avatarRing: '#f59e0b' } },
+  { name: '블루', patch: { bgType: 'gradient', bg1: '#1e3a8a', bg2: '#3b82f6', bgAngle: 160, titleColor: '#fff', nameColor: '#fff', handleColor: '#bfdbfe', captionColor: '#dbeafe', avatarRing: '#ffffff' } },
+  { name: '선셋', patch: { bgType: 'gradient', bg1: '#ec4899', bg2: '#8b5cf6', bgAngle: 160, titleColor: '#fff', nameColor: '#fff', handleColor: '#fce7f3', captionColor: '#fbcfe8', avatarRing: '#ffffff' } },
+  { name: '민트', patch: { bgType: 'gradient', bg1: '#a7f3d0', bg2: '#34d399', bgAngle: 160, titleColor: '#064e3b', nameColor: '#064e3b', handleColor: '#047857', captionColor: '#065f46', avatarRing: '#064e3b' } },
 ];
 
 const W = 1080;
@@ -318,6 +333,7 @@ export function PixiClient({
                   사진 제거
                 </button>
               )}
+              <ColorInput label="테두리색" value={style.avatarRing} onChange={(v) => set('avatarRing', v)} />
             </div>
           </Section>
 
@@ -349,6 +365,28 @@ export function PixiClient({
                 </>
               )}
             </div>
+          </Section>
+
+          {/* 영상 투명 영역 */}
+          <Section title="영상 영역 (투명)">
+            <label className="flex items-center gap-1.5 text-[13px]">
+              <input
+                type="checkbox"
+                checked={style.slot}
+                onChange={(e) => set('slot', e.target.checked)}
+                className="h-4 w-4"
+              />
+              영상 들어가는 투명 창 사용
+            </label>
+            {style.slot && (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <Slider label="좌우 위치" value={style.slotX} min={0} max={W - style.slotW} onChange={(v) => set('slotX', v)} />
+                <Slider label="위아래 위치" value={style.slotY} min={0} max={H - style.slotH} onChange={(v) => set('slotY', v)} />
+                <Slider label="폭(좌우 크기)" value={style.slotW} min={200} max={W} onChange={(v) => set('slotW', Math.min(v, W - style.slotX))} />
+                <Slider label="높이(위아래 크기)" value={style.slotH} min={200} max={H} onChange={(v) => set('slotH', Math.min(v, H - style.slotY))} />
+                <Slider label="모서리 둥글기" value={style.slotRadius} min={0} max={120} onChange={(v) => set('slotRadius', v)} />
+              </div>
+            )}
           </Section>
 
           {/* 폰트/색/크기 */}
@@ -447,6 +485,36 @@ function drawScene(
   }
   ctx.fillRect(0, 0, W, H);
 
+  // 영상 투명 영역
+  if (s.slot) {
+    const x = s.slotX, y = s.slotY, w = s.slotW, h = s.slotH, r = Math.min(s.slotRadius, w / 2, h / 2);
+    roundRectPath(ctx, x, y, w, h, r);
+    if (full) {
+      // 내보내기: 실제로 뚫어서 투명하게
+      ctx.save();
+      ctx.clip();
+      ctx.clearRect(x, y, w, h);
+      ctx.restore();
+    } else {
+      // 미리보기: 투명임을 보이게 체커보드 + 테두리
+      ctx.save();
+      ctx.clip();
+      drawChecker(ctx, x, y, w, h);
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.setLineDash([14, 10]);
+      ctx.lineWidth = 4;
+      roundRectPath(ctx, x, y, w, h, r);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.font = `600 32px ${s.font}, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText('영상 영역 (투명)', x + w / 2, y + h / 2 + 10);
+      ctx.textAlign = 'left';
+    }
+  }
+
   const P = 84;
   ctx.textBaseline = 'alphabetic';
 
@@ -469,17 +537,17 @@ function drawScene(
       else { dh = AV / ar; dyi = ay - (dh - AV) / 2; }
       ctx.drawImage(avatar, dxi, dyi, dw, dh);
     } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.fillStyle = s.avatarRing;
       ctx.fill();
-      ctx.fillStyle = s.nameColor;
+      ctx.fillStyle = pickReadable(s.avatarRing);
       ctx.font = `700 54px ${s.font}, sans-serif`;
       ctx.textAlign = 'center';
       ctx.fillText((s.name || '?').slice(0, 1), ax + AV / 2, ay + AV / 2 + 20);
     }
     ctx.restore();
-    // 원 테두리
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.lineWidth = 3;
+    // 원 테두리 (색 조절)
+    ctx.strokeStyle = s.avatarRing;
+    ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.arc(ax + AV / 2, ay + AV / 2, AV / 2, 0, Math.PI * 2);
     ctx.stroke();
@@ -522,6 +590,26 @@ function drawScene(
 
   ctx.restore();
   void full;
+}
+
+function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawChecker(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  const s = 40;
+  for (let i = 0; i * s < w; i++) {
+    for (let j = 0; j * s < h; j++) {
+      ctx.fillStyle = (i + j) % 2 === 0 ? '#e5e7eb' : '#ffffff';
+      ctx.fillRect(x + i * s, y + j * s, s, s);
+    }
+  }
 }
 
 // \n 유지 + 폭 초과 시 글자 단위 줄바꿈 (공백 우선)
@@ -567,6 +655,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function Slider({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) {
+  return (
+    <label className="flex flex-col gap-0.5 text-[12px] text-muted-foreground">
+      <span>{label}</span>
+      <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+    </label>
+  );
+}
+
 function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <label className="flex items-center gap-1 text-[12px] text-muted-foreground">
@@ -594,6 +691,14 @@ function toHex6(c: string): string {
   }
   if (/^#[0-9a-f]{8}$/i.test(c)) return c.slice(0, 7);
   return '#ffffff';
+}
+
+// 배경색 위에 읽히는 글자색(흑/백) 선택
+function pickReadable(bg: string): string {
+  const h = toHex6(bg).slice(1);
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.6 ? '#111111' : '#ffffff';
 }
 
 function hslToHex(hsl: string): string {
