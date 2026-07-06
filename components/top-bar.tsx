@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 const tabs = [
+  { href: '/pixi', label: '픽시에디터' },
   { href: '/discovery', label: '커뮤니티/뉴스' },
   { href: '/popular-feed', label: '해시태그검색' },
   { href: '/trending', label: '실시간 인기' },

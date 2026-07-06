@@ -361,6 +361,17 @@ model DiscoveryPost {
   @@index([collectedAt])
 }
 
+/// 픽시에디터(인스타 템플릿) — 프로필/제목/자막 스타일 프리셋을 통째로 JSON 저장.
+model PixiTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  /// 전체 스타일 객체 (배경/색/폰트/텍스트 등). 클라이언트가 형태 정의.
+  style     Json
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 /// Google OAuth (Calendar 동기화용). 싱글톤 (id='default').
 model GoogleOAuth {
   id           String   @id @default("default")
