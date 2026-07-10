@@ -51,7 +51,7 @@ export async function GET(req: Request) {
       success: false,
       error: 'NO_GOOGLE_OAUTH',
       hint: '/my-schedule 페이지에서 Google 캘린더 연결을 먼저 해주세요.',
-    }, { status: 200 });
+    }, { status: 503 });
   }
   // 매 cron 호출 시 access token 강제 갱신 — DB 캐시가 죽어있던 케이스 회피
   const token = await getValidAccessToken({ force: true });
@@ -60,7 +60,7 @@ export async function GET(req: Request) {
       success: false,
       error: 'OAUTH_EXPIRED',
       hint: 'Google OAuth refresh token 만료. /my-schedule 에서 연결 해제 → 재연결 필요.',
-    }, { status: 200 });
+    }, { status: 503 });
   }
 
   const channels = await prisma.myChannel.findMany({
