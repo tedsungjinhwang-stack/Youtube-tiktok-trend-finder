@@ -130,6 +130,9 @@ export async function GET(req: Request) {
   return NextResponse.json({
     success: true,
     data: {
+      // 이벤트가 들어가는 곳 (이 계정의 이 캘린더를 봐야 보임)
+      account: hasOAuth.accountEmail,
+      calendarId: hasOAuth.calendarId,
       allChannels: channels.length,
       ytSynced,
       ytFailed,
