@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { syncMyChannel } from '@/lib/google/calendar';
 import { getValidAccessToken } from '@/lib/google/oauth';
+import { syncChannelScheduled } from '@/lib/google/youtube';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -64,12 +65,31 @@ export async function GET(req: Request) {
 
   const channels = await prisma.myChannel.findMany({
     where: { isActive: true },
-    select: { id: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      youtubeOauth: { select: { id: true } },
+    },
   });
   let ok = 0;
   let failed = 0;
+  let ytSynced = 0;
+  let ytFailed = 0;
   const failedDetails: Array<{ name: string; reason: string }> = [];
   for (const c of channels) {
+    // 1) YouTube 연결된 채널: 예약 업로드 먼저 가져옴 (youtubeVideoId 있는 것만 갱신 — 수동 예약은 안 건드림)
+    if (c.youtubeOauth) {
+      try {
+        await syncChannelScheduled(c.youtubeOauth.id);
+        ytSynced++;
+      } catch (e) {
+        ytFailed++;
+        const reason = `YT: ${(e as Error).message.slice(0, 100)}`;
+        failedDetails.push({ name: c.name, reason });
+        console.error('[yt cron]', c.id, reason);
+      }
+    }
+    // 2) DB 예약 → 캘린더 이벤트 반영
     try {
       await syncMyChannel(c.id);
       ok++;
@@ -111,6 +131,8 @@ export async function GET(req: Request) {
     success: true,
     data: {
       allChannels: channels.length,
+      ytSynced,
+      ytFailed,
       calSynced: ok,
       calFailed: failed,
       cleanedVideos,
