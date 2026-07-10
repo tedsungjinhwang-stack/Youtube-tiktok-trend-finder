@@ -659,6 +659,7 @@ export default function MySchedulePage() {
                         }
                         onUpdate={updateChannel}
                         onRemove={() => removeChannel(c.id)}
+                        onRefresh={refresh}
                         onAddVideo={async (t, w, n) => {
                           if (!w) return;
                           await fetch('/api/v1/my-schedule/videos', {
@@ -702,6 +703,7 @@ function DashRow({
   onToggle,
   onUpdate,
   onRemove,
+  onRefresh,
   onAddVideo,
   onUpdateVideo,
   onRemoveVideo,
@@ -718,6 +720,7 @@ function DashRow({
   onToggle: () => void;
   onUpdate: (id: string, patch: Partial<MyChannel>) => void;
   onRemove: () => void;
+  onRefresh: () => void;
   onAddVideo: (title: string, when: string, notes: string) => void;
   onUpdateVideo: (id: string, patch: Record<string, unknown>) => void;
   onRemoveVideo: (id: string) => void;
@@ -729,6 +732,63 @@ function DashRow({
   const [vTitle, setVTitle] = useState('');
   const [vWhen, setVWhen] = useState('');
   const [vNotes, setVNotes] = useState('');
+
+  // YouTube 연결 (선택) — 연결 없이도 수동 사용 가능
+  const [ytBusy, setYtBusy] = useState(false);
+  const [ytMsg, setYtMsg] = useState<string | null>(null);
+  const [ytPolling, setYtPolling] = useState(false);
+
+  useEffect(() => {
+    if (!ytPolling) return;
+    if (c.youtubeOauth) {
+      setYtPolling(false);
+      setYtMsg('✅ YouTube 연결 완료');
+      return;
+    }
+    const iv = setInterval(onRefresh, 2000);
+    const to = setTimeout(() => setYtPolling(false), 120_000);
+    return () => {
+      clearInterval(iv);
+      clearTimeout(to);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ytPolling, c.youtubeOauth]);
+
+  const ytConnect = () => {
+    window.open(
+      `/api/google/auth/start?kind=youtube&channelId=${c.id}`,
+      '_blank',
+      'width=520,height=680'
+    );
+    setYtMsg('팝업에서 Google 계정으로 로그인하면 자동 연결됩니다…');
+    setYtPolling(true);
+  };
+
+  const ytSync = async () => {
+    if (ytBusy) return;
+    setYtBusy(true);
+    setYtMsg(null);
+    try {
+      const r = await fetch(`/api/v1/my-schedule/channels/${c.id}/yt`, {
+        method: 'POST',
+      });
+      const j = await r.json();
+      if (j.success) setYtMsg(`✅ 예약 ${j.data.count}건 동기화됨 (수동 예약은 안 건드림)`);
+      else setYtMsg(`❌ ${j.error?.message ?? '동기화 실패'}`);
+    } catch (e) {
+      setYtMsg(`❌ ${(e as Error).message}`);
+    } finally {
+      setYtBusy(false);
+      onRefresh();
+    }
+  };
+
+  const ytDisconnect = async () => {
+    if (!confirm('YouTube 연결을 해제할까요? (기존 예약 데이터는 유지)')) return;
+    await fetch(`/api/v1/my-schedule/channels/${c.id}/yt`, { method: 'DELETE' });
+    setYtMsg(null);
+    onRefresh();
+  };
 
   const sortedAsc = [...c.videos].sort(
     (a, b) =>
@@ -895,6 +955,56 @@ function DashRow({
               >
                 🗑️ 채널 삭제
               </button>
+            </div>
+
+            {/* YouTube 연결 (선택) — 연결하면 예약 업로드가 자동으로 들어옴, 미연결이어도 수동 사용 OK */}
+            <div className="mb-3 rounded-lg border border-border/60 bg-background/50 px-3 py-2">
+              {c.youtubeOauth ? (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+                  <span className="font-semibold text-red-500">▶ YouTube 연결됨</span>
+                  <span className="text-muted-foreground">
+                    {c.youtubeOauth.youtubeChannelName ?? c.youtubeOauth.accountEmail ?? ''}
+                    {c.youtubeOauth.lastSyncedAt &&
+                      ` · 마지막 동기화 ${fmt(c.youtubeOauth.lastSyncedAt)}`}
+                  </span>
+                  {c.youtubeOauth.lastSyncError && (
+                    <span className="text-rose-400" title={c.youtubeOauth.lastSyncError}>
+                      ⚠️ {c.youtubeOauth.lastSyncError.slice(0, 60)}
+                    </span>
+                  )}
+                  <span className="flex-1" />
+                  <button
+                    onClick={ytSync}
+                    disabled={ytBusy}
+                    className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[13px] font-semibold text-emerald-500 disabled:opacity-50"
+                  >
+                    {ytBusy ? '동기화 중…' : '🔄 지금 동기화'}
+                  </button>
+                  <button
+                    onClick={ytDisconnect}
+                    className="rounded-md border bg-card px-2.5 py-1 text-[12px] text-muted-foreground hover:border-destructive/40"
+                  >
+                    연결 해제
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+                  <span className="font-semibold text-muted-foreground">▶ YouTube 미연결</span>
+                  <span className="text-[12px] text-muted-foreground/70">
+                    연결하면 예약 업로드 일정이 자동으로 들어옵니다 (연결 없이 수동 사용도 가능)
+                  </span>
+                  <span className="flex-1" />
+                  <button
+                    onClick={ytConnect}
+                    className="rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-[13px] font-semibold text-red-500 hover:bg-red-500/20"
+                  >
+                    ▶ YouTube 연결
+                  </button>
+                </div>
+              )}
+              {ytMsg && (
+                <p className="mt-1 text-[12px] text-muted-foreground">{ytMsg}</p>
+              )}
             </div>
 
             {/* 영상 추가 폼 */}
