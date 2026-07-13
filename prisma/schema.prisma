@@ -316,6 +316,7 @@ model ScheduledVideo {
   youtubeVideoId String?
   gcalEventId    String?
   gcalSyncedAt   DateTime?
+  todoistTaskId  String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -370,6 +371,19 @@ model PixiTemplate {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// Todoist 연동 설정. 싱글톤 (id='default'). 개인 API 토큰은 만료 없음.
+model TodoistConfig {
+  id          String   @id @default("default")
+  apiToken    String
+  projectId   String? // "유튜브 예약" 프로젝트 id (최초 sync 때 생성/저장)
+  projectName String   @default("유튜브 예약 스케줄")
+  accountName String?
+  lastSyncedAt DateTime?
+  lastSyncError String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 /// Google OAuth (Calendar 동기화용). 싱글톤 (id='default').

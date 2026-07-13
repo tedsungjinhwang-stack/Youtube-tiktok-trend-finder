@@ -66,6 +66,14 @@ type MyChannel = {
   attachments: ChannelAttachment[];
 };
 
+type TodoistStatus = {
+  connected: boolean;
+  account?: string | null;
+  projectName?: string | null;
+  lastSyncedAt?: string | null;
+  lastSyncError?: string | null;
+};
+
 type GoogleStatus = {
   connected: boolean;
   email: string | null;
@@ -86,6 +94,10 @@ export default function MySchedulePage() {
   const [channels, setChannels] = useState<MyChannel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [google, setGoogle] = useState<GoogleStatus>({ connected: false, email: null, calendarId: null });
+  const [todoist, setTodoist] = useState<TodoistStatus>({ connected: false });
+  const [tdToken, setTdToken] = useState('');
+  const [tdBusy, setTdBusy] = useState(false);
+  const [tdMsg, setTdMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [setupWarning, setSetupWarning] = useState<string | null>(null);
 
@@ -116,9 +128,12 @@ export default function MySchedulePage() {
 
   const refresh = async () => {
     try {
-      const [c, g] = await Promise.all([
+      const [c, g, t] = await Promise.all([
         fetch('/api/v1/my-schedule/channels', { cache: 'no-store' }).then((r) => r.json()),
         fetch('/api/google/status', { cache: 'no-store' })
+          .then((r) => r.json())
+          .catch(() => ({ success: false })),
+        fetch('/api/v1/todoist/config', { cache: 'no-store' })
           .then((r) => r.json())
           .catch(() => ({ success: false })),
       ]);
@@ -129,6 +144,7 @@ export default function MySchedulePage() {
         setSetupWarning(c.error?.message ?? '채널 목록 로드 실패');
       }
       if (g.success) setGoogle(g.data);
+      if (t.success) setTodoist(t.data);
     } catch (e) {
       setSetupWarning('네트워크 오류: ' + (e as Error).message);
     } finally {
@@ -362,6 +378,53 @@ export default function MySchedulePage() {
     refresh();
   };
 
+  const connectTodoist = async () => {
+    const token = tdToken.trim();
+    if (!token) return;
+    setTdBusy(true);
+    setTdMsg(null);
+    try {
+      const r = await fetch('/api/v1/todoist/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiToken: token }),
+      });
+      const j = await r.json();
+      if (j.success) {
+        setTdToken('');
+        setTdMsg('✅ 연결됨');
+        refresh();
+      } else {
+        setTdMsg(`❌ ${j.error?.message ?? '연결 실패'}`);
+      }
+    } finally {
+      setTdBusy(false);
+    }
+  };
+
+  const disconnectTodoist = async () => {
+    if (!confirm('Todoist 연결을 해제할까요? (Todoist 에 만든 태스크는 남음)')) return;
+    await fetch('/api/v1/todoist/config', { method: 'DELETE' });
+    setTdMsg(null);
+    refresh();
+  };
+
+  const syncTodoist = async () => {
+    setTdBusy(true);
+    setTdMsg('동기화 중…');
+    try {
+      const r = await fetch('/api/v1/todoist/sync', { method: 'POST' });
+      const j = await r.json();
+      if (j.success) setTdMsg(`✅ ${j.data.tasks}개 태스크 · ${j.data.channels}개 채널 동기화됨`);
+      else setTdMsg(`❌ ${j.error?.message ?? '동기화 실패'}`);
+    } catch (e) {
+      setTdMsg(`❌ ${(e as Error).message}`);
+    } finally {
+      setTdBusy(false);
+      refresh();
+    }
+  };
+
   const [syncingGcal, setSyncingGcal] = useState(false);
 
   const syncGcalAll = async () => {
@@ -510,6 +573,66 @@ export default function MySchedulePage() {
               Google 캘린더 연결
             </button>
           )}
+        </div>
+
+        {/* Todoist 연결 영역 (토큰 안 만료 — 권장) */}
+        <div className="border-t bg-secondary/30 p-3">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold">
+            <span className="text-[#e44332]">✓</span> Todoist
+            <span className="rounded bg-emerald-500/15 px-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+              안 끊김
+            </span>
+          </div>
+          {todoist.connected ? (
+            <div className="space-y-1.5">
+              <div className="text-[13px] text-muted-foreground">
+                ✓ 연결됨 {todoist.account ? `(${todoist.account})` : ''}
+                {todoist.projectName && <> · 프로젝트 “{todoist.projectName}”</>}
+                {todoist.lastSyncedAt && <> · 마지막 {fmt(todoist.lastSyncedAt)}</>}
+              </div>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={syncTodoist}
+                  disabled={tdBusy}
+                  className="h-7 flex-1 rounded-md bg-[#e44332] text-[13px] font-semibold text-white hover:bg-[#c93a2b] disabled:opacity-50"
+                >
+                  {tdBusy ? '동기화 중…' : '🔄 지금 동기화'}
+                </button>
+                <button
+                  onClick={disconnectTodoist}
+                  className="h-7 rounded-md border bg-background px-2 text-[12px] text-muted-foreground hover:border-destructive/40"
+                >
+                  해제
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <input
+                type="password"
+                value={tdToken}
+                onChange={(e) => setTdToken(e.target.value)}
+                placeholder="Todoist API 토큰 붙여넣기"
+                className="h-7 w-full rounded-md border bg-background px-2 text-[13px]"
+              />
+              <button
+                onClick={connectTodoist}
+                disabled={tdBusy || !tdToken.trim()}
+                className="h-7 w-full rounded-md bg-[#e44332] text-sm font-semibold text-white hover:bg-[#c93a2b] disabled:opacity-50"
+              >
+                Todoist 연결
+              </button>
+              <a
+                href="https://app.todoist.com/app/settings/integrations/developer"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-[11px] text-muted-foreground/80 underline"
+              >
+                토큰 발급: 설정 → 연동 → 개발자 →
+              </a>
+            </div>
+          )}
+          {tdMsg && <p className="mt-1 text-[12px] text-muted-foreground">{tdMsg}</p>}
         </div>
       </aside>
 
