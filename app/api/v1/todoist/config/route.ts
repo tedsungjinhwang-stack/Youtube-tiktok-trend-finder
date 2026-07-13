@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { checkApiKey } from '@/lib/auth';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { testTodoistToken } from '@/lib/todoist';
 
@@ -9,10 +8,7 @@ function missingTable(e: unknown) {
   return /relation .* does not exist|P2021|does not exist/i.test((e as Error)?.message ?? '');
 }
 
-export async function GET(req: NextRequest) {
-  if (!checkApiKey(req)) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
-  }
+export async function GET() {
   try {
     const c = await prisma.todoistConfig.findUnique({ where: { id: 'default' } });
     return NextResponse.json({
@@ -33,10 +29,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
-  if (!checkApiKey(req)) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
-  }
+export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const token = (body.apiToken ?? '').toString().trim();
   if (!token) {
@@ -61,10 +54,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  if (!checkApiKey(req)) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
-  }
+export async function DELETE() {
   await prisma.todoistConfig.deleteMany({ where: { id: 'default' } }).catch(() => {});
   return NextResponse.json({ success: true });
 }

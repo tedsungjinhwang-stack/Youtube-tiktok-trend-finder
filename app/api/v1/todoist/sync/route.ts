@@ -1,14 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { checkApiKey } from '@/lib/auth';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { syncAllToTodoist, syncChannelToTodoist } from '@/lib/todoist';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: NextRequest) {
-  if (!checkApiKey(req)) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
-  }
+export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const channelId = body.channelId as string | undefined;
   try {

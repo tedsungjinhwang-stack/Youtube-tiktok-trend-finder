@@ -1,14 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { checkApiKey } from '@/lib/auth';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 type Ctx = { params: Promise<{ id: string }> };
 
-export async function DELETE(req: NextRequest, { params }: Ctx) {
-  if (!checkApiKey(req)) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
-  }
+export async function DELETE(_req: Request, { params }: Ctx) {
   const { id } = await params;
   try {
     await prisma.pixiTemplate.delete({ where: { id } });

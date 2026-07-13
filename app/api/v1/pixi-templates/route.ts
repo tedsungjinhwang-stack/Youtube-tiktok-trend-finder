@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { checkApiKey } from '@/lib/auth';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -9,10 +8,7 @@ function isMissingTable(e: unknown): boolean {
   return /relation .* does not exist|P2021|does not exist/i.test(msg);
 }
 
-export async function GET(req: NextRequest) {
-  if (!checkApiKey(req)) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
-  }
+export async function GET() {
   try {
     const rows = await prisma.pixiTemplate.findMany({
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
@@ -33,10 +29,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
-  if (!checkApiKey(req)) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
-  }
+export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const name = (body.name ?? '').toString().trim() || '내 템플릿';
   const style = body.style;
