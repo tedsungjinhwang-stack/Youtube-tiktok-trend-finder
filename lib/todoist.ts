@@ -86,17 +86,49 @@ async function ensureProject(token: string, projectName: string, existingId: str
   return p.id;
 }
 
-function taskContent(channelName: string, title: string): string {
-  const t = title?.trim();
-  return t ? `${channelName} - ${t}` : `${channelName} 영상 업로드`;
-}
-
 /**
  * 한 채널의 예약 영상들을 Todoist 태스크로 upsert.
  * - content: "채널명 - 제목"
  * - due_datetime: 예약시각 (RFC3339)
  * - labels: [채널명]  (Todoist 가 없으면 자동 생성)
  * 반환: 처리한 태스크 수
+ */
+type TodoistTask = { id: string; labels?: string[] };
+
+/** 프로젝트 내 태스크 목록 (페이지네이션 병합). */
+async function listTasks(token: string, projectId: string): Promise<TodoistTask[]> {
+  const all: TodoistTask[] = [];
+  let cursor: string | null = null;
+  for (let i = 0; i < 30; i++) {
+    const qs = `?project_id=${encodeURIComponent(projectId)}` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
+    const r = await tdFetch(token, `/tasks${qs}`);
+    if (!r.ok) break;
+    const j = (await r.json()) as Paginated<TodoistTask> | TodoistTask[];
+    const page = Array.isArray(j) ? j : j.results ?? [];
+    all.push(...page);
+    cursor = Array.isArray(j) ? null : j.next_cursor ?? null;
+    if (!cursor) break;
+  }
+  return all;
+}
+
+/** KST 기준 HH:mm */
+function kstHHmm(d: Date): string {
+  const k = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  return `${String(k.getUTCHours()).padStart(2, '0')}:${String(k.getUTCMinutes()).padStart(2, '0')}`;
+}
+/** KST 기준 오늘 YYYY-MM-DD */
+function kstToday(): string {
+  const k = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return `${k.getUTCFullYear()}-${String(k.getUTCMonth() + 1).padStart(2, '0')}-${String(k.getUTCDate()).padStart(2, '0')}`;
+}
+
+/**
+ * 캘린더와 동일하게 **채널당 1개 태스크**로 동기화.
+ * - 지난 예약(업로드 완료)은 삭제
+ * - 예약 0개 → "채널명(카테고리) 영상업로드 필요" (오늘 마감)
+ * - 예약 있음 → "채널명_카테고리_HH:mm" (마지막 예약 시각 마감)
+ * - 채널 라벨로 기존 태스크를 찾아 지우고 새로 생성 (중복 방지)
  */
 export async function syncChannelToTodoist(channelId: string): Promise<number> {
   const config = await prisma.todoistConfig.findUnique({ where: { id: 'default' } });
@@ -107,54 +139,64 @@ export async function syncChannelToTodoist(channelId: string): Promise<number> {
     await prisma.todoistConfig.update({ where: { id: 'default' }, data: { projectId } });
   }
 
-  const channel = await prisma.myChannel.findUnique({
+  // 지난 예약 정리 (업로드 완료로 간주) → 마지막 예약이 과거면 '영상업로드 필요' 로 전환
+  await prisma.scheduledVideo
+    .deleteMany({ where: { channelId, scheduledAt: { lt: new Date() } } })
+    .catch(() => {});
+
+  const ch = await prisma.myChannel.findUnique({
     where: { id: channelId },
-    select: { name: true, videos: { select: { id: true, title: true, scheduledAt: true, todoistTaskId: true } } },
+    include: { videos: { orderBy: { scheduledAt: 'desc' }, take: 1 }, _count: { select: { videos: true } } },
   });
-  if (!channel) return 0;
+  if (!ch || !ch.isActive) return 0;
 
-  const label = channel.name.replace(/\s+/g, '_').slice(0, 60);
-  let count = 0;
+  const label = ch.name.replace(/\s+/g, '_').slice(0, 60);
+  const count = ch._count.videos;
+  const latest = ch.videos[0];
 
-  for (const v of channel.videos) {
-    const body = {
-      content: taskContent(channel.name, v.title),
-      due_datetime: new Date(v.scheduledAt).toISOString(),
+  // 태스크 내용/마감 계산
+  let body: Record<string, unknown>;
+  if (count === 0 || !latest) {
+    const content = ch.category ? `${ch.name}(${ch.category}) 영상업로드 필요` : `${ch.name} 영상업로드 필요`;
+    body = { content, due_date: kstToday(), project_id: projectId, labels: [label], description: '예약된 영상이 없습니다' };
+  } else {
+    const content = ch.category ? `${ch.name}_${ch.category}_${kstHHmm(latest.scheduledAt)}` : `${ch.name}_${kstHHmm(latest.scheduledAt)}`;
+    body = {
+      content,
+      due_datetime: new Date(latest.scheduledAt).toISOString(),
       project_id: projectId,
       labels: [label],
+      description: `예약 영상 ${count}개${latest.title ? `. 마지막: ${latest.title}` : ''}`,
     };
-    if (v.todoistTaskId) {
-      // 업데이트 (due 는 별도 필드도 되지만 v2 는 content/due_datetime update 지원)
-      const r = await tdFetch(token, `/tasks/${v.todoistTaskId}`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      });
-      if (r.status === 404) {
-        // 삭제된 태스크 — 새로 만듦
-        await createTask(token, body, v.id);
-      } else if (!r.ok) {
-        throw new Error(`태스크 업데이트 실패 (${r.status})`);
-      }
-    } else {
-      await createTask(token, body, v.id);
-    }
-    count++;
   }
-  return count;
-}
 
-async function createTask(
-  token: string,
-  body: Record<string, unknown>,
-  videoId: string
-): Promise<void> {
+  // 이 채널 라벨의 기존 태스크 모두 삭제 (중복 방지)
+  try {
+    const tasks = await listTasks(token, projectId);
+    const mine = tasks.filter((t) => (t.labels ?? []).includes(label));
+    for (const t of mine) {
+      await tdFetch(token, `/tasks/${t.id}`, { method: 'DELETE' }).catch(() => {});
+    }
+  } catch {
+    /* list 실패해도 생성은 시도 */
+  }
+
   const r = await tdFetch(token, '/tasks', { method: 'POST', body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`태스크 생성 실패 (${r.status})`);
-  const task = (await r.json()) as { id: string };
-  await prisma.scheduledVideo.update({
-    where: { id: videoId },
-    data: { todoistTaskId: task.id },
-  });
+  return 1;
+}
+
+/** 채널 삭제/비활성 시 그 채널 라벨의 Todoist 태스크 제거. */
+export async function unsyncChannelFromTodoist(channelId: string): Promise<void> {
+  const config = await prisma.todoistConfig.findUnique({ where: { id: 'default' } });
+  if (!config?.projectId) return;
+  const ch = await prisma.myChannel.findUnique({ where: { id: channelId }, select: { name: true } });
+  if (!ch) return;
+  const label = ch.name.replace(/\s+/g, '_').slice(0, 60);
+  const tasks = await listTasks(config.apiToken, config.projectId).catch(() => []);
+  for (const t of tasks.filter((t) => (t.labels ?? []).includes(label))) {
+    await tdFetch(config.apiToken, `/tasks/${t.id}`, { method: 'DELETE' }).catch(() => {});
+  }
 }
 
 /** 활성 채널 전체를 Todoist 로 동기화. 반환: {tasks, channels}. */
