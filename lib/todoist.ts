@@ -1,9 +1,12 @@
 import { prisma } from '@/lib/db';
 
-const BASE = 'https://api.todoist.com/rest/v2';
+// Todoist 통합 API v1 (REST v2 는 2025 폐기 — 410). https://developer.todoist.com/api/v1/
+const BASE = 'https://api.todoist.com/api/v1';
 
 type TodoistProject = { id: string; name: string };
 type TodoistUser = { full_name?: string; email?: string };
+// v1 리스트는 커서 페이지네이션: { results: [...], next_cursor }
+type Paginated<T> = { results?: T[]; next_cursor?: string | null };
 
 async function tdFetch(
   token: string,
@@ -20,6 +23,23 @@ async function tdFetch(
   });
 }
 
+/** v1 프로젝트 목록 (페이지네이션 병합). */
+async function listProjects(token: string): Promise<TodoistProject[]> {
+  const all: TodoistProject[] = [];
+  let cursor: string | null = null;
+  for (let i = 0; i < 20; i++) {
+    const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    const r = await tdFetch(token, `/projects${qs}`);
+    if (!r.ok) break;
+    const j = (await r.json()) as Paginated<TodoistProject> | TodoistProject[];
+    const page = Array.isArray(j) ? j : j.results ?? [];
+    all.push(...page);
+    cursor = Array.isArray(j) ? null : j.next_cursor ?? null;
+    if (!cursor) break;
+  }
+  return all;
+}
+
 /** 토큰 유효성 검사 — 프로젝트 목록 GET. 성공하면 계정 표시명 반환. */
 export async function testTodoistToken(
   token: string
@@ -28,12 +48,10 @@ export async function testTodoistToken(
     const r = await tdFetch(token, '/projects');
     if (r.status === 401 || r.status === 403) return { ok: false, error: '토큰이 유효하지 않음' };
     if (!r.ok) return { ok: false, error: `Todoist ${r.status}` };
-    // 계정 이름은 Sync API 로만 확실히 옴 — 실패해도 무시
+    // 계정 이름 (v1 user 엔드포인트) — 실패해도 무시
     let account: string | undefined;
     try {
-      const u = await fetch('https://api.todoist.com/sync/v9/user', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const u = await tdFetch(token, '/user');
       if (u.ok) {
         const j = (await u.json()) as TodoistUser;
         account = j.full_name || j.email;
@@ -55,12 +73,9 @@ async function ensureProject(token: string, projectName: string, existingId: str
     if (r.ok) return existingId;
   }
   // 같은 이름 프로젝트 찾기
-  const list = await tdFetch(token, '/projects');
-  if (list.ok) {
-    const projects = (await list.json()) as TodoistProject[];
-    const found = projects.find((p) => p.name === projectName);
-    if (found) return found.id;
-  }
+  const projects = await listProjects(token);
+  const found = projects.find((p) => p.name === projectName);
+  if (found) return found.id;
   // 생성
   const created = await tdFetch(token, '/projects', {
     method: 'POST',
