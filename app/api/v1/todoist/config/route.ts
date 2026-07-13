@@ -54,6 +54,26 @@ export async function POST(req: Request) {
   }
 }
 
+// 프로젝트명 변경 — projectId 를 비워서 다음 sync 때 그 이름의 기존 프로젝트를 찾아 연결.
+export async function PATCH(req: Request) {
+  const body = await req.json().catch(() => ({}));
+  const projectName = (body.projectName ?? '').toString().trim();
+  if (!projectName) {
+    return NextResponse.json({ success: false, error: { code: 'BAD_REQUEST', message: 'projectName 필요' } }, { status: 400 });
+  }
+  try {
+    const updated = await prisma.todoistConfig.update({
+      where: { id: 'default' },
+      data: { projectName, projectId: null },
+    });
+    return NextResponse.json({ success: true, data: { projectName: updated.projectName } });
+  } catch (e) {
+    const code = (e as { code?: string }).code;
+    if (code === 'P2025') return NextResponse.json({ success: false, error: { code: 'NOT_CONNECTED', message: 'Todoist 미연결' } }, { status: 400 });
+    return NextResponse.json({ success: false, error: { code: 'DB_ERROR', message: (e as Error).message } }, { status: 500 });
+  }
+}
+
 export async function DELETE() {
   await prisma.todoistConfig.deleteMany({ where: { id: 'default' } }).catch(() => {});
   return NextResponse.json({ success: true });
