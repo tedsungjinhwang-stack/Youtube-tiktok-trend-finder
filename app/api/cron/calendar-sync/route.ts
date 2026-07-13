@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { syncMyChannel } from '@/lib/google/calendar';
 import { getValidAccessToken } from '@/lib/google/oauth';
 import { syncChannelScheduled } from '@/lib/google/youtube';
+import { syncChannelToTodoist } from '@/lib/todoist';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -44,22 +45,24 @@ export async function GET(req: Request) {
     );
   }
 
-  // Preflight — OAuth 살아있는지 미리 확인. 죽었으면 채널 이벤트 다 날리지 않고 즉시 종료.
+  // 동기화 대상 파악 — Todoist / Google Calendar 둘 다 선택. 하나 죽어도 다른 건 돎.
+  const todoist = await prisma.todoistConfig.findUnique({ where: { id: 'default' } }).catch(() => null);
   const hasOAuth = await prisma.googleOAuth.findUnique({ where: { id: 'default' } }).catch(() => null);
-  if (!hasOAuth) {
-    return NextResponse.json({
-      success: false,
-      error: 'NO_GOOGLE_OAUTH',
-      hint: '/my-schedule 페이지에서 Google 캘린더 연결을 먼저 해주세요.',
-    }, { status: 503 });
+  let token: string | null = null;
+  let calError: string | null = null;
+  if (hasOAuth) {
+    token = await getValidAccessToken({ force: true });
+    if (!token) calError = 'OAUTH_EXPIRED (재연결 필요)';
+  } else {
+    calError = 'NO_GOOGLE_OAUTH';
   }
-  // 매 cron 호출 시 access token 강제 갱신 — DB 캐시가 죽어있던 케이스 회피
-  const token = await getValidAccessToken({ force: true });
-  if (!token) {
+
+  // 캘린더도 Todoist 도 못 쓰면 실패 — cron-job.org 가 감지하게 503.
+  if (!todoist && !token) {
     return NextResponse.json({
       success: false,
-      error: 'OAUTH_EXPIRED',
-      hint: 'Google OAuth refresh token 만료. /my-schedule 에서 연결 해제 → 재연결 필요.',
+      error: calError ?? 'NO_SYNC_TARGET',
+      hint: 'Google 캘린더 재연결 또는 Todoist 연결이 필요합니다 (/my-schedule).',
     }, { status: 503 });
   }
 
@@ -75,6 +78,8 @@ export async function GET(req: Request) {
   let failed = 0;
   let ytSynced = 0;
   let ytFailed = 0;
+  let tdSynced = 0;
+  let tdFailed = 0;
   const failedDetails: Array<{ name: string; reason: string }> = [];
   for (const c of channels) {
     // 1) YouTube 연결된 채널: 예약 업로드 먼저 가져옴 (youtubeVideoId 있는 것만 갱신 — 수동 예약은 안 건드림)
@@ -89,16 +94,38 @@ export async function GET(req: Request) {
         console.error('[yt cron]', c.id, reason);
       }
     }
-    // 2) DB 예약 → 캘린더 이벤트 반영
-    try {
-      await syncMyChannel(c.id);
-      ok++;
-    } catch (e) {
-      failed++;
-      const reason = (e as Error).message.slice(0, 120);
-      failedDetails.push({ name: c.name, reason });
-      console.error('[gcal cron]', c.id, reason);
+    // 2) DB 예약 → Todoist 태스크 (토큰 안 만료 — 주 동기화 대상)
+    if (todoist) {
+      try {
+        await syncChannelToTodoist(c.id);
+        tdSynced++;
+      } catch (e) {
+        tdFailed++;
+        const reason = `TD: ${(e as Error).message.slice(0, 100)}`;
+        failedDetails.push({ name: c.name, reason });
+        console.error('[todoist cron]', c.id, reason);
+      }
     }
+    // 3) DB 예약 → 캘린더 이벤트 (토큰 살아있을 때만)
+    if (token) {
+      try {
+        await syncMyChannel(c.id);
+        ok++;
+      } catch (e) {
+        failed++;
+        const reason = (e as Error).message.slice(0, 120);
+        failedDetails.push({ name: c.name, reason });
+        console.error('[gcal cron]', c.id, reason);
+      }
+    }
+  }
+  if (todoist) {
+    await prisma.todoistConfig
+      .update({
+        where: { id: 'default' },
+        data: { lastSyncedAt: new Date(), lastSyncError: tdFailed > 0 ? `${tdFailed}개 채널 실패` : null },
+      })
+      .catch(() => {});
   }
 
   // 별표(관심영상) 안 한 영상 중 30일 지난 거 자동 정리 (DB 용량 절약).
@@ -130,14 +157,13 @@ export async function GET(req: Request) {
   return NextResponse.json({
     success: true,
     data: {
-      // 이벤트가 들어가는 곳 (이 계정의 이 캘린더를 봐야 보임)
-      account: hasOAuth.accountEmail,
-      calendarId: hasOAuth.calendarId,
       allChannels: channels.length,
+      todoist: todoist ? { synced: tdSynced, failed: tdFailed, project: todoist.projectName } : null,
+      calendar: token
+        ? { account: hasOAuth?.accountEmail, calendarId: hasOAuth?.calendarId, synced: ok, failed }
+        : { error: calError },
       ytSynced,
       ytFailed,
-      calSynced: ok,
-      calFailed: failed,
       cleanedVideos,
       ...(failedDetails.length > 0 ? { failures: failedDetails.slice(0, 10) } : {}),
     },
