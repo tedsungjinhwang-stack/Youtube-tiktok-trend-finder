@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { syncMyChannel } from '@/lib/google/calendar';
+import { syncChannelToTodoist } from '@/lib/todoist';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     })),
   });
   // 캘린더 동기화는 best-effort 병렬
-  await Promise.all(channelIds.map((id) => syncMyChannel(id).catch(() => {})));
+  await Promise.all(channelIds.map((id) => syncChannelToTodoist(id).catch(() => {})));
   return NextResponse.json(
     { success: true, data: { count: created.count } },
     { headers: NO_STORE }
@@ -57,7 +57,7 @@ export async function DELETE(req: Request) {
   const deleted = await prisma.scheduledVideo.deleteMany({
     where: { channelId: { in: channelIds } },
   });
-  await Promise.all(channelIds.map((id) => syncMyChannel(id).catch(() => {})));
+  await Promise.all(channelIds.map((id) => syncChannelToTodoist(id).catch(() => {})));
   return NextResponse.json(
     { success: true, data: { count: deleted.count } },
     { headers: NO_STORE }

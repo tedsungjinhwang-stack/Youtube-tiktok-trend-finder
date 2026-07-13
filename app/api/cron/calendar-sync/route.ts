@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { syncMyChannel } from '@/lib/google/calendar';
-import { getValidAccessToken } from '@/lib/google/oauth';
 import { syncChannelScheduled } from '@/lib/google/youtube';
 import { syncChannelToTodoist } from '@/lib/todoist';
 
@@ -45,24 +43,13 @@ export async function GET(req: Request) {
     );
   }
 
-  // 동기화 대상 파악 — Todoist / Google Calendar 둘 다 선택. 하나 죽어도 다른 건 돎.
+  // Todoist 만 동기화 대상 (Google 캘린더 제거 — Todoist 가 자체 캘린더 연동으로 대체).
   const todoist = await prisma.todoistConfig.findUnique({ where: { id: 'default' } }).catch(() => null);
-  const hasOAuth = await prisma.googleOAuth.findUnique({ where: { id: 'default' } }).catch(() => null);
-  let token: string | null = null;
-  let calError: string | null = null;
-  if (hasOAuth) {
-    token = await getValidAccessToken({ force: true });
-    if (!token) calError = 'OAUTH_EXPIRED (재연결 필요)';
-  } else {
-    calError = 'NO_GOOGLE_OAUTH';
-  }
-
-  // 캘린더도 Todoist 도 못 쓰면 실패 — cron-job.org 가 감지하게 503.
-  if (!todoist && !token) {
+  if (!todoist) {
     return NextResponse.json({
       success: false,
-      error: calError ?? 'NO_SYNC_TARGET',
-      hint: 'Google 캘린더 재연결 또는 Todoist 연결이 필요합니다 (/my-schedule).',
+      error: 'NO_TODOIST',
+      hint: '/my-schedule 에서 Todoist 를 연결해주세요.',
     }, { status: 503 });
   }
 
@@ -74,8 +61,6 @@ export async function GET(req: Request) {
       youtubeOauth: { select: { id: true } },
     },
   });
-  let ok = 0;
-  let failed = 0;
   let ytSynced = 0;
   let ytFailed = 0;
   let tdSynced = 0;
@@ -94,39 +79,23 @@ export async function GET(req: Request) {
         console.error('[yt cron]', c.id, reason);
       }
     }
-    // 2) DB 예약 → Todoist 태스크 (토큰 안 만료 — 주 동기화 대상)
-    if (todoist) {
-      try {
-        await syncChannelToTodoist(c.id);
-        tdSynced++;
-      } catch (e) {
-        tdFailed++;
-        const reason = `TD: ${(e as Error).message.slice(0, 100)}`;
-        failedDetails.push({ name: c.name, reason });
-        console.error('[todoist cron]', c.id, reason);
-      }
-    }
-    // 3) DB 예약 → 캘린더 이벤트 (토큰 살아있을 때만)
-    if (token) {
-      try {
-        await syncMyChannel(c.id);
-        ok++;
-      } catch (e) {
-        failed++;
-        const reason = (e as Error).message.slice(0, 120);
-        failedDetails.push({ name: c.name, reason });
-        console.error('[gcal cron]', c.id, reason);
-      }
+    // 2) DB 예약 → Todoist 태스크 (채널당 1개, 없으면 '영상업로드 필요')
+    try {
+      await syncChannelToTodoist(c.id);
+      tdSynced++;
+    } catch (e) {
+      tdFailed++;
+      const reason = `TD: ${(e as Error).message.slice(0, 100)}`;
+      failedDetails.push({ name: c.name, reason });
+      console.error('[todoist cron]', c.id, reason);
     }
   }
-  if (todoist) {
-    await prisma.todoistConfig
-      .update({
-        where: { id: 'default' },
-        data: { lastSyncedAt: new Date(), lastSyncError: tdFailed > 0 ? `${tdFailed}개 채널 실패` : null },
-      })
-      .catch(() => {});
-  }
+  await prisma.todoistConfig
+    .update({
+      where: { id: 'default' },
+      data: { lastSyncedAt: new Date(), lastSyncError: tdFailed > 0 ? `${tdFailed}개 채널 실패` : null },
+    })
+    .catch(() => {});
 
   // 별표(관심영상) 안 한 영상 중 30일 지난 거 자동 정리 (DB 용량 절약).
   // 사용자가 관심영상 체크했으면 30일 지나도 유지.
@@ -145,12 +114,12 @@ export async function GET(req: Request) {
   }
 
   const finishedAt = new Date().toISOString();
-  console.log('[gcal cron] done', {
+  console.log('[todoist cron] done', {
     startedAt,
     finishedAt,
     allChannels: channels.length,
-    calSynced: ok,
-    calFailed: failed,
+    tdSynced,
+    tdFailed,
     cleanedVideos,
   });
 
@@ -158,10 +127,7 @@ export async function GET(req: Request) {
     success: true,
     data: {
       allChannels: channels.length,
-      todoist: todoist ? { synced: tdSynced, failed: tdFailed, project: todoist.projectName } : null,
-      calendar: token
-        ? { account: hasOAuth?.accountEmail, calendarId: hasOAuth?.calendarId, synced: ok, failed }
-        : { error: calError },
+      todoist: { synced: tdSynced, failed: tdFailed, project: todoist.projectName },
       ytSynced,
       ytFailed,
       cleanedVideos,

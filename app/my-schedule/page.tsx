@@ -74,12 +74,6 @@ type TodoistStatus = {
   lastSyncError?: string | null;
 };
 
-type GoogleStatus = {
-  connected: boolean;
-  email: string | null;
-  calendarId: string | null;
-};
-
 function fmt(iso: string): string {
   // 항상 KST 기준 표시
   return isoToKstLocal(iso).replace('T', ' ');
@@ -93,7 +87,6 @@ function toInputValue(iso: string): string {
 export default function MySchedulePage() {
   const [channels, setChannels] = useState<MyChannel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
-  const [google, setGoogle] = useState<GoogleStatus>({ connected: false, email: null, calendarId: null });
   const [todoist, setTodoist] = useState<TodoistStatus>({ connected: false });
   const [tdToken, setTdToken] = useState('');
   const [tdBusy, setTdBusy] = useState(false);
@@ -128,11 +121,8 @@ export default function MySchedulePage() {
 
   const refresh = async () => {
     try {
-      const [c, g, t] = await Promise.all([
+      const [c, t] = await Promise.all([
         fetch('/api/v1/my-schedule/channels', { cache: 'no-store' }).then((r) => r.json()),
-        fetch('/api/google/status', { cache: 'no-store' })
-          .then((r) => r.json())
-          .catch(() => ({ success: false })),
         fetch('/api/v1/todoist/config', { cache: 'no-store' })
           .then((r) => r.json())
           .catch(() => ({ success: false })),
@@ -143,7 +133,6 @@ export default function MySchedulePage() {
       } else {
         setSetupWarning(c.error?.message ?? '채널 목록 로드 실패');
       }
-      if (g.success) setGoogle(g.data);
       if (t.success) setTodoist(t.data);
     } catch (e) {
       setSetupWarning('네트워크 오류: ' + (e as Error).message);
@@ -354,30 +343,6 @@ export default function MySchedulePage() {
     }
   };
 
-  const connectGoogle = async () => {
-    const r = await fetch('/api/google/auth/start');
-    const j = await r.json();
-    if (!j.success) {
-      alert(j.error?.message ?? '실패');
-      return;
-    }
-    window.open(j.data.url, '_blank', 'width=520,height=640');
-    const iv = setInterval(async () => {
-      const s = await fetch('/api/google/status').then((r) => r.json());
-      if (s.success && s.data.connected) {
-        clearInterval(iv);
-        refresh();
-      }
-    }, 1500);
-    setTimeout(() => clearInterval(iv), 5 * 60_000);
-  };
-
-  const disconnectGoogle = async () => {
-    if (!confirm('Google 캘린더 연결을 해제할까요? (기존 이벤트는 캘린더에 남음)')) return;
-    await fetch('/api/google/status', { method: 'DELETE' });
-    refresh();
-  };
-
   const connectTodoist = async () => {
     const token = tdToken.trim();
     if (!token) return;
@@ -430,10 +395,10 @@ export default function MySchedulePage() {
   const syncGcalAll = async () => {
     setSyncingGcal(true);
     try {
-      const r = await fetch('/api/v1/my-schedule/sync-gcal-all', { method: 'POST' });
+      const r = await fetch('/api/v1/todoist/sync', { method: 'POST' });
       const j = await r.json();
       if (!j.success) alert(j.error?.message ?? '실패');
-      else alert(`✓ 캘린더 동기화 완료 (${j.data.synced}/${j.data.total} 채널)`);
+      else alert(`✓ Todoist 동기화 완료 (${j.data.tasks}개 태스크 · ${j.data.channels}개 채널)`);
       refresh();
     } finally {
       setSyncingGcal(false);
@@ -455,7 +420,7 @@ export default function MySchedulePage() {
       {syncingGcal && (
         <div className="flex items-center gap-2 border-b border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary">
           <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          Google 캘린더 전체 동기화 진행 중… (활성 채널 모두 처리)
+          Todoist 전체 동기화 진행 중… (활성 채널 모두 처리)
         </div>
       )}
       <div className="flex flex-1 overflow-hidden">
@@ -550,30 +515,6 @@ export default function MySchedulePage() {
           )}
         </div>
 
-        {/* Google 연결 영역 */}
-        <div className="border-t bg-secondary/30 p-3">
-          <div className="mb-1.5 text-[13px] font-semibold">Google 캘린더</div>
-          {google.connected ? (
-            <div className="space-y-1.5">
-              <div className="text-[13px] text-muted-foreground">
-                ✓ 연결됨 {google.email ? `(${google.email})` : ''}
-              </div>
-              <button
-                onClick={disconnectGoogle}
-                className="h-7 w-full rounded-md border bg-background text-[13px] text-muted-foreground hover:border-destructive/40 hover:text-foreground"
-              >
-                연결 해제
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={connectGoogle}
-              className="h-7 w-full rounded-md bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90"
-            >
-              Google 캘린더 연결
-            </button>
-          )}
-        </div>
 
         {/* Todoist 연결 영역 (토큰 안 만료 — 권장) */}
         <div className="border-t bg-secondary/30 p-3">
@@ -685,26 +626,26 @@ export default function MySchedulePage() {
             >
               ⚠️ 업로드 필요로 변경 (예약 비우기)
             </button>
-            {google.connected && (
+            {todoist.connected && (
               <button
                 onClick={syncGcalAll}
                 disabled={syncingGcal || bulkBusy}
                 className="ml-auto h-7 rounded-md border bg-card px-3 text-[13px] hover:border-foreground/40 disabled:opacity-40"
-                title="캘린더 전체 동기화"
+                title="Todoist 전체 동기화"
               >
-                {syncingGcal ? '동기화 중…' : '🗓️ 캘린더 동기화'}
+                {syncingGcal ? '동기화 중…' : '🔄 Todoist 동기화'}
               </button>
             )}
           </div>
         )}
-        {bulkIds.size === 0 && google.connected && (
+        {bulkIds.size === 0 && todoist.connected && (
           <div className="flex items-center gap-3 border-b bg-secondary/30 px-6 py-3 text-sm">
             <button
               onClick={syncGcalAll}
               disabled={syncingGcal}
               className="rounded-md border bg-card px-3 py-1 hover:border-foreground/40 disabled:opacity-40"
             >
-              {syncingGcal ? '동기화 중…' : '🗓️ 캘린더 전체 동기화'}
+              {syncingGcal ? '동기화 중…' : '🔄 Todoist 전체 동기화'}
             </button>
           </div>
         )}

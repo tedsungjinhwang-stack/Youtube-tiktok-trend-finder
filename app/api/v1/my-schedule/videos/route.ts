@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { syncMyChannel } from '@/lib/google/calendar';
+import { syncChannelToTodoist } from '@/lib/todoist';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +33,6 @@ export async function POST(req: Request) {
       notes: notes?.trim() || null,
     },
   });
-  syncMyChannel(channelId).catch(() => {});
+  syncChannelToTodoist(channelId).catch(() => {});
   return NextResponse.json({ success: true, data: created });
 }
