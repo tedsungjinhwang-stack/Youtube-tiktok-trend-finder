@@ -20,19 +20,26 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
-  if (replace) {
-    await prisma.scheduledVideo
-      .deleteMany({ where: { channelId, scheduledAt: { gte: new Date() } } })
-      .catch(() => {});
+  try {
+    if (replace) {
+      await prisma.scheduledVideo
+        .deleteMany({ where: { channelId, scheduledAt: { gte: new Date() } } })
+        .catch(() => {});
+    }
+    const created = await prisma.scheduledVideo.create({
+      data: {
+        channelId,
+        title: title?.trim() || '',
+        scheduledAt: new Date(scheduledAt),
+        notes: notes?.trim() || null,
+      },
+    });
+    syncChannelToTodoist(channelId).catch(() => {});
+    return NextResponse.json({ success: true, data: created });
+  } catch (e) {
+    return NextResponse.json(
+      { success: false, error: { code: 'CREATE_FAILED', message: (e as Error).message } },
+      { status: 500 }
+    );
   }
-  const created = await prisma.scheduledVideo.create({
-    data: {
-      channelId,
-      title: title?.trim() || '',
-      scheduledAt: new Date(scheduledAt),
-      notes: notes?.trim() || null,
-    },
-  });
-  syncChannelToTodoist(channelId).catch(() => {});
-  return NextResponse.json({ success: true, data: created });
 }
