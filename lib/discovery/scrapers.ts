@@ -2,7 +2,7 @@
  * 디스커버리(픽셀링 클론) 수집기.
  * 의존성 없이 fetch + 정규식 파싱. 각 소스는 독립적으로 실패해도 나머지는 진행.
  *
- *  🇰🇷 한국 커뮤니티 : aagag.com 홈의 "커뮤니티별 인기순" mirror 블록 (출처/순위/댓글수)
+ *  🇰🇷 한국 커뮤니티 : 뽐뿌 hot.php 인기글 (게시판/순위/댓글/조회수) — aagag 는 Cloudflare 차단
  *  🇯🇵 일본          : matomedane.jp 홈 인기글 (썸네일+제목)
  *  🇩🇪 독일 / 글로벌  : Reddit JSON (r/de, r/popular)
  *  📰 뉴스           : Google News RSS (KR)
@@ -28,22 +28,6 @@ export type DiscoveryItem = {
   publishedAt?: Date | null;
 };
 
-/** aagag "46초전" / "3분전" / "2시간전" / "5일전" / "지금" → Date */
-function parseAagagRelative(text: string | undefined): Date | null {
-  if (!text) return null;
-  const t = text.replace(/\s+/g, '').trim();
-  if (t === '지금' || t === '방금') return new Date();
-  const m = t.match(/(\d+)(초|분|시간|일)전/);
-  if (!m) return null;
-  const n = Number(m[1]);
-  const unitMs =
-    m[2] === '초' ? 1000 :
-    m[2] === '분' ? 60_000 :
-    m[2] === '시간' ? 3600_000 :
-    86_400_000;
-  return new Date(Date.now() - n * unitMs);
-}
-
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
@@ -56,6 +40,19 @@ async function fetchText(url: string, init?: RequestInit): Promise<string> {
   });
   if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
   return res.text();
+}
+
+/** EUC-KR 페이지 (뽐뿌 등) 디코딩. */
+async function fetchTextEuckr(url: string, init?: RequestInit): Promise<string> {
+  const res = await fetch(url, {
+    headers: { 'User-Agent': UA, 'Accept-Language': 'ko-KR,ko;q=0.9', ...(init?.headers || {}) },
+    cache: 'no-store',
+    signal: AbortSignal.timeout(15_000),
+    ...init,
+  });
+  if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
+  const buf = await res.arrayBuffer();
+  return new TextDecoder('euc-kr').decode(buf);
 }
 
 function decodeEntities(s: string): string {
@@ -77,88 +74,51 @@ function stripTags(s: string): string {
 
 /* ----------------------------- 🇰🇷 한국 ----------------------------- */
 
-// aagag bc_* 클래스 → 표시용 한글 출처명
-const KR_SITES: Record<string, string> = {
-  fmkorea: '에펨코리아',
-  mlbpark: 'MLB파크',
-  ppomppu: '뽐뿌',
-  ruli: '루리웹',
-  clien: '클리앙',
-  inven: '인벤',
-  slrclub: 'SLR클럽',
-  '82cook': '82쿡',
-  humor: '웃긴대학',
-  etoland: '이토랜드',
-  bobae: '보배드림',
-  ddanzi: '딴지일보',
-  ou: '오늘의유머',
-};
-
-export async function scrapeKorea(): Promise<DiscoveryItem[]> {
-  const html = await fetchText('https://aagag.com/');
-  const re =
-    /<a href="\/mirror\/re\.php\?ss=([^"]+)"[^>]*class="article c">\s*<span class="lo rank bc_(\w+)">(\d+)<\/span><span class="lpadding title"[^>]*>(.*?)<\/span><span class="roverlay"><span class="cnt">(\d+)<\/span>/g;
-  const out: DiscoveryItem[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html))) {
-    const [, ss, site, rank, rawTitle, cnt] = m;
-    const title = stripTags(rawTitle);
-    if (!title) continue;
-    out.push({
-      tab: 'community',
-      country: 'KR',
-      source: site,
-      sourceLabel: KR_SITES[site] ?? site,
-      sourceKey: `kr:${ss}`,
-      rank: Number(rank),
-      title,
-      url: `https://aagag.com/mirror/re.php?ss=${ss}`,
-      commentCount: Number(cnt),
-      lang: 'ko',
-    });
-  }
-  return out;
-}
-
 /**
- * aagag 메인 피드 (홈 큰 카드 영역) — mirror 와 달리 조회수+게시 시각이 있음.
- * 출처(fmkorea/뽐뿌 등) 표시는 없음. 보완용으로 같이 노출.
+ * 뽐뿌 핫게시물(hot.php) — 여러 게시판의 인기글이 순위로 모임. EUC-KR.
+ * aagag 가 Cloudflare 봇차단(2026)으로 막혀 대체.
+ * 각 행: <tr class="baseList" data-bbs_id="stock" data-bbs_no="405724"> ...
+ *   게시판명 <a href="/zboard/zboard.php?id=..">증권포럼</a>
+ *   제목 <a class="baseList-title">..</a> + <span class="list_comment2">61</span>
+ *   마지막 board_date 셀 = 조회수
  */
-export async function scrapeKoreaMain(): Promise<DiscoveryItem[]> {
-  const html = await fetchText('https://aagag.com/');
-  // 각 카드: <a class="article c t" href="/issue/?idx=N">...<span class="title">제목<span class="btmlayer">
-  //   ... <span class="hit"><u>NUM</u></span> ... <span class="time right"><u><i>...</i>46초전</u></span>
-  const blocks = html.split('<a class="article c t"').slice(1);
+export async function scrapeKorea(): Promise<DiscoveryItem[]> {
+  const html = await fetchTextEuckr('https://www.ppomppu.co.kr/hot.php');
   const out: DiscoveryItem[] = [];
+  const rows = html.split('<tr class="baseList').slice(1);
   let rank = 0;
-  for (const seg of blocks) {
-    const idxM = seg.match(/href="\/issue\/\?idx=(\d+)"/);
-    const thumbM = seg.match(/background-image:url\(([^)]+)\)/);
-    const titleM = seg.match(/<span class="title">([^<]+)<span class="btmlayer">/);
-    const hitM = seg.match(/<span class="hit"><u>(\d+)<\/u>/);
-    const timeM = seg.match(/<span class="time right"><u>(?:<i[^>]*><\/i>)?([^<]+)<\/u>/);
-    if (!idxM || !titleM) continue;
-    const title = decodeEntities(titleM[1]).trim();
+  const seen = new Set<string>();
+  for (const seg of rows) {
+    const idM = seg.match(/data-bbs_id="([^"]+)"/);
+    const noM = seg.match(/data-bbs_no="(\d+)"/);
+    if (!idM || !noM) continue;
+    const id = idM[1];
+    const no = noM[1];
+    const key = `${id}:${no}`;
+    if (seen.has(key)) continue;
+    const boardM = seg.match(/\/zboard\/zboard\.php\?id=[^"]+"[^>]*>([^<]+)<\/a>/);
+    // baseList-title 앵커 안쪽(중첩 img 포함) → 첫 </a> 까지
+    const titleM = seg.match(/class="baseList-title"[^>]*>([\s\S]*?)<\/a>/);
+    const title = titleM ? stripTags(titleM[1]) : '';
     if (!title) continue;
-    const thumbRaw = thumbM?.[1];
-    const thumb = thumbRaw
-      ? thumbRaw.startsWith('//') ? `https:${thumbRaw}` : thumbRaw
-      : null;
+    const commentM = seg.match(/list_comment2">(\d+)</);
+    const views = [...seg.matchAll(/board_date">(\d+)<\/td>/g)];
+    seen.add(key);
     rank += 1;
     out.push({
       tab: 'community',
       country: 'KR',
-      source: 'aagag',
-      sourceLabel: 'aagag 인기',
-      sourceKey: `kr:aagag:${idxM[1]}`,
+      source: id,
+      sourceLabel: boardM ? stripTags(boardM[1]) : id,
+      sourceKey: `kr:ppomppu:${key}`,
       rank,
       title,
-      url: `https://aagag.com/issue/?idx=${idxM[1]}`,
-      thumbnailUrl: thumb,
-      viewCount: hitM ? Number(hitM[1]) : null,
-      publishedAt: parseAagagRelative(timeM?.[1]),
+      url: `https://www.ppomppu.co.kr/zboard/view.php?id=${id}&no=${no}`,
+      commentCount: commentM ? Number(commentM[1]) : null,
+      viewCount: views.length ? Number(views[views.length - 1][1]) : null,
       lang: 'ko',
     });
+    if (rank >= 60) break;
   }
   return out;
 }
@@ -379,7 +339,6 @@ export async function scrapeAll(): Promise<{
 }> {
   const tasks: [string, Promise<DiscoveryItem[]>][] = [
     ['korea', scrapeKorea()],
-    ['koreaMain', scrapeKoreaMain()],
     ['japan', scrapeJapan()],
     ['reddit', scrapeReddit()],
     ['news', scrapeNews()],
