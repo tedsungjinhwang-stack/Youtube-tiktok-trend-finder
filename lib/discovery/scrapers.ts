@@ -123,6 +123,162 @@ export async function scrapeKorea(): Promise<DiscoveryItem[]> {
   return out;
 }
 
+/* 여러 한국 커뮤니티 인기글 (aagag 대체 통합 피드). 모두 UTF-8, 봇차단 없음. */
+
+function krItem(
+  source: string,
+  label: string,
+  key: string,
+  rank: number,
+  title: string,
+  url: string,
+  comment: number | null
+): DiscoveryItem {
+  return {
+    tab: 'community',
+    country: 'KR',
+    source,
+    sourceLabel: label,
+    sourceKey: key,
+    rank,
+    title,
+    url,
+    commentCount: comment,
+    lang: 'ko',
+  };
+}
+
+/** 클리앙 모두의공원 */
+export async function scrapeClien(): Promise<DiscoveryItem[]> {
+  const html = await fetchText('https://www.clien.net/service/board/park');
+  const out: DiscoveryItem[] = [];
+  const re = /<a class="list_subject" href="\/service\/board\/(\w+)\/(\d+)[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
+  let m: RegExpExecArray | null;
+  let rank = 0;
+  while ((m = re.exec(html))) {
+    if (['annonce', 'rule', 'notice'].includes(m[1])) continue;
+    const title = stripTags(m[3]);
+    if (!title) continue;
+    rank += 1;
+    out.push(krItem('clien', '클리앙', `kr:clien:${m[2]}`, rank, title, `https://www.clien.net/service/board/park/${m[2]}`, null));
+    if (rank >= 25) break;
+  }
+  return out;
+}
+
+/** 개드립 베스트 */
+export async function scrapeDogdrip(): Promise<DiscoveryItem[]> {
+  const html = await fetchText('https://www.dogdrip.net/dogdrip');
+  const out: DiscoveryItem[] = [];
+  const re = /href="\/dogdrip\/(\d+)[^"]*"[^>]*class="[^"]*title-link[^"]*"[^>]*>([\s\S]*?)<\/a>\s*(?:<span[^>]*text-xxsmall[^>]*>(\d+)<\/span>)?/g;
+  let m: RegExpExecArray | null;
+  let rank = 0;
+  while ((m = re.exec(html))) {
+    const title = stripTags(m[2]);
+    if (!title) continue;
+    rank += 1;
+    out.push(krItem('dogdrip', '개드립', `kr:dogdrip:${m[1]}`, rank, title, `https://www.dogdrip.net/dogdrip/${m[1]}`, m[3] ? Number(m[3]) : null));
+    if (rank >= 25) break;
+  }
+  return out;
+}
+
+/** 루리웹 유머 베스트 */
+export async function scrapeRuliweb(): Promise<DiscoveryItem[]> {
+  const html = await fetchText('https://bbs.ruliweb.com/best/humor_only');
+  const out: DiscoveryItem[] = [];
+  const re = /href="(\/best\/board\/\d+\/read\/\d+)[^"]*"[\s\S]*?<strong class="text_over">([^<]+)<\/strong>/g;
+  const seen = new Set<string>();
+  let m: RegExpExecArray | null;
+  let rank = 0;
+  while ((m = re.exec(html))) {
+    if (seen.has(m[1])) continue;
+    const title = stripTags(m[2]);
+    if (!title) continue;
+    seen.add(m[1]);
+    rank += 1;
+    out.push(krItem('ruliweb', '루리웹', `kr:ruliweb:${m[1]}`, rank, title, `https://bbs.ruliweb.com${m[1]}`, null));
+    if (rank >= 25) break;
+  }
+  return out;
+}
+
+/** 인벤 유저게시판 */
+export async function scrapeInven(): Promise<DiscoveryItem[]> {
+  const html = await fetchText('https://www.inven.co.kr/board/webzine/2097');
+  const out: DiscoveryItem[] = [];
+  const re = /href="([^"]*\/board\/webzine\/2097\/(\d+))"[\s\S]{0,400}?<span class="txt">([^<]+)<\/span>(?:[\s\S]{0,200}?<div class="comment">\[(\d+)\])?/g;
+  const seen = new Set<string>();
+  let m: RegExpExecArray | null;
+  let rank = 0;
+  while ((m = re.exec(html))) {
+    if (seen.has(m[2])) continue;
+    const title = stripTags(m[3]);
+    if (!title) continue;
+    seen.add(m[2]);
+    rank += 1;
+    out.push(krItem('inven', '인벤', `kr:inven:${m[2]}`, rank, title, `https://www.inven.co.kr/board/webzine/2097/${m[2]}`, m[4] ? Number(m[4]) : null));
+    if (rank >= 25) break;
+  }
+  return out;
+}
+
+/** 82쿡 인기글 */
+export async function scrape82cook(): Promise<DiscoveryItem[]> {
+  const html = await fetchText('https://www.82cook.com/entiz/enti.php?bn=15');
+  const out: DiscoveryItem[] = [];
+  const re = /<li><a href="(\/entiz\/read\.php\?num=(\d+))" title="([^"]*)"/g;
+  let m: RegExpExecArray | null;
+  let rank = 0;
+  while ((m = re.exec(html))) {
+    const title = decodeEntities(m[3]);
+    if (!title) continue;
+    rank += 1;
+    out.push(krItem('82cook', '82쿡', `kr:82cook:${m[2]}`, rank, title, `https://www.82cook.com${m[1]}`, null));
+    if (rank >= 25) break;
+  }
+  return out;
+}
+
+/** 보배드림 베스트 */
+export async function scrapeBobae(): Promise<DiscoveryItem[]> {
+  const html = await fetchText('https://www.bobaedream.co.kr/list?code=best');
+  const out: DiscoveryItem[] = [];
+  const re = /<a class="bsubject"[^>]*href="(\/view\?code=best&(?:amp;)?No=(\d+))[^"]*"[^>]*title="([^"]*)"/g;
+  const seen = new Set<string>();
+  let m: RegExpExecArray | null;
+  let rank = 0;
+  while ((m = re.exec(html))) {
+    if (seen.has(m[2])) continue;
+    const title = decodeEntities(m[3]);
+    if (!title) continue;
+    seen.add(m[2]);
+    rank += 1;
+    out.push(krItem('bobae', '보배드림', `kr:bobae:${m[2]}`, rank, title, `https://www.bobaedream.co.kr/view?code=best&No=${m[2]}`, null));
+    if (rank >= 25) break;
+  }
+  return out;
+}
+
+/** 인스티즈 */
+export async function scrapeInstiz(): Promise<DiscoveryItem[]> {
+  const html = await fetchText('https://www.instiz.net/pt');
+  const out: DiscoveryItem[] = [];
+  const re = /<td class="[^"]*listsubject"><a href="https:\/\/www\.instiz\.net\/pt\/(\d+)[^"]*">([\s\S]*?)<\/a><\/td>/g;
+  let m: RegExpExecArray | null;
+  let rank = 0;
+  while ((m = re.exec(html))) {
+    const cm = m[2].match(/class="cmt3"[^>]*>(\d+)</);
+    const inner = m[2].replace(/<span class="cmt3[\s\S]*?<\/span>/g, '');
+    const title = stripTags(inner);
+    if (!title || /^\d+$/.test(title)) continue;
+    rank += 1;
+    out.push(krItem('instiz', '인스티즈', `kr:instiz:${m[1]}`, rank, title, `https://www.instiz.net/pt/${m[1]}`, cm ? Number(cm[1]) : null));
+    if (rank >= 25) break;
+  }
+  return out;
+}
+
 /* ----------------------------- 🇯🇵 일본 ----------------------------- */
 
 export async function scrapeJapan(): Promise<DiscoveryItem[]> {
@@ -338,7 +494,13 @@ export async function scrapeAll(): Promise<{
   report: Record<string, number | string>;
 }> {
   const tasks: [string, Promise<DiscoveryItem[]>][] = [
-    ['korea', scrapeKorea()],
+    ['ppomppu', scrapeKorea()],
+    ['clien', scrapeClien()],
+    ['dogdrip', scrapeDogdrip()],
+    ['ruliweb', scrapeRuliweb()],
+    ['inven', scrapeInven()],
+    ['82cook', scrape82cook()],
+    ['bobae', scrapeBobae()],
     ['japan', scrapeJapan()],
     ['reddit', scrapeReddit()],
     ['news', scrapeNews()],
