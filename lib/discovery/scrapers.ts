@@ -125,6 +125,46 @@ export async function scrapeKorea(): Promise<DiscoveryItem[]> {
 
 /* 여러 한국 커뮤니티 인기글 (aagag 대체 통합 피드). 모두 UTF-8, 봇차단 없음. */
 
+// aagag bc_* 클래스 → 표시용 한글 출처명 (펨코 등)
+const KR_SITES: Record<string, string> = {
+  fmkorea: '에펨코리아',
+  mlbpark: 'MLB파크',
+  ppomppu: '뽐뿌',
+  ruli: '루리웹',
+  clien: '클리앙',
+  inven: '인벤',
+  slrclub: 'SLR클럽',
+  '82cook': '82쿡',
+  humor: '웃긴대학',
+  etoland: '이토랜드',
+  bobae: '보배드림',
+  ddanzi: '딴지일보',
+  ou: '오늘의유머',
+  theqoo: '더쿠',
+  instiz: '인스티즈',
+};
+
+/**
+ * aagag 통합 인기글 (펨코/MLB파크/뽐뿌 등 여러 커뮤니티 미러). Cloudflare 가 간헐적으로
+ * 챌린지(403)를 걸지만, 열릴 때는 가장 풍부한 크로스커뮤니티 피드(펨코 포함). 막히면 안전 스킵.
+ */
+export async function scrapeAagag(): Promise<DiscoveryItem[]> {
+  const html = await fetchText('https://aagag.com/');
+  const re =
+    /<a href="\/mirror\/re\.php\?ss=([^"]+)"[^>]*class="article c">\s*<span class="lo rank bc_(\w+)">(\d+)<\/span><span class="lpadding title"[^>]*>(.*?)<\/span><span class="roverlay"><span class="cnt">(\d+)<\/span>/g;
+  const out: DiscoveryItem[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    const [, ss, site, rank, rawTitle, cnt] = m;
+    const title = stripTags(rawTitle);
+    if (!title) continue;
+    out.push(
+      krItem(site, KR_SITES[site] ?? site, `kr:aagag:${ss}`, Number(rank), title, `https://aagag.com/mirror/re.php?ss=${ss}`, Number(cnt))
+    );
+  }
+  return out;
+}
+
 function krItem(
   source: string,
   label: string,
@@ -494,6 +534,7 @@ export async function scrapeAll(): Promise<{
   report: Record<string, number | string>;
 }> {
   const tasks: [string, Promise<DiscoveryItem[]>][] = [
+    ['aagag', scrapeAagag()],
     ['ppomppu', scrapeKorea()],
     ['clien', scrapeClien()],
     ['dogdrip', scrapeDogdrip()],
