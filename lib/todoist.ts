@@ -206,8 +206,8 @@ export async function unsyncChannelFromTodoist(channelId: string): Promise<void>
   }
 }
 
-/** 활성 채널 전체를 Todoist 로 동기화. 반환: {tasks, channels}. */
-export async function syncAllToTodoist(): Promise<{ tasks: number; channels: number }> {
+/** 활성 채널 전체를 Todoist 로 동기화. 반환: {tasks, channels, totalInProject}. */
+export async function syncAllToTodoist(): Promise<{ tasks: number; channels: number; totalInProject: number | null }> {
   const channels = await prisma.myChannel.findMany({
     where: { isActive: true },
     select: { id: true },
@@ -216,9 +216,14 @@ export async function syncAllToTodoist(): Promise<{ tasks: number; channels: num
   for (const c of channels) {
     tasks += await syncChannelToTodoist(c.id);
   }
-  await prisma.todoistConfig.update({
+  // 정리 후 프로젝트 실제 태스크 수 (중복 남았는지 진단용 — 채널수와 같아야 정상)
+  let totalInProject: number | null = null;
+  const config = await prisma.todoistConfig.update({
     where: { id: 'default' },
     data: { lastSyncedAt: new Date(), lastSyncError: null },
   });
-  return { tasks, channels: channels.length };
+  if (config.projectId) {
+    totalInProject = (await listTasks(config.apiToken, config.projectId).catch(() => [])).length;
+  }
+  return { tasks, channels: channels.length, totalInProject };
 }
