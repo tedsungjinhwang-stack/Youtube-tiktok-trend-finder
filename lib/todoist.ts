@@ -93,7 +93,7 @@ async function ensureProject(token: string, projectName: string, existingId: str
  * - labels: [채널명]  (Todoist 가 없으면 자동 생성)
  * 반환: 처리한 태스크 수
  */
-type TodoistTask = { id: string; labels?: string[] };
+type TodoistTask = { id: string; labels?: string[]; content?: string };
 
 /** 프로젝트 내 태스크 목록 (페이지네이션 병합). */
 async function listTasks(token: string, projectId: string): Promise<TodoistTask[]> {
@@ -170,10 +170,17 @@ export async function syncChannelToTodoist(channelId: string): Promise<number> {
     };
   }
 
-  // 이 채널 라벨의 기존 태스크 모두 삭제 (중복 방지)
+  // 이 채널의 기존 태스크 모두 삭제 (중복/누적 방지).
+  // 라벨은 특수문자(괄호 등)로 매칭이 어긋날 수 있어 제목(채널명) 기준으로도 찾음.
   try {
     const tasks = await listTasks(token, projectId);
-    const mine = tasks.filter((t) => (t.labels ?? []).includes(label));
+    const name = ch.name;
+    const mine = tasks.filter((t) => {
+      if ((t.labels ?? []).includes(label)) return true;
+      const c = t.content ?? '';
+      // 제목은 항상 "채널명" 으로 시작 (뒤에 _시각 / (카테고리) / ' 영상업로드' 붙음)
+      return c === name || c.startsWith(`${name}_`) || c.startsWith(`${name}(`) || c.startsWith(`${name} `);
+    });
     for (const t of mine) {
       await tdFetch(token, `/tasks/${t.id}`, { method: 'DELETE' }).catch(() => {});
     }
