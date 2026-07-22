@@ -95,7 +95,7 @@ async function ensureProject(token: string, projectName: string, existingId: str
  */
 type TodoistTask = { id: string; labels?: string[]; content?: string };
 
-/** 프로젝트 내 태스크 목록 (페이지네이션 병합). */
+/** 프로젝트 내 활성 태스크 목록 (페이지네이션 병합). */
 async function listTasks(token: string, projectId: string): Promise<TodoistTask[]> {
   const all: TodoistTask[] = [];
   let cursor: string | null = null;
@@ -105,6 +105,31 @@ async function listTasks(token: string, projectId: string): Promise<TodoistTask[
     if (!r.ok) break;
     const j = (await r.json()) as Paginated<TodoistTask> | TodoistTask[];
     const page = Array.isArray(j) ? j : j.results ?? [];
+    all.push(...page);
+    cursor = Array.isArray(j) ? null : j.next_cursor ?? null;
+    if (!cursor) break;
+  }
+  return all;
+}
+
+// v1 완료 태스크 응답: { items | results: [...], next_cursor }
+type CompletedResp = { items?: TodoistTask[]; results?: TodoistTask[]; next_cursor?: string | null };
+
+/** 프로젝트 내 완료된 태스크 (최근 90일). 체크한 '영상업로드 필요' 도 정리하기 위함. */
+async function listCompletedTasks(token: string, projectId: string): Promise<TodoistTask[]> {
+  const until = new Date().toISOString();
+  const since = new Date(Date.now() - 89 * 24 * 60 * 60 * 1000).toISOString();
+  const all: TodoistTask[] = [];
+  let cursor: string | null = null;
+  for (let i = 0; i < 30; i++) {
+    const qs =
+      `?since=${encodeURIComponent(since)}&until=${encodeURIComponent(until)}` +
+      `&project_id=${encodeURIComponent(projectId)}&limit=200` +
+      (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
+    const r = await tdFetch(token, `/tasks/completed/by_completion_date${qs}`);
+    if (!r.ok) break;
+    const j = (await r.json()) as CompletedResp | TodoistTask[];
+    const page = Array.isArray(j) ? j : j.items ?? j.results ?? [];
     all.push(...page);
     cursor = Array.isArray(j) ? null : j.next_cursor ?? null;
     if (!cursor) break;
@@ -170,19 +195,29 @@ export async function syncChannelToTodoist(channelId: string): Promise<number> {
     };
   }
 
-  // 이 채널의 기존 태스크 모두 삭제 (중복/누적 방지).
+  // 이 채널의 기존 태스크 모두 삭제 (중복/누적 방지). 활성 + 완료(체크한 것) 둘 다.
   // 라벨은 특수문자(괄호 등)로 매칭이 어긋날 수 있어 제목(채널명) 기준으로도 찾음.
+  const name = ch.name;
+  const isMine = (t: TodoistTask) => {
+    if ((t.labels ?? []).includes(label)) return true;
+    const c = t.content ?? '';
+    // 제목은 항상 "채널명" 으로 시작 (뒤에 _시각 / (카테고리) / ' 영상업로드' 붙음)
+    return c === name || c.startsWith(`${name}_`) || c.startsWith(`${name}(`) || c.startsWith(`${name} `);
+  };
   try {
-    const tasks = await listTasks(token, projectId);
-    const name = ch.name;
-    const mine = tasks.filter((t) => {
-      if ((t.labels ?? []).includes(label)) return true;
-      const c = t.content ?? '';
-      // 제목은 항상 "채널명" 으로 시작 (뒤에 _시각 / (카테고리) / ' 영상업로드' 붙음)
-      return c === name || c.startsWith(`${name}_`) || c.startsWith(`${name}(`) || c.startsWith(`${name} `);
-    });
-    for (const t of mine) {
-      await tdFetch(token, `/tasks/${t.id}`, { method: 'DELETE' }).catch(() => {});
+    const [active, completed] = await Promise.all([
+      listTasks(token, projectId),
+      listCompletedTasks(token, projectId).catch(() => [] as TodoistTask[]),
+    ]);
+    const ids = new Set<string>();
+    for (const t of [...active, ...completed]) if (isMine(t)) ids.add(t.id);
+    for (const id of ids) {
+      // 완료 태스크는 바로 DELETE 안 될 수 있어 reopen 후 삭제 (활성은 그냥 삭제됨).
+      const del = await tdFetch(token, `/tasks/${id}`, { method: 'DELETE' }).catch(() => null);
+      if (!del || !del.ok) {
+        await tdFetch(token, `/tasks/${id}/reopen`, { method: 'POST' }).catch(() => {});
+        await tdFetch(token, `/tasks/${id}`, { method: 'DELETE' }).catch(() => {});
+      }
     }
   } catch {
     /* list 실패해도 생성은 시도 */
