@@ -155,6 +155,49 @@ function kstToday(): string {
  * - 예약 있음 → "채널명_카테고리_HH:mm" (마지막 예약 시각 마감)
  * - 채널 라벨로 기존 태스크를 찾아 지우고 새로 생성 (중복 방지)
  */
+type ChannelRec = {
+  name: string;
+  category: string | null;
+  videos: { scheduledAt: Date; title: string }[];
+  _count: { videos: number };
+};
+
+/** 채널 → Todoist 태스크 body (예약 있으면 시각, 없으면 '영상업로드 필요'). */
+function channelTaskBody(ch: ChannelRec, projectId: string): Record<string, unknown> {
+  const label = ch.name.replace(/\s+/g, '_').slice(0, 60);
+  const count = ch._count.videos;
+  const latest = ch.videos[0];
+  if (count === 0 || !latest) {
+    const content = ch.category ? `${ch.name}(${ch.category}) 영상업로드 필요` : `${ch.name} 영상업로드 필요`;
+    return { content, due_date: kstToday(), project_id: projectId, labels: [label], description: '예약된 영상이 없습니다' };
+  }
+  const content = ch.category ? `${ch.name}_${ch.category}_${kstHHmm(latest.scheduledAt)}` : `${ch.name}_${kstHHmm(latest.scheduledAt)}`;
+  return {
+    content,
+    due_datetime: new Date(latest.scheduledAt).toISOString(),
+    project_id: projectId,
+    labels: [label],
+    description: `예약 영상 ${count}개${latest.title ? `. 마지막: ${latest.title}` : ''}`,
+  };
+}
+
+/** 태스크 제목이 주어진 채널명들 중 하나에 속하는지 (제목은 항상 "채널명"으로 시작). */
+function taskBelongsTo(content: string, names: string[]): boolean {
+  return names.some((n) => content === n || content.startsWith(`${n}_`) || content.startsWith(`${n}(`) || content.startsWith(`${n} `));
+}
+
+/** id 하나 삭제 (완료 태스크는 reopen 후 삭제). */
+async function deleteTask(token: string, id: string): Promise<void> {
+  const del = await tdFetch(token, `/tasks/${id}`, { method: 'DELETE' }).catch(() => null);
+  if (!del || !del.ok) {
+    await tdFetch(token, `/tasks/${id}/reopen`, { method: 'POST' }).catch(() => {});
+    await tdFetch(token, `/tasks/${id}`, { method: 'DELETE' }).catch(() => {});
+  }
+}
+
+/**
+ * 한 채널만 동기화 (영상 추가/수정 시). 그 채널의 기존 태스크(활성+완료) 삭제 후 1개 생성.
+ */
 export async function syncChannelToTodoist(channelId: string): Promise<number> {
   const config = await prisma.todoistConfig.findUnique({ where: { id: 'default' } });
   if (!config) throw new Error('Todoist 미연결');
@@ -164,7 +207,6 @@ export async function syncChannelToTodoist(channelId: string): Promise<number> {
     await prisma.todoistConfig.update({ where: { id: 'default' }, data: { projectId } });
   }
 
-  // 지난 예약 정리 (업로드 완료로 간주) → 마지막 예약이 과거면 '영상업로드 필요' 로 전환
   await prisma.scheduledVideo
     .deleteMany({ where: { channelId, scheduledAt: { lt: new Date() } } })
     .catch(() => {});
@@ -175,55 +217,23 @@ export async function syncChannelToTodoist(channelId: string): Promise<number> {
   });
   if (!ch || !ch.isActive) return 0;
 
-  const label = ch.name.replace(/\s+/g, '_').slice(0, 60);
-  const count = ch._count.videos;
-  const latest = ch.videos[0];
-
-  // 태스크 내용/마감 계산
-  let body: Record<string, unknown>;
-  if (count === 0 || !latest) {
-    const content = ch.category ? `${ch.name}(${ch.category}) 영상업로드 필요` : `${ch.name} 영상업로드 필요`;
-    body = { content, due_date: kstToday(), project_id: projectId, labels: [label], description: '예약된 영상이 없습니다' };
-  } else {
-    const content = ch.category ? `${ch.name}_${ch.category}_${kstHHmm(latest.scheduledAt)}` : `${ch.name}_${kstHHmm(latest.scheduledAt)}`;
-    body = {
-      content,
-      due_datetime: new Date(latest.scheduledAt).toISOString(),
-      project_id: projectId,
-      labels: [label],
-      description: `예약 영상 ${count}개${latest.title ? `. 마지막: ${latest.title}` : ''}`,
-    };
-  }
-
-  // 이 채널의 기존 태스크 모두 삭제 (중복/누적 방지). 활성 + 완료(체크한 것) 둘 다.
-  // 라벨은 특수문자(괄호 등)로 매칭이 어긋날 수 있어 제목(채널명) 기준으로도 찾음.
-  const name = ch.name;
-  const isMine = (t: TodoistTask) => {
-    if ((t.labels ?? []).includes(label)) return true;
-    const c = t.content ?? '';
-    // 제목은 항상 "채널명" 으로 시작 (뒤에 _시각 / (카테고리) / ' 영상업로드' 붙음)
-    return c === name || c.startsWith(`${name}_`) || c.startsWith(`${name}(`) || c.startsWith(`${name} `);
-  };
+  // 이 채널 기존 태스크(활성+완료) 삭제
   try {
     const [active, completed] = await Promise.all([
       listTasks(token, projectId),
       listCompletedTasks(token, projectId).catch(() => [] as TodoistTask[]),
     ]);
+    const label = ch.name.replace(/\s+/g, '_').slice(0, 60);
     const ids = new Set<string>();
-    for (const t of [...active, ...completed]) if (isMine(t)) ids.add(t.id);
-    for (const id of ids) {
-      // 완료 태스크는 바로 DELETE 안 될 수 있어 reopen 후 삭제 (활성은 그냥 삭제됨).
-      const del = await tdFetch(token, `/tasks/${id}`, { method: 'DELETE' }).catch(() => null);
-      if (!del || !del.ok) {
-        await tdFetch(token, `/tasks/${id}/reopen`, { method: 'POST' }).catch(() => {});
-        await tdFetch(token, `/tasks/${id}`, { method: 'DELETE' }).catch(() => {});
-      }
+    for (const t of [...active, ...completed]) {
+      if ((t.labels ?? []).includes(label) || (t.content && taskBelongsTo(t.content, [ch.name]))) ids.add(t.id);
     }
+    for (const id of ids) await deleteTask(token, id);
   } catch {
     /* list 실패해도 생성은 시도 */
   }
 
-  const r = await tdFetch(token, '/tasks', { method: 'POST', body: JSON.stringify(body) });
+  const r = await tdFetch(token, '/tasks', { method: 'POST', body: JSON.stringify(channelTaskBody(ch, projectId)) });
   if (!r.ok) throw new Error(`태스크 생성 실패 (${r.status})`);
   return 1;
 }
@@ -241,24 +251,47 @@ export async function unsyncChannelFromTodoist(channelId: string): Promise<void>
   }
 }
 
-/** 활성 채널 전체를 Todoist 로 동기화. 반환: {tasks, channels, totalInProject}. */
+/**
+ * 활성 채널 전체를 Todoist 로 동기화 (cron·전체동기화용).
+ * 핵심: 태스크 목록 조회를 **한 번만** 하고, 우리 채널 것(활성+완료)을 모두 지운 뒤
+ * 채널당 1개 생성. 채널마다 조회하던 예전 방식은 rate limit 에 걸려 삭제가 실패,
+ * 매일 중복이 쌓였음. 전역 1회 처리로 자기치유(이미 쌓인 중복도 정리)됨.
+ */
 export async function syncAllToTodoist(): Promise<{ tasks: number; channels: number; totalInProject: number | null }> {
+  const config = await prisma.todoistConfig.findUnique({ where: { id: 'default' } });
+  if (!config) throw new Error('Todoist 미연결');
+  const token = config.apiToken;
+  const projectId = await ensureProject(token, config.projectName, config.projectId);
+  if (projectId !== config.projectId) {
+    await prisma.todoistConfig.update({ where: { id: 'default' }, data: { projectId } });
+  }
+
+  // 지난 예약 정리 (전 활성 채널)
+  await prisma.scheduledVideo
+    .deleteMany({ where: { scheduledAt: { lt: new Date() }, channel: { isActive: true } } })
+    .catch(() => {});
+
   const channels = await prisma.myChannel.findMany({
     where: { isActive: true },
-    select: { id: true },
+    include: { videos: { orderBy: { scheduledAt: 'desc' }, take: 1 }, _count: { select: { videos: true } } },
   });
+  const names = channels.map((c) => c.name);
+
+  // 1) 기존 태스크(활성+완료) 한 번만 조회 → 우리 채널 것 전부 삭제 (중복·이전 것 싹)
+  const active = await listTasks(token, projectId);
+  const completed = await listCompletedTasks(token, projectId).catch(() => [] as TodoistTask[]);
+  const ids = new Set<string>();
+  for (const t of [...active, ...completed]) if (t.content && taskBelongsTo(t.content, names)) ids.add(t.id);
+  for (const id of ids) await deleteTask(token, id);
+
+  // 2) 채널당 1개 생성
   let tasks = 0;
-  for (const c of channels) {
-    tasks += await syncChannelToTodoist(c.id);
+  for (const ch of channels) {
+    const r = await tdFetch(token, '/tasks', { method: 'POST', body: JSON.stringify(channelTaskBody(ch, projectId)) });
+    if (r.ok) tasks += 1;
   }
-  // 정리 후 프로젝트 실제 태스크 수 (중복 남았는지 진단용 — 채널수와 같아야 정상)
-  let totalInProject: number | null = null;
-  const config = await prisma.todoistConfig.update({
-    where: { id: 'default' },
-    data: { lastSyncedAt: new Date(), lastSyncError: null },
-  });
-  if (config.projectId) {
-    totalInProject = (await listTasks(config.apiToken, config.projectId).catch(() => [])).length;
-  }
+
+  await prisma.todoistConfig.update({ where: { id: 'default' }, data: { lastSyncedAt: new Date(), lastSyncError: null } });
+  const totalInProject = (await listTasks(token, projectId).catch(() => [])).length;
   return { tasks, channels: channels.length, totalInProject };
 }
