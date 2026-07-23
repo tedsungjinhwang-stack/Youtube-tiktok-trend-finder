@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { syncChannelScheduled } from '@/lib/google/youtube';
-import { syncChannelToTodoist } from '@/lib/todoist';
+import { syncAllToTodoist } from '@/lib/todoist';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -66,36 +66,30 @@ export async function GET(req: Request) {
   let tdSynced = 0;
   let tdFailed = 0;
   const failedDetails: Array<{ name: string; reason: string }> = [];
+  // 1) YouTube 연결된 채널: 예약 업로드 먼저 가져옴 (youtubeVideoId 있는 것만 갱신 — 수동 예약은 안 건드림)
   for (const c of channels) {
-    // 1) YouTube 연결된 채널: 예약 업로드 먼저 가져옴 (youtubeVideoId 있는 것만 갱신 — 수동 예약은 안 건드림)
-    if (c.youtubeOauth) {
-      try {
-        await syncChannelScheduled(c.youtubeOauth.id);
-        ytSynced++;
-      } catch (e) {
-        ytFailed++;
-        const reason = `YT: ${(e as Error).message.slice(0, 100)}`;
-        failedDetails.push({ name: c.name, reason });
-        console.error('[yt cron]', c.id, reason);
-      }
-    }
-    // 2) DB 예약 → Todoist 태스크 (채널당 1개, 없으면 '영상업로드 필요')
+    if (!c.youtubeOauth) continue;
     try {
-      await syncChannelToTodoist(c.id);
-      tdSynced++;
+      await syncChannelScheduled(c.youtubeOauth.id);
+      ytSynced++;
     } catch (e) {
-      tdFailed++;
-      const reason = `TD: ${(e as Error).message.slice(0, 100)}`;
+      ytFailed++;
+      const reason = `YT: ${(e as Error).message.slice(0, 100)}`;
       failedDetails.push({ name: c.name, reason });
-      console.error('[todoist cron]', c.id, reason);
+      console.error('[yt cron]', c.id, reason);
     }
   }
-  await prisma.todoistConfig
-    .update({
-      where: { id: 'default' },
-      data: { lastSyncedAt: new Date(), lastSyncError: tdFailed > 0 ? `${tdFailed}개 채널 실패` : null },
-    })
-    .catch(() => {});
+  // 2) DB 예약 → Todoist: 전역 1회 동기화 (조회 1번 + 전부 삭제 + 채널당 생성).
+  //    채널마다 돌던 예전 방식은 rate limit 으로 삭제가 실패해 매일 중복이 쌓였음.
+  try {
+    const r = await syncAllToTodoist();
+    tdSynced = r.tasks;
+  } catch (e) {
+    tdFailed = channels.length;
+    const reason = `TD: ${(e as Error).message.slice(0, 100)}`;
+    failedDetails.push({ name: '(전체)', reason });
+    console.error('[todoist cron]', reason);
+  }
 
   // 별표(관심영상) 안 한 영상 중 30일 지난 거 자동 정리 (DB 용량 절약).
   // 사용자가 관심영상 체크했으면 30일 지나도 유지.
