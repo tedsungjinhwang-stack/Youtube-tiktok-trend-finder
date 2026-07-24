@@ -15,6 +15,8 @@ async function tdFetch(
 ): Promise<Response> {
   return fetch(`${BASE}${path}`, {
     ...init,
+    // 한 요청이 매달려 함수 시간(60s)을 다 먹지 않게 개별 타임아웃
+    signal: AbortSignal.timeout(15_000),
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -22,6 +24,8 @@ async function tdFetch(
     },
   });
 }
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** v1 프로젝트 목록 (페이지네이션 병합). */
 async function listProjects(token: string): Promise<TodoistProject[]> {
@@ -95,30 +99,43 @@ async function ensureProject(token: string, projectName: string, existingId: str
  */
 type TodoistTask = { id: string; labels?: string[]; content?: string };
 
-/** 프로젝트 내 활성 태스크 목록 (페이지네이션 병합). */
+/**
+ * 프로젝트 내 활성 태스크 목록 (페이지네이션 병합).
+ * 조회 실패 시 **throw** — 실패를 빈 목록으로 취급하면 "지울 게 없다"고 판단하고
+ * 생성만 진행해 중복이 쌓이는 사고(새벽 cron)가 났었음. 3회 재시도 후 포기.
+ */
 async function listTasks(token: string, projectId: string): Promise<TodoistTask[]> {
-  const all: TodoistTask[] = [];
-  let cursor: string | null = null;
-  for (let i = 0; i < 30; i++) {
-    const qs = `?project_id=${encodeURIComponent(projectId)}` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
-    const r = await tdFetch(token, `/tasks${qs}`);
-    if (!r.ok) break;
-    const j = (await r.json()) as Paginated<TodoistTask> | TodoistTask[];
-    const page = Array.isArray(j) ? j : j.results ?? [];
-    all.push(...page);
-    cursor = Array.isArray(j) ? null : j.next_cursor ?? null;
-    if (!cursor) break;
+  let lastErr = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(1500 * attempt);
+    try {
+      const all: TodoistTask[] = [];
+      let cursor: string | null = null;
+      for (let i = 0; i < 30; i++) {
+        const qs = `?project_id=${encodeURIComponent(projectId)}` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
+        const r = await tdFetch(token, `/tasks${qs}`);
+        if (!r.ok) throw new Error(`태스크 목록 조회 실패 (${r.status})`);
+        const j = (await r.json()) as Paginated<TodoistTask> | TodoistTask[];
+        const page = Array.isArray(j) ? j : j.results ?? [];
+        all.push(...page);
+        cursor = Array.isArray(j) ? null : j.next_cursor ?? null;
+        if (!cursor) break;
+      }
+      return all;
+    } catch (e) {
+      lastErr = (e as Error).message;
+    }
   }
-  return all;
+  throw new Error(lastErr || '태스크 목록 조회 실패');
 }
 
 // v1 완료 태스크 응답: { items | results: [...], next_cursor }
 type CompletedResp = { items?: TodoistTask[]; results?: TodoistTask[]; next_cursor?: string | null };
 
-/** 프로젝트 내 완료된 태스크 (최근 90일). 체크한 '영상업로드 필요' 도 정리하기 위함. */
+/** 프로젝트 내 완료된 태스크 (최근 7일). 체크한 '영상업로드 필요' 도 정리하기 위함. */
 async function listCompletedTasks(token: string, projectId: string): Promise<TodoistTask[]> {
   const until = new Date().toISOString();
-  const since = new Date(Date.now() - 89 * 24 * 60 * 60 * 1000).toISOString();
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const all: TodoistTask[] = [];
   let cursor: string | null = null;
   for (let i = 0; i < 30; i++) {
@@ -196,7 +213,52 @@ async function deleteTask(token: string, id: string): Promise<void> {
 }
 
 /**
- * 한 채널만 동기화 (영상 추가/수정 시). 그 채널의 기존 태스크(활성+완료) 삭제 후 1개 생성.
+ * 채널 1개를 기존 태스크에 **제자리 갱신(reconcile)**.
+ * - 기존 태스크 있음 → 첫 번째를 업데이트, 나머지는 삭제 (중복 정리)
+ * - 없음 → 새로 생성
+ * 삭제→재생성 방식은 삭제 단계가 실패하면 중복이 쌓였음. 업데이트 방식은
+ * 어떤 부분 실패에서도 중복을 **만들 수 없음**.
+ */
+async function reconcileChannelTask(
+  token: string,
+  projectId: string,
+  ch: ChannelRec,
+  existing: TodoistTask[]
+): Promise<void> {
+  const body = channelTaskBody(ch, projectId);
+  if (existing.length > 0) {
+    const r = await tdFetch(token, `/tasks/${existing[0].id}`, { method: 'POST', body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(`태스크 업데이트 실패 (${r.status})`);
+    for (const extra of existing.slice(1)) await deleteTask(token, extra.id);
+  } else {
+    const r = await tdFetch(token, '/tasks', { method: 'POST', body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(`태스크 생성 실패 (${r.status})`);
+  }
+}
+
+/** 활성 태스크를 채널별로 분배 (긴 이름 우선 — 접두사 겹침 오분배 방지). */
+function partitionByChannel(
+  tasks: TodoistTask[],
+  channels: { id: string; name: string }[]
+): Map<string, TodoistTask[]> {
+  const sorted = [...channels].sort((a, b) => b.name.length - a.name.length);
+  const claimed = new Set<string>();
+  const map = new Map<string, TodoistTask[]>();
+  for (const ch of sorted) {
+    const label = ch.name.replace(/\s+/g, '_').slice(0, 60);
+    const mine = tasks.filter(
+      (t) =>
+        !claimed.has(t.id) &&
+        ((t.labels ?? []).includes(label) || (t.content ? taskBelongsTo(t.content, [ch.name]) : false))
+    );
+    mine.forEach((t) => claimed.add(t.id));
+    map.set(ch.id, mine);
+  }
+  return map;
+}
+
+/**
+ * 한 채널만 동기화 (영상 추가/수정 시). 목록 조회 실패 시 throw — 절대 무턱대고 생성하지 않음.
  */
 export async function syncChannelToTodoist(channelId: string): Promise<number> {
   const config = await prisma.todoistConfig.findUnique({ where: { id: 'default' } });
@@ -217,24 +279,20 @@ export async function syncChannelToTodoist(channelId: string): Promise<number> {
   });
   if (!ch || !ch.isActive) return 0;
 
-  // 이 채널 기존 태스크(활성+완료) 삭제
-  try {
-    const [active, completed] = await Promise.all([
-      listTasks(token, projectId),
-      listCompletedTasks(token, projectId).catch(() => [] as TodoistTask[]),
-    ]);
-    const label = ch.name.replace(/\s+/g, '_').slice(0, 60);
-    const ids = new Set<string>();
-    for (const t of [...active, ...completed]) {
-      if ((t.labels ?? []).includes(label) || (t.content && taskBelongsTo(t.content, [ch.name]))) ids.add(t.id);
-    }
-    for (const id of ids) await deleteTask(token, id);
-  } catch {
-    /* list 실패해도 생성은 시도 */
-  }
+  // 목록 조회 실패 → throw (조용히 생성하면 중복 생김)
+  const active = await listTasks(token, projectId);
+  const mine = partitionByChannel(active, [{ id: ch.id, name: ch.name }]).get(ch.id) ?? [];
+  await reconcileChannelTask(token, projectId, ch, mine);
 
-  const r = await tdFetch(token, '/tasks', { method: 'POST', body: JSON.stringify(channelTaskBody(ch, projectId)) });
-  if (!r.ok) throw new Error(`태스크 생성 실패 (${r.status})`);
+  // 완료(체크)된 이전 태스크 정리 — best effort
+  try {
+    const completed = await listCompletedTasks(token, projectId);
+    for (const t of completed) {
+      if (t.content && taskBelongsTo(t.content, [ch.name])) await deleteTask(token, t.id);
+    }
+  } catch {
+    /* noop */
+  }
   return 1;
 }
 
@@ -253,9 +311,12 @@ export async function unsyncChannelFromTodoist(channelId: string): Promise<void>
 
 /**
  * 활성 채널 전체를 Todoist 로 동기화 (cron·전체동기화용).
- * 핵심: 태스크 목록 조회를 **한 번만** 하고, 우리 채널 것(활성+완료)을 모두 지운 뒤
- * 채널당 1개 생성. 채널마다 조회하던 예전 방식은 rate limit 에 걸려 삭제가 실패,
- * 매일 중복이 쌓였음. 전역 1회 처리로 자기치유(이미 쌓인 중복도 정리)됨.
+ *
+ * 설계 원칙 (중복 누적 사고 2회의 교훈):
+ * 1. 목록 조회 실패 → **전체 중단(throw)**. 실패를 빈 목록으로 취급하고 생성으로
+ *    넘어가면 "지울 게 없다" 로 판단해 매일 13개씩 중복이 쌓였음.
+ * 2. 삭제→재생성 대신 **제자리 업데이트(reconcile)**. 기존 태스크가 있으면 그걸
+ *    갱신하므로 어떤 부분 실패에서도 중복이 생길 수 없고, 남는 중복은 지워짐.
  */
 export async function syncAllToTodoist(): Promise<{ tasks: number; channels: number; totalInProject: number | null }> {
   const config = await prisma.todoistConfig.findUnique({ where: { id: 'default' } });
@@ -277,21 +338,28 @@ export async function syncAllToTodoist(): Promise<{ tasks: number; channels: num
   });
   const names = channels.map((c) => c.name);
 
-  // 1) 기존 태스크(활성+완료) 한 번만 조회 → 우리 채널 것 전부 삭제 (중복·이전 것 싹)
+  // 1) 활성 태스크 1회 조회 (실패 시 throw → 아무것도 안 만듦) → 채널별 분배
   const active = await listTasks(token, projectId);
-  const completed = await listCompletedTasks(token, projectId).catch(() => [] as TodoistTask[]);
-  const ids = new Set<string>();
-  for (const t of [...active, ...completed]) if (t.content && taskBelongsTo(t.content, names)) ids.add(t.id);
-  for (const id of ids) await deleteTask(token, id);
+  const byChannel = partitionByChannel(active, channels);
 
-  // 2) 채널당 1개 생성
+  // 2) 채널마다 제자리 갱신 (기존 있으면 업데이트+잉여 삭제, 없으면 생성)
   let tasks = 0;
   for (const ch of channels) {
-    const r = await tdFetch(token, '/tasks', { method: 'POST', body: JSON.stringify(channelTaskBody(ch, projectId)) });
-    if (r.ok) tasks += 1;
+    await reconcileChannelTask(token, projectId, ch, byChannel.get(ch.id) ?? []);
+    tasks += 1;
+  }
+
+  // 3) 완료(체크)된 이전 태스크 정리 — best effort (핵심 상태는 이미 정합)
+  try {
+    const completed = await listCompletedTasks(token, projectId);
+    for (const t of completed) {
+      if (t.content && taskBelongsTo(t.content, names)) await deleteTask(token, t.id);
+    }
+  } catch {
+    /* noop */
   }
 
   await prisma.todoistConfig.update({ where: { id: 'default' }, data: { lastSyncedAt: new Date(), lastSyncError: null } });
-  const totalInProject = (await listTasks(token, projectId).catch(() => [])).length;
+  const totalInProject = await listTasks(token, projectId).then((t) => t.length).catch(() => null);
   return { tasks, channels: channels.length, totalInProject };
 }
