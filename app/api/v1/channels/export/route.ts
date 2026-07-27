@@ -17,7 +17,11 @@ const MOCK = [
 ];
 
 export async function GET(req: NextRequest) {
-  if (!checkApiKey(req)) {
+  // cron secret 도 허용 (CSV 백업/외부 스크립트용)
+  const qSecret = req.nextUrl.searchParams.get('secret');
+  const cronSecret = process.env.CRON_SECRET;
+  const secretOk = !!cronSecret && qSecret === cronSecret;
+  if (!secretOk && !checkApiKey(req)) {
     return new Response(
       JSON.stringify({
         success: false,
@@ -30,13 +34,13 @@ export async function GET(req: NextRequest) {
   const platform = req.nextUrl.searchParams.get('platform');
   const folder = req.nextUrl.searchParams.get('folder');
 
-  let rows: { platform: string; handle: string | null; displayName: string | null; folder: string; subscribers: number | null }[];
+  let rows: { platform: string; handle: string | null; displayName: string | null; folder: string; subscribers: number | null; url: string }[];
   try {
     const channels = await prisma.channel.findMany({
       where: {
         isActive: true,
         ...(platform ? { platform: platform.toUpperCase() as any } : {}),
-        ...(folder ? { folder: { name: folder } } : {}),
+        ...(folder ? { folder: { name: { contains: folder } } } : {}),
       },
       include: { folder: { select: { name: true } } },
       orderBy: [{ folderId: 'asc' }, { addedAt: 'desc' }],
@@ -47,17 +51,19 @@ export async function GET(req: NextRequest) {
       displayName: c.displayName,
       folder: c.folder.name,
       subscribers: c.subscriberCount,
+      url: channelUrl(c.platform, c.handle, c.externalId),
     }));
   } catch {
     rows = MOCK
       .filter((r) => !platform || r.platform === platform.toUpperCase())
-      .filter((r) => !folder || r.folder === folder);
+      .filter((r) => !folder || r.folder.includes(folder))
+      .map((r) => ({ ...r, url: '' }));
   }
 
-  const header = ['platform', 'handle', 'displayName', 'folder', 'subscribers'];
+  const header = ['platform', 'handle', 'displayName', 'folder', 'subscribers', 'url'];
   const csv = [
     header,
-    ...rows.map((r) => [r.platform, r.handle ?? '', r.displayName ?? '', r.folder, String(r.subscribers ?? '')]),
+    ...rows.map((r) => [r.platform, r.handle ?? '', r.displayName ?? '', r.folder, String(r.subscribers ?? ''), r.url]),
   ]
     .map((row) => row.map(csvEscape).join(','))
     .join('\r\n');
@@ -71,6 +77,22 @@ export async function GET(req: NextRequest) {
       'content-disposition': `attachment; filename="trend-finder_channels_${tag}_${date}.csv"`,
     },
   });
+}
+
+/** 플랫폼별 채널 URL 복원 (핸들 우선, 없으면 externalId). */
+function channelUrl(platform: string, handle: string | null, externalId: string): string {
+  const h = handle?.replace(/^@/, '') ?? '';
+  switch (platform) {
+    case 'YOUTUBE':
+      if (h) return `https://www.youtube.com/@${h}`;
+      return externalId ? `https://www.youtube.com/channel/${externalId}` : '';
+    case 'TIKTOK':
+      return h ? `https://www.tiktok.com/@${h}` : '';
+    case 'INSTAGRAM':
+      return h ? `https://www.instagram.com/${h}/` : '';
+    default:
+      return h;
+  }
 }
 
 function csvEscape(v: string): string {
