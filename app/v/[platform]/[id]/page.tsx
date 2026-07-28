@@ -84,10 +84,11 @@ export default async function VideoDetailPage({
             </span>
             {verified && (
               <span
-                className="absolute -top-1.5 -right-1.5 grid h-7 w-7 place-items-center rounded-full bg-amber-400 text-[14px] shadow-md shadow-amber-400/40"
+                className="absolute right-2 top-2 rounded-md px-2 py-0.5 text-[11.5px] font-bold backdrop-blur"
+                style={{ background: 'rgba(217,165,92,0.22)', color: '#E7C489' }}
                 title="검증된 히트 (50만↑)"
               >
-                🌟
+                검증 히트
               </span>
             )}
           </div>
@@ -121,7 +122,7 @@ export default async function VideoDetailPage({
                 <span
                   className={`rounded px-1.5 py-0.5 text-[12px] font-bold ${growth.color}`}
                 >
-                  {growth.emoji} {growth.label}
+                  {growth.label}
                 </span>
               )}
             </div>

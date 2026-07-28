@@ -155,7 +155,7 @@ export function SelectableVideoGrid({
             onClick={() => setSelectionMode(true)}
             className="rounded-md border bg-card px-3 py-1.5 text-[12.5px] hover:border-foreground/40"
           >
-            🗑 선택 모드
+            선택 모드
           </button>
         ) : (
           <>
@@ -167,13 +167,13 @@ export function SelectableVideoGrid({
               disabled={selectedIds.size === 0 || isPending}
               className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-[12.5px] text-destructive hover:bg-destructive/20 disabled:opacity-40"
             >
-              {isPending ? '삭제 중…' : `🗑 삭제 (${selectedIds.size})`}
+              {isPending ? '삭제 중…' : `삭제 (${selectedIds.size})`}
             </button>
             <button
               onClick={exitSelection}
               className="rounded-md border bg-card px-3 py-1.5 text-[12.5px] hover:border-foreground/40"
             >
-              ✕ 취소
+              취소
             </button>
             <span className="ml-2 text-[13px] text-muted-foreground">
               빈 곳을 드래그해서 영역 선택, 카드 클릭으로 개별 토글, ESC로 종료

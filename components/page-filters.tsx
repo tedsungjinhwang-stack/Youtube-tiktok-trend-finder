@@ -15,7 +15,7 @@ const PRESETS: Record<
   { label: string; hint: string; params: Record<string, string | null> }
 > = {
   hot: {
-    label: '🔥 지금 뜨는',
+    label: '지금 뜨는',
     hint: '48시간 내 5만회 이상',
     params: {
       period: '48h',
@@ -25,7 +25,7 @@ const PRESETS: Record<
     },
   },
   revival: {
-    label: '💓 심정지',
+    label: '심정지',
     hint: '1달↑ 영상 100만회 이상',
     params: {
       minAgeDays: '30',
@@ -187,7 +187,7 @@ export function PageFilters({
               className="h-7 rounded-md border bg-background px-2 text-[12.5px] font-semibold"
               title="저장한 스크랩 프리셋 적용"
             >
-              <option value="">📌 프리셋…</option>
+              <option value="">프리셋…</option>
               {savedPresets.map((sp) => (
                 <option key={sp.id} value={sp.id}>
                   {sp.name}
@@ -207,7 +207,7 @@ export function PageFilters({
               className="h-7 max-w-[180px] rounded-md border bg-background px-2 text-[12.5px] font-semibold"
               title="특정 채널만 보기"
             >
-              <option value="">📺 채널 (전체)</option>
+              <option value="">채널 (전체)</option>
               {channels.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.displayName ?? c.handle ?? c.id.slice(0, 8)}
@@ -264,12 +264,12 @@ export function PageFilters({
               onClick={() => updateParams({ isShorts: null })}
             />
             <Pill
-              label="🎬 쇼츠"
+              label="쇼츠"
               active={shortsMode === 'shorts'}
               onClick={() => updateParams({ isShorts: 'true' })}
             />
             <Pill
-              label="🎞 롱폼"
+              label="롱폼"
               active={shortsMode === 'long'}
               onClick={() => updateParams({ isShorts: 'false' })}
             />

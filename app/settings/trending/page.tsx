@@ -176,7 +176,7 @@ export default function TrendingSettingsPage() {
             disabled={forcing}
             className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
           >
-            {forcing ? '실행 중…' : '⚡ 지금 한 번 강제 실행'}
+            {forcing ? '실행 중…' : '지금 한 번 강제 실행'}
           </button>
           {forceMsg && (
             <span className="ml-3 text-[13px] text-muted-foreground">{forceMsg}</span>

@@ -199,7 +199,7 @@ function HashtagRow({
         title="검색 실행"
         className="rounded border border-border/60 bg-background/40 px-2 py-1 text-[12px] hover:border-foreground/40 disabled:opacity-40"
       >
-        {isPending ? '검색 중…' : '🔍 검색'}
+        {isPending ? '검색 중…' : '검색'}
       </button>
       <button
         onClick={onDelete}

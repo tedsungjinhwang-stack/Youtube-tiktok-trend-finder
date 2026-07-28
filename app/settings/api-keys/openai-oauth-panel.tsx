@@ -128,7 +128,7 @@ export function OpenAIOAuthPanel() {
   return (
     <div className="space-y-3 rounded-lg border bg-card p-3">
       <div className="rounded border border-amber-500/40 bg-amber-500/10 p-2 text-[13px] leading-snug text-amber-300">
-        ⚠️ <strong>TOS 회색지대 경고</strong>: 이 기능은 Codex CLI 의 OAuth 흐름을
+        <strong>TOS 회색지대 경고</strong>: 이 기능은 Codex CLI 의 OAuth 흐름을
         비공식 우회하여 ChatGPT 계정으로 OpenAI API 를 호출합니다. OpenAI 정책상
         명시적 허용이 아니며, 차단되거나 <strong>ChatGPT 계정이 정지될 수
         있습니다</strong>. 위험을 감수할 경우에만 사용하세요. 차단 시 API key 로
