@@ -6,9 +6,10 @@ export const dynamic = 'force-dynamic';
 // 플랫폼 표시 순서 (1차 정렬용)
 const PLATFORM_ORDER: Record<string, number> = {
   YOUTUBE: 0,
-  INSTAGRAM: 1,
-  THREADS: 2,
-  NAVER_CLIP: 3,
+  TIKTOK: 1,
+  INSTAGRAM: 2,
+  THREADS: 3,
+  NAVER_CLIP: 4,
 };
 const ALLOWED_PLATFORMS = new Set(Object.keys(PLATFORM_ORDER));
 

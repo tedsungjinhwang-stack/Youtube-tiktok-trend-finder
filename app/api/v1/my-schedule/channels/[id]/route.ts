@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 type Ctx = { params: Promise<{ id: string }> };
 
-const ALLOWED_PLATFORMS = new Set(['YOUTUBE', 'INSTAGRAM', 'THREADS', 'NAVER_CLIP']);
+const ALLOWED_PLATFORMS = new Set(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'THREADS', 'NAVER_CLIP']);
 
 export async function PATCH(req: Request, { params }: Ctx) {
   const { id } = await params;

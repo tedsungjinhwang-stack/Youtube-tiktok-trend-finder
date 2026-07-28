@@ -83,7 +83,7 @@ export default async function PopularFeedPage({
             <div className="rounded-xl border border-dashed py-12 text-center text-[13.5px] text-muted-foreground">
               {activeTag
                 ? `#${activeTag} 결과 없음 — "검색" 버튼으로 가져와 보세요.`
-                : '해시태그 등록 → 🔍 검색 클릭하면 결과가 여기에 표시됩니다.'}
+                : '해시태그 등록 → 검색 클릭하면 결과가 여기에 표시됩니다.'}
             </div>
           }
           videos={videos.map((v, i) => ({

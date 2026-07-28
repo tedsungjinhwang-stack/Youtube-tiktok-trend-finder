@@ -130,10 +130,8 @@ export function VideoCard({ data }: { data: VideoCardData }) {
     <Link
       href={`/v/${data.platform.toLowerCase()}/${data.id}`}
       className={cn(
-        'group block overflow-hidden rounded-xl border bg-card transition hover:border-foreground/30',
-        verifiedHit
-          ? 'border-amber-400/70 shadow-lg shadow-amber-400/20'
-          : 'border-border/60'
+        'group block overflow-hidden rounded-[14px] border bg-card transition hover:border-[color:var(--border-hover)]',
+        verifiedHit ? 'border-[#4A3E28]' : 'border-border'
       )}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
@@ -169,32 +167,29 @@ export function VideoCard({ data }: { data: VideoCardData }) {
           >
             <span>#{data.rank}</span>
             {rankBadge && (
-              <span className="ml-0.5 inline-flex items-center gap-0.5">
-                <span>{rankBadge.emoji}</span>
-                <span className="text-[13px]">{rankBadge.label}</span>
-              </span>
+              <span className="ml-0.5 text-[12px]">{rankBadge.label}</span>
             )}
           </span>
         )}
 
+        {/* 상태 배지는 1개만 — 검증 히트 우선, 없으면 급상승 */}
         {verifiedHit && (
           <span
-            className="absolute -top-1.5 -right-1.5 z-10 grid h-6 w-6 place-items-center rounded-full bg-amber-400 text-[13px] shadow-md shadow-amber-400/40"
+            className="absolute left-2 top-9 rounded-md px-1.5 py-0.5 text-[11.5px] font-bold backdrop-blur"
+            style={{ background: 'rgba(217,165,92,0.22)', color: '#E7C489' }}
             title="검증된 히트 (50만↑)"
           >
-            🌟
+            검증 히트
           </span>
         )}
 
-        {growth && (
+        {!verifiedHit && growth && (
           <span
-            className={cn(
-              'absolute left-2 top-9 rounded px-1.5 py-0.5 text-[13px] font-bold backdrop-blur',
-              growth.color
-            )}
+            className="absolute left-2 top-9 rounded-md px-1.5 py-0.5 text-[11.5px] font-bold backdrop-blur"
+            style={{ background: 'rgba(111,199,177,0.20)', color: '#8FD8C4' }}
             title={`시간당 ${formatKr(growth.perHour)}회`}
           >
-            {growth.emoji} {growth.label}
+            {growth.label}
           </span>
         )}
 
@@ -212,12 +207,11 @@ export function VideoCard({ data }: { data: VideoCardData }) {
           if (!isShort && !isLong) return null;
           return (
             <span
-              className={cn(
-                'absolute right-10 top-2 z-10 rounded px-1.5 py-0.5 text-[12px] font-bold uppercase tracking-wider shadow backdrop-blur',
-                isShort
-                  ? 'bg-red-500/90 text-white'
-                  : 'bg-blue-500/90 text-white'
-              )}
+              className="absolute bottom-2 left-2 z-10 rounded px-1.5 py-0.5 text-[9.5px] font-bold tracking-wide backdrop-blur"
+              style={{
+                background: 'rgba(15,17,20,0.75)',
+                color: isShort ? '#E5837B' : '#8A939C',
+              }}
               title={
                 isShort
                   ? 'YouTube 쇼츠 (≤3분)'
@@ -233,9 +227,13 @@ export function VideoCard({ data }: { data: VideoCardData }) {
           aria-label={starred ? '별표 해제' : '별표'}
           title={starred ? '별표 해제 (정렬 맨 앞에서 빠짐)' : '별표 (목록 맨 앞으로)'}
           onClick={onToggleStar}
-          className="absolute right-2 top-2 z-10 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-[13px] backdrop-blur hover:bg-black/80"
+          className={cn(
+            'absolute right-2 top-2 z-10 grid h-[26px] w-[26px] place-items-center rounded-lg text-[13px] backdrop-blur-[6px] transition-opacity duration-[120ms]',
+            starred ? 'opacity-100' : 'hover-action'
+          )}
+          style={{ background: 'rgba(15,17,20,0.72)' }}
         >
-          <span className={starred ? 'text-warning' : 'text-white/70'}>★</span>
+          <span className={starred ? 'text-warning' : 'text-[color:var(--text-quaternary)]'}>★</span>
         </button>
 
         <button
@@ -243,11 +241,10 @@ export function VideoCard({ data }: { data: VideoCardData }) {
           title={copied ? '복사됨!' : 'URL 복사'}
           onClick={onCopyUrl}
           className={cn(
-            'absolute right-2 top-10 z-10 grid h-6 w-6 place-items-center rounded-full text-[12px] backdrop-blur transition group-hover:opacity-100',
-            copied
-              ? 'bg-emerald-500/90 text-white opacity-100'
-              : 'bg-black/60 text-white/70 opacity-0 hover:bg-black/80 hover:text-white'
+            'absolute right-2 top-[calc(0.5rem+30px)] z-10 grid h-[26px] w-[26px] place-items-center rounded-lg text-[12px] backdrop-blur-[6px]',
+            copied ? 'opacity-100 text-success' : 'hover-action text-[color:var(--text-quaternary)] hover:text-foreground'
           )}
+          style={{ background: 'rgba(15,17,20,0.72)' }}
         >
           {copied ? '✓' : '⧉'}
         </button>
@@ -257,7 +254,8 @@ export function VideoCard({ data }: { data: VideoCardData }) {
           title="영상 삭제"
           onClick={onDelete}
           disabled={isDeleting}
-          className="absolute right-2 top-[4.5rem] z-10 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-[12px] text-white/70 opacity-0 backdrop-blur transition group-hover:opacity-100 hover:bg-red-600/90 hover:text-white disabled:opacity-30"
+          className="hover-action absolute right-2 top-[calc(0.5rem+60px)] z-10 grid h-[26px] w-[26px] place-items-center rounded-lg text-[12px] text-[color:var(--text-quaternary)] backdrop-blur-[6px] hover:text-destructive"
+          style={{ background: 'rgba(15,17,20,0.72)' }}
         >
           {isDeleting ? '…' : '✕'}
         </button>

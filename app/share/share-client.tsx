@@ -7,28 +7,7 @@ import { kstLocalToISO, tomorrowKstLocal } from '@/lib/kst';
 
 type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN';
 type Kind = 'REFERENCE' | 'SOURCE';
-type ShareMode = 'material' | 'channel' | 'community' | 'schedule';
-export type CommunityPost = {
-  id: string;
-  tab: string;
-  country: string;
-  source: string;
-  sourceLabel: string | null;
-  rank: number;
-  prevRank: number | null;
-  title: string;
-  url: string;
-  thumbnailUrl: string | null;
-  commentCount: number | null;
-  prevCommentCount: number | null;
-  viewCount: number | null;
-  prevViewCount: number | null;
-  score: number | null;
-  prevScore: number | null;
-  lang: string | null;
-  publishedAt: string | null;
-  firstSeenAt: string;
-};
+type ShareMode = 'material' | 'channel' | 'schedule';
 type Folder = { id: string; name: string };
 type Material = { id: string; url: string; createdAt: string };
 type MyChannel = {
@@ -75,14 +54,10 @@ export function ShareClient({
   folders,
   myChannels,
   assetChannels,
-  community,
-  communityLastRunAt,
 }: {
   folders: Folder[];
   myChannels: MyChannel[];
   assetChannels: AssetChannel[];
-  community: CommunityPost[];
-  communityLastRunAt: string | null;
 }) {
   return (
     <Suspense
@@ -96,8 +71,6 @@ export function ShareClient({
         folders={folders}
         myChannels={myChannels}
         assetChannels={assetChannels}
-        community={community}
-        communityLastRunAt={communityLastRunAt}
       />
     </Suspense>
   );
@@ -107,14 +80,10 @@ function Inner({
   folders,
   myChannels,
   assetChannels,
-  community,
-  communityLastRunAt,
 }: {
   folders: Folder[];
   myChannels: MyChannel[];
   assetChannels: AssetChannel[];
-  community: CommunityPost[];
-  communityLastRunAt: string | null;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -126,7 +95,6 @@ function Inner({
     if (
       fromUrl === 'channel' ||
       fromUrl === 'material' ||
-      fromUrl === 'community' ||
       fromUrl === 'schedule'
     ) {
       setMode(fromUrl);
@@ -137,7 +105,6 @@ function Inner({
       if (
         last === 'channel' ||
         last === 'material' ||
-        last === 'community' ||
         last === 'schedule'
       ) {
         setMode(last as ShareMode);
@@ -301,21 +268,6 @@ function Inner({
         </button>
         <button
           onClick={() => {
-            setMode('community');
-            setDone(null);
-            setError(null);
-          }}
-          className={
-            'h-10 rounded-md text-[12.5px] font-semibold transition ' +
-            (mode === 'community'
-              ? 'bg-background shadow-sm'
-              : 'text-muted-foreground hover:text-foreground')
-          }
-        >
-          💬 커뮤니티
-        </button>
-        <button
-          onClick={() => {
             setMode('schedule');
             setDone(null);
             setError(null);
@@ -331,13 +283,10 @@ function Inner({
         </button>
       </div>
 
-      {mode === 'community' && (
-        <CommunityFeed posts={community} lastRunAt={communityLastRunAt} />
-      )}
       {mode === 'schedule' && (
         <ScheduleForm myChannels={myChannels} />
       )}
-      {mode !== 'community' && mode !== 'schedule' && (
+      {mode !== 'schedule' && (
 
       <div className="space-y-4">
         <label className="block">
@@ -698,311 +647,6 @@ function AssetChannelsList({
   );
 }
 
-/* ─────────── 커뮤니티/뉴스 카드 피드 (share 페이지 내부 인라인) ─────────── */
-
-function CommunityFeed({
-  posts,
-  lastRunAt,
-}: {
-  posts: CommunityPost[];
-  lastRunAt: string | null;
-}) {
-  const router = useRouter();
-  const [tab, setTab] = useState<'community' | 'news' | 'reddit'>('community');
-  const [running, setRunning] = useState(false);
-  const [runMsg, setRunMsg] = useState<string | null>(null);
-  const [translated, setTranslated] = useState(false);
-  const [tmap, setTmap] = useState<Record<string, string>>({});
-  const [translating, setTranslating] = useState(false);
-
-  const counts: Record<string, number> = { community: 0, news: 0, reddit: 0 };
-  for (const p of posts) counts[p.tab] = (counts[p.tab] ?? 0) + 1;
-
-  const visible = posts
-    .filter((p) => p.tab === tab)
-    .sort((a, b) => {
-      const ta = new Date(a.firstSeenAt).getTime();
-      const tb = new Date(b.firstSeenAt).getTime();
-      if (Math.abs(tb - ta) < 60_000) return a.rank - b.rank;
-      return tb - ta;
-    });
-
-  const hasForeign = posts.some((p) => p.lang && p.lang !== 'ko');
-
-  async function runNow() {
-    if (running) return;
-    setRunning(true);
-    setRunMsg(null);
-    try {
-      const res = await fetch('/api/v1/discovery/run', { method: 'POST' });
-      const txt = await res.text();
-      let data: { success?: boolean; data?: { saved: number }; error?: { message?: string } } | null = null;
-      try { data = JSON.parse(txt); } catch {}
-      if (!res.ok || !data?.success) {
-        setRunMsg(`❌ ${data?.error?.message ?? `HTTP ${res.status}`}`);
-        return;
-      }
-      setRunMsg(`✅ ${data.data!.saved}건 수집됨`);
-      router.refresh();
-    } catch (e) {
-      setRunMsg(`❌ ${(e as Error).message}`);
-    } finally {
-      setRunning(false);
-    }
-  }
-
-  async function toggleTranslate() {
-    if (translated) {
-      setTranslated(false);
-      return;
-    }
-    const need = posts.filter((p) => p.lang && p.lang !== 'ko' && !tmap[p.id]);
-    if (need.length === 0) {
-      setTranslated(true);
-      return;
-    }
-    setTranslating(true);
-    try {
-      const byLang = new Map<string, CommunityPost[]>();
-      for (const p of need) {
-        const arr = byLang.get(p.lang!) ?? [];
-        arr.push(p);
-        byLang.set(p.lang!, arr);
-      }
-      const next: Record<string, string> = {};
-      let totalFail = 0;
-      const errSamples: string[] = [];
-      for (const [lang, items] of byLang) {
-        const r = await fetch('/api/v1/translate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ q: items.map((i) => i.title), sl: lang, tl: 'ko' }),
-        });
-        const d = (await r.json()) as {
-          translations?: string[];
-          stats?: { ok: number; fail: number };
-          errors?: string[];
-        };
-        (d.translations ?? []).forEach((t, idx) => {
-          // 원문과 다를 때만 번역된 걸로 간주 → 실패 시 토글이 헛돌지 않음
-          if (t && t.trim() && t.trim() !== items[idx].title.trim()) {
-            next[items[idx].id] = t;
-          }
-        });
-        if (d.stats?.fail) totalFail += d.stats.fail;
-        if (d.errors?.length) errSamples.push(...d.errors);
-      }
-      if (Object.keys(next).length === 0) {
-        alert(
-          `번역 실패: 모든 항목 (${totalFail}개)\n${errSamples.slice(0, 2).join('\n') || '서버 응답 없음'}`
-        );
-        return;
-      }
-      setTmap((m) => ({ ...m, ...next }));
-      setTranslated(true);
-      if (totalFail > 0) {
-        // 일부만 실패한 경우 — 콘솔에만 기록 (UX 방해 줄임)
-        console.warn('[translate] 일부 실패:', totalFail, errSamples);
-      }
-    } catch {
-      alert('번역 실패 (네트워크)');
-    } finally {
-      setTranslating(false);
-    }
-  }
-
-  return (
-    <div>
-      {/* 상단 액션 */}
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-[12px] text-muted-foreground">
-          {lastRunAt
-            ? `마지막 수집 · ${cfFormatRelative(new Date(lastRunAt))}`
-            : '수집된 데이터 없음'}
-        </p>
-        <div className="flex gap-1.5">
-          <button
-            onClick={runNow}
-            disabled={running}
-            className="grid h-9 w-9 place-items-center rounded-full border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 active:bg-emerald-500/20 disabled:opacity-50"
-            aria-label="수집"
-            title="수동 수집"
-          >
-            {running ? '…' : '🔄'}
-          </button>
-          {hasForeign && (
-            <button
-              onClick={toggleTranslate}
-              disabled={translating}
-              className={`grid h-9 w-9 place-items-center rounded-full border active:bg-accent disabled:opacity-50 ${
-                translated ? 'border-blue-500 bg-blue-500/15 text-blue-400' : 'border-border'
-              }`}
-              aria-label="번역"
-              title={translated ? '원문 보기' : '한국어 번역'}
-            >
-              {translating ? '…' : '🌐'}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 탭 */}
-      <div className="mb-2 flex gap-1 border-b">
-        {(['community', 'news', 'reddit'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`-mb-px flex-1 border-b-2 py-2 text-[13px] font-semibold ${
-              tab === t
-                ? 'border-foreground text-foreground'
-                : 'border-transparent text-muted-foreground'
-            }`}
-          >
-            {t === 'community' ? '커뮤니티' : t === 'news' ? '뉴스' : '레딧'}
-            <span className="ml-1 text-[12px] opacity-60">{counts[t] ?? 0}</span>
-          </button>
-        ))}
-      </div>
-
-      {runMsg && (
-        <div className="mb-2 rounded-md border bg-accent/40 px-2 py-1.5 text-[12px] text-muted-foreground">
-          {runMsg}
-        </div>
-      )}
-
-      {visible.length === 0 ? (
-        <p className="py-12 text-center text-[13px] text-muted-foreground">
-          {posts.length === 0 ? '🔄 눌러서 처음 수집해보세요' : '이 탭에 글 없음'}
-        </p>
-      ) : (
-        <ul className="space-y-2">
-          {visible.map((r, i) => {
-            const title = translated && tmap[r.id] ? tmap[r.id] : r.title;
-            const cDelta = cfDelta(r.commentCount, r.prevCommentCount);
-            const vDelta = cfDelta(r.viewCount, r.prevViewCount);
-            const sDelta = cfDelta(r.score, r.prevScore);
-            const ts = r.publishedAt ?? r.firstSeenAt;
-            const useFirstSeen = !r.publishedAt;
-            return (
-              <li key={r.id}>
-                <a
-                  href={r.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex gap-2.5 rounded-xl border bg-card/40 p-2.5 active:bg-accent/60"
-                >
-                  <span className="grid h-6 w-6 shrink-0 place-items-center self-start rounded-full bg-secondary text-[12px] font-bold text-muted-foreground">
-                    {i + 1}
-                  </span>
-                  {r.thumbnailUrl ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={r.thumbnailUrl}
-                      alt=""
-                      loading="lazy"
-                      className="h-14 w-14 shrink-0 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <span
-                      className="grid h-14 w-14 shrink-0 place-items-center rounded-lg text-xl"
-                      style={{ backgroundColor: cfColorFor(r.source) + '30' }}
-                    >
-                      📄
-                    </span>
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="line-clamp-2 text-[14px] font-medium leading-snug">
-                      {title}
-                    </span>
-                    <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <span
-                          className="inline-block h-1.5 w-1.5 rounded-full"
-                          style={{ backgroundColor: cfColorFor(r.source) }}
-                        />
-                        <span className="font-medium">{r.sourceLabel ?? r.source}</span>
-                      </span>
-                      {r.prevRank == null ? (
-                        <span className="rounded bg-pink-500/15 px-1 text-[11px] font-bold text-pink-400">
-                          NEW
-                        </span>
-                      ) : r.prevRank - r.rank > 0 ? (
-                        <span className="text-[12px] font-semibold text-emerald-400">
-                          ▲{r.prevRank - r.rank}
-                        </span>
-                      ) : r.prevRank - r.rank < 0 ? (
-                        <span className="text-[12px] font-semibold text-rose-400">
-                          ▼{r.rank - r.prevRank}
-                        </span>
-                      ) : null}
-                      {ts && (
-                        <span className="opacity-70">
-                          · {useFirstSeen ? '발견 ' : ''}
-                          {cfFormatRelative(new Date(ts))}
-                        </span>
-                      )}
-                    </span>
-                    {(r.viewCount != null || r.commentCount != null || r.score != null) && (
-                      <span className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[12px] text-muted-foreground">
-                        {r.viewCount != null && (
-                          <span>
-                            👁 {cfFmt(r.viewCount)}
-                            {vDelta > 0 && <span className="ml-0.5 text-emerald-400">(+{cfFmt(vDelta)})</span>}
-                          </span>
-                        )}
-                        {r.commentCount != null && (
-                          <span>
-                            💬 {cfFmt(r.commentCount)}
-                            {cDelta > 0 && <span className="ml-0.5 text-emerald-400">(+{cfFmt(cDelta)})</span>}
-                          </span>
-                        )}
-                        {r.score != null && (
-                          <span>
-                            ▲ {cfFmt(r.score)}
-                            {sDelta > 0 && <span className="ml-0.5 text-emerald-400">(+{cfFmt(sDelta)})</span>}
-                          </span>
-                        )}
-                      </span>
-                    )}
-                  </span>
-                </a>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function cfDelta(cur: number | null, prev: number | null | undefined): number {
-  if (cur == null || prev == null) return 0;
-  return cur - prev;
-}
-function cfFmt(n: number): string {
-  const a = Math.abs(n);
-  if (a >= 10000) return `${(n / 10000).toFixed(1)}만`;
-  if (a >= 1000) return `${(n / 1000).toFixed(1)}천`;
-  return String(n);
-}
-function cfFormatRelative(d: Date): string {
-  const s = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (s < 60) return '방금';
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}분 전`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}시간 전`;
-  return `${Math.floor(h / 24)}일 전`;
-}
-const CF_PALETTE = [
-  '#ef4444','#f97316','#eab308','#22c55e','#14b8a6',
-  '#3b82f6','#6366f1','#a855f7','#ec4899','#06b6d4',
-];
-function cfColorFor(source: string): string {
-  let h = 0;
-  for (let i = 0; i < source.length; i++) h = (h * 31 + source.charCodeAt(i)) >>> 0;
-  return CF_PALETTE[h % CF_PALETTE.length];
-}
 
 /* ─────────── 채널 스케줄: 채널 선택 + 예약일시 + 저장 ─────────── */
 

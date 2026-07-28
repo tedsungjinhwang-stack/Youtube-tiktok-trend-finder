@@ -69,19 +69,19 @@ export function PresetsClient({
         let j: { success?: boolean; data?: { processed: number; remaining: number; results?: Array<{name: string; ok: boolean; videos?: number; error?: string}> }; error?: { message?: string } } | null = null;
         try { j = JSON.parse(txt); } catch {}
         if (!r.ok || !j?.success) {
-          setBackfillMsg(`❌ 백필 실패: ${j?.error?.message ?? `HTTP ${r.status}`}`);
+          setBackfillMsg(`실패: 백필 실패: ${j?.error?.message ?? `HTTP ${r.status}`}`);
           return;
         }
         const d = j.data!;
         totalDone += d.processed;
         if (d.processed === 0 || d.remaining === 0) {
-          setBackfillMsg(`✅ 백필 완료 — 총 ${totalDone} 채널 처리됨`);
+          setBackfillMsg(`백필 완료 — 총 ${totalDone} 채널 처리됨`);
           break;
         }
         setBackfillMsg(`백필 중… ${totalDone} 채널 완료, 남은 채널 ${d.remaining}개`);
       }
     } catch (e) {
-      setBackfillMsg(`❌ ${(e as Error).message}`);
+      setBackfillMsg(`실패: ${(e as Error).message}`);
     } finally {
       setBackfilling(false);
     }
@@ -137,7 +137,7 @@ export function PresetsClient({
       let j: { success?: boolean; data?: { matched: number; scraped: { dispatched: number; ok: number; failed: number } }; error?: { message?: string } } | null = null;
       try { j = JSON.parse(txt); } catch {}
       if (!r.ok || !j?.success) {
-        setResultMsg(`❌ ${p.name}: ${j?.error?.message ?? `HTTP ${r.status}`}`);
+        setResultMsg(`실패: ${p.name}: ${j?.error?.message ?? `HTTP ${r.status}`}`);
         return;
       }
       const d = j.data!;
@@ -145,16 +145,16 @@ export function PresetsClient({
         d.scraped.dispatched === 0
           ? d.matched > 0
             ? '재수집할 활성 채널 없음 (기존 데이터로 조회)'
-            : '⚠️ 이 폴더+플랫폼에 채널이 없습니다. 카테고리/플랫폼을 확인하세요.'
+            : '이 폴더+플랫폼에 채널이 없습니다. 카테고리/플랫폼을 확인하세요.'
           : `재수집 ${d.scraped.ok}/${d.scraped.dispatched} 채널`;
       setResultMsg(
-        `✅ ${p.name} — ${scrapeNote}, 조건 만족 ${d.matched}개 영상.` +
+        `${p.name} — ${scrapeNote}, 조건 만족 ${d.matched}개 영상.` +
           (d.matched > 0 ? ' "결과 보기" 로 영상 확인.' : '')
       );
       // 자동 이동 제거 — 사용자가 결과 보기 버튼으로 직접 이동 (카드 업데이트를 볼 수 있게)
       refresh();
     } catch (e) {
-      setResultMsg(`❌ ${p.name}: ${(e as Error).message}`);
+      setResultMsg(`실패: ${p.name}: ${(e as Error).message}`);
     } finally {
       setRunningId(null);
     }
@@ -239,7 +239,7 @@ export function PresetsClient({
 
       <div className="mt-6 space-y-3">
         <div className="rounded-lg border bg-card/40 p-3">
-          <p className="mb-1 text-[14px] font-semibold">🗂️ 채널 백필 (옛날 영상)</p>
+          <p className="mb-1 text-[14px] font-semibold">채널 백필 (옛날 영상)</p>
           <p className="mb-2 text-[12px] text-muted-foreground">
             아직 깊이 스크랩 안 된 채널들의 옛날 영상 1000개씩 가져옵니다.
             수동 트리거 — 채널 새로 추가하고 옛날 viral 영상 필요할 때만 누르세요.
@@ -348,15 +348,15 @@ function PresetRow({
             )}
           </div>
           <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[13px] text-muted-foreground">
-            <Tag>📁 {folderName}</Tag>
-            <Tag>📺 {PLATFORM_LABEL[p.platform] ?? p.platform}</Tag>
-            <Tag>{p.kind === 'ALL' ? '🎯 전체' : p.kind === 'SOURCE' ? '⭐ 원본' : '📚 레퍼런스'}</Tag>
+            <Tag>{folderName}</Tag>
+            <Tag>{PLATFORM_LABEL[p.platform] ?? p.platform}</Tag>
+            <Tag>{p.kind === 'ALL' ? '전체' : p.kind === 'SOURCE' ? '원본' : '레퍼런스'}</Tag>
             {p.videoType !== 'ALL' && (
-              <Tag>{p.videoType === 'SHORTS' ? '🎬 쇼츠' : '🎞 롱폼'}</Tag>
+              <Tag>{p.videoType === 'SHORTS' ? '쇼츠' : '롱폼'}</Tag>
             )}
-            {p.recencyDays != null && <Tag>🕒 최근 {p.recencyDays}일</Tag>}
-            {p.minAgeDays != null && <Tag>📅 {p.minAgeDays}일 이전</Tag>}
-            {p.minViews > 0 && <Tag>👁 {fmtViews(p.minViews)}+</Tag>}
+            {p.recencyDays != null && <Tag>최근 {p.recencyDays}일</Tag>}
+            {p.minAgeDays != null && <Tag>{p.minAgeDays}일 이전</Tag>}
+            {p.minViews > 0 && <Tag>{fmtViews(p.minViews)}+</Tag>}
           </div>
           {p.lastRunAt && (
             <p className="mt-1 text-[12px] text-muted-foreground/80">
@@ -369,9 +369,9 @@ function PresetRow({
                 </span>
               )}
               {p.lastScraped === 0 && (p.lastMatched ?? 0) === 0 && (
-                <span className="text-amber-400"> · ⚠️ 폴더/플랫폼에 채널 없음</span>
+                <span className="text-amber-400"> · 폴더/플랫폼에 채널 없음</span>
               )}
-              {p.lastError && <span className="text-rose-400"> · ⚠️ {p.lastError}</span>}
+              {p.lastError && <span className="text-rose-400"> · {p.lastError}</span>}
             </p>
           )}
         </div>
