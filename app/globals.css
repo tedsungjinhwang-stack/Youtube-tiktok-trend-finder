@@ -6,29 +6,50 @@
 
 @layer base {
   :root {
-    /* dark-first palette inspired by pint.kr */
-    --background: 220 14% 7%;
-    --foreground: 0 0% 96%;
-    --card: 220 13% 10%;
-    --card-foreground: 0 0% 96%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 220 14% 7%;
-    --secondary: 220 12% 13%;
-    --secondary-foreground: 0 0% 92%;
-    --muted: 220 12% 13%;
-    --muted-foreground: 220 8% 60%;
-    --accent: 220 12% 16%;
-    --accent-foreground: 0 0% 96%;
-    --brand: 168 70% 60%;
-    --brand-foreground: 220 14% 7%;
-    --destructive: 0 70% 55%;
-    --destructive-foreground: 0 0% 98%;
-    --success: 142 70% 50%;
-    --warning: 35 90% 55%;
-    --border: 220 10% 18%;
-    --input: 220 10% 18%;
-    --ring: 220 8% 60%;
+    /* 저대비 다크 팔레트 (리디자인) — 순흑/순백·고채도 액센트 제거 */
+    --background: 210 8% 10%; /* #171A1D */
+    --foreground: 213 8% 90%; /* #E4E7EA */
+    --card: 212 9% 13%; /* #1C2024 */
+    --card-foreground: 213 8% 90%;
+    --primary: 213 8% 90%;
+    --primary-foreground: 210 8% 10%;
+    --secondary: 213 9% 16%; /* #252A2F */
+    --secondary-foreground: 213 8% 88%;
+    --muted: 213 9% 16%;
+    --muted-foreground: 210 7% 58%; /* #8A939C */
+    --accent: 213 9% 16%;
+    --accent-foreground: 213 8% 90%;
+    --brand: 166 42% 61%; /* #6FC7B1 */
+    --brand-foreground: 166 37% 10%; /* #10221D */
+    --destructive: 5 63% 69%; /* #E5837B */
+    --destructive-foreground: 166 37% 10%;
+    --success: 140 33% 60%; /* #74BE8C */
+    --warning: 34 60% 60%; /* #D9A55C */
+    --border: 213 9% 19%; /* #2B3036 */
+    --input: 213 10% 23%; /* #333A41 */
+    --ring: 166 42% 61%;
     --radius: 0.625rem;
+
+    /* 표면 계단 */
+    --surface-table-header: #202429;
+    --surface-input: #22272c;
+    --surface-chip: #252a2f;
+    --surface-group-header: #191d21;
+    /* 텍스트 계단 */
+    --text-secondary: #d8dce1;
+    --text-tertiary: #b4bcc4;
+    --text-quaternary: #98a2ab;
+    --text-faint: #6e767e;
+    --text-disabled: #5f676e;
+    /* 경계선 */
+    --border-row: #252a2f;
+    --border-dashed: #414951;
+    --border-hover: #545c66;
+    --toggle-on: #333a42;
+    /* 경고 표면 */
+    --warn-bg: #201d16;
+    --warn-border: #38321f;
+    --warn-text: #d7c6a6;
   }
 }
 
@@ -39,6 +60,8 @@
   html,
   body {
     @apply bg-background text-foreground;
+    /* 없으면 가로 스크롤바 트랙이 흰색으로 렌더링됨 */
+    color-scheme: dark;
   }
   body {
     font-family:
@@ -48,7 +71,19 @@
     font-feature-settings: 'tnum';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.011em;
+  }
+
+  ::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #1c2024;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #333a41;
+    border-radius: 8px;
   }
 }
 
@@ -61,5 +96,28 @@
   }
   .text-down {
     color: hsl(var(--destructive));
+  }
+
+  /* 행/카드 hover 시에만 노출되는 부수 액션. 터치 기기는 항상 노출. */
+  .hover-action {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  .group:hover .hover-action,
+  .hover-action:focus-visible,
+  .hover-action:focus-within {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .hover-action {
+      opacity: 1;
+    }
+  }
+
+  /* 경고 표면 (마이그레이션 미실행·키 없음 등) */
+  .surface-warn {
+    background: var(--warn-bg);
+    border-color: var(--warn-border);
+    color: var(--warn-text);
   }
 }

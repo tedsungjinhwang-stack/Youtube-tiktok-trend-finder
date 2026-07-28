@@ -45,3 +45,34 @@ export function tomorrowKstLocal(hour = 16, minute = 30): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${tomorrow}T${p(hour)}:${p(minute)}`;
 }
+
+/** KST 기준 오늘 날짜 문자열 "YYYY-MM-DD" */
+export function kstTodayDate(): string {
+  return isoToKstLocal(new Date()).slice(0, 10);
+}
+
+/**
+ * KST 자정 기준 D-day. 오늘=0, 내일=1, 어제=-1.
+ * 시각이 아니라 '날짜' 차이라 16:30 예약도 같은 날이면 0.
+ */
+export function kstDDay(iso: string | Date): number {
+  const target = isoToKstLocal(iso).slice(0, 10);
+  const today = kstTodayDate();
+  const ms = new Date(`${target}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime();
+  return Math.round(ms / 86_400_000);
+}
+
+/** "07.30 16:30" 형태 (KST) */
+export function kstShort(iso: string | Date): string {
+  const l = isoToKstLocal(iso);
+  return `${l.slice(5, 7)}.${l.slice(8, 10)} ${l.slice(11, 16)}`;
+}
+
+/** 오늘 날짜 + 요일 "2026-07-28 (화)" (KST) */
+export function kstTodayLabel(): string {
+  const date = kstTodayDate();
+  const dow = ['일', '월', '화', '수', '목', '금', '토'][
+    new Date(`${date}T00:00:00Z`).getUTCDay()
+  ];
+  return `${date} (${dow})`;
+}
