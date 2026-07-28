@@ -228,12 +228,17 @@ async function reconcileChannelTask(
   const body = channelTaskBody(ch, projectId);
   if (existing.length > 0) {
     const r = await tdFetch(token, `/tasks/${existing[0].id}`, { method: 'POST', body: JSON.stringify(body) });
-    if (!r.ok) throw new Error(`태스크 업데이트 실패 (${r.status})`);
+    if (r.ok) {
+      for (const extra of existing.slice(1)) await deleteTask(token, extra.id);
+      return;
+    }
+    // 404 = 그 사이 사용자가 태스크를 지움(또는 완료 후 정리됨) → 새로 만들면 됨.
+    // 그 외 상태코드는 진짜 오류라 throw.
+    if (r.status !== 404) throw new Error(`태스크 업데이트 실패 (${r.status})`);
     for (const extra of existing.slice(1)) await deleteTask(token, extra.id);
-  } else {
-    const r = await tdFetch(token, '/tasks', { method: 'POST', body: JSON.stringify(body) });
-    if (!r.ok) throw new Error(`태스크 생성 실패 (${r.status})`);
   }
+  const c = await tdFetch(token, '/tasks', { method: 'POST', body: JSON.stringify(body) });
+  if (!c.ok) throw new Error(`태스크 생성 실패 (${c.status})`);
 }
 
 /** 활성 태스크를 채널별로 분배 (긴 이름 우선 — 접두사 겹침 오분배 방지). */
