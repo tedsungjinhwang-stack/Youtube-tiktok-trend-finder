@@ -3,12 +3,12 @@ import './globals.css';
 import { TopBar } from '@/components/top-bar';
 
 export const metadata: Metadata = {
-  title: 'Trend Finder',
+  title: '새로이 대시보드',
   description: 'TikTok / Instagram / YouTube 에셋 채널 트렌드 영상 파인더',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
-    title: 'Trend Finder',
+    title: '새로이 대시보드',
     statusBarStyle: 'black-translucent',
   },
   icons: {
