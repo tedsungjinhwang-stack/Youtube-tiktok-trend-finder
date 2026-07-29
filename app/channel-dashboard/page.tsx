@@ -652,6 +652,7 @@ export default function MySchedulePage() {
                   <th className="px-4 py-2 text-left align-top font-semibold">마지막 예약 영상</th>
                   <th className="w-[10%] px-4 py-2 text-left align-top font-semibold">예약일시</th>
                   <th className="w-[12%] px-4 py-2 text-left align-top font-semibold">완성본 (최대 5)</th>
+                  <th className="w-[9%] px-3 py-2 text-right align-top font-semibold">상태</th>
                 </tr>
               </thead>
               <tbody>
@@ -674,7 +675,7 @@ export default function MySchedulePage() {
                       {showHeader && (
                         <tr style={{ background: 'var(--surface-group-header)' }}>
                           <td
-                            colSpan={7}
+                            colSpan={8}
                             className="px-4 py-2 text-[11.5px] font-extrabold uppercase tracking-[0.06em] text-[color:var(--text-quaternary)]"
                           >
                             <span className="inline-flex items-center gap-2">
@@ -840,7 +841,7 @@ function DashRow({
     <>
       <tr
         className={cn(
-          'border-b border-border/40 align-top transition-colors hover:bg-accent/20',
+          'group border-b border-border/40 align-top transition-colors hover:bg-accent/20',
           !c.isActive && 'opacity-50',
           isExpanded && 'bg-accent/30',
           checked && 'bg-primary/10'
@@ -935,10 +936,48 @@ function DashRow({
             onRemove={onRemoveAttachment}
           />
         </td>
+        <td className="px-3 py-3 text-sm">
+          <div className="flex items-center justify-end gap-1.5">
+            {/* 상태 칩 — 예약 유무 */}
+            <span
+              className="shrink-0 rounded-md px-2 py-1 text-[11.5px] font-bold"
+              style={
+                !c.isActive
+                  ? { background: '#252A2F', color: '#8A939C' }
+                  : c.videos.length > 0
+                    ? { background: 'rgba(116,190,140,0.13)', color: '#74BE8C' }
+                    : { background: 'rgba(217,165,92,0.15)', color: '#D9A55C' }
+              }
+            >
+              {!c.isActive ? '비활성' : c.videos.length > 0 ? '예약됨' : '비어있음'}
+            </span>
+            {/* 부수 액션 — 행 hover 시에만 */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onUpdate(c.id, { isActive: !c.isActive } as Partial<MyChannel>);
+              }}
+              title={c.isActive ? '비활성화 (항소 중 등 — 대시보드/동기화에서 제외)' : '다시 활성화'}
+              className="hover-action shrink-0 rounded-md border border-input px-2 py-1 text-[11.5px] font-bold text-muted-foreground hover:border-[color:var(--border-hover)] hover:text-foreground"
+            >
+              {c.isActive ? '비활성화' : '활성화'}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              title="채널 삭제 (예약·소재 모두 삭제)"
+              className="hover-action shrink-0 rounded-md border border-input px-2 py-1 text-[11.5px] font-bold text-muted-foreground hover:border-destructive hover:text-destructive"
+            >
+              삭제
+            </button>
+          </div>
+        </td>
       </tr>
       {isExpanded && (
         <tr className="border-b bg-secondary/20">
-          <td colSpan={7} className="px-6 py-3">
+          <td colSpan={8} className="px-6 py-3">
             {/* 채널 메타 인라인 편집 */}
             <div className="mb-3 grid grid-cols-12 gap-2">
               <select
