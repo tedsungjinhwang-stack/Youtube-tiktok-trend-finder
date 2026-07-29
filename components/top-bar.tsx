@@ -29,10 +29,10 @@ export function TopBar() {
         href="/"
         className="flex shrink-0 items-center gap-2 text-[15px] font-extrabold tracking-tight"
       >
-        <span className="grid h-6 w-6 place-items-center rounded-md bg-brand text-[12px] font-black text-brand-foreground">
-          새
+        <span className="grid h-6 shrink-0 place-items-center rounded-md bg-brand px-1.5 text-[12px] font-black text-brand-foreground">
+          새로이
         </span>
-        <span className="hidden sm:inline">새로이 대시보드</span>
+        <span className="hidden sm:inline">대시보드</span>
       </Link>
 
       {/* 모바일: 가로 스크롤 가능. 데스크탑: 그대로 */}

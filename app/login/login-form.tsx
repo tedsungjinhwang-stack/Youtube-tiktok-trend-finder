@@ -41,8 +41,8 @@ export function LoginForm() {
         onSubmit={onSubmit}
         className="w-full max-w-sm rounded-2xl border bg-card p-6 text-center"
       >
-        <div className="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-xl bg-foreground text-background">
-          <span className="text-lg font-black">새</span>
+        <div className="mx-auto mb-3 grid h-10 w-fit place-items-center rounded-xl bg-brand px-3 text-brand-foreground">
+          <span className="text-[15px] font-black">새로이</span>
         </div>
         <h1 className="text-[18px] font-bold tracking-tight">새로이 대시보드</h1>
         <p className="mt-1 text-[13.5px] text-muted-foreground">
