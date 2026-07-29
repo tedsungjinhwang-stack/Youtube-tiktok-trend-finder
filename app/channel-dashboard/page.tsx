@@ -627,7 +627,7 @@ export default function MySchedulePage() {
           </div>
         ) : (
           <div className="overflow-x-auto overflow-y-hidden rounded-2xl border border-border bg-card">
-            <table className="w-full min-w-[1000px] text-[14px]">
+            <table className="w-full min-w-[1320px] table-fixed text-[14px]">
               <thead className="bg-[color:var(--surface-table-header)] text-[11.5px] font-bold uppercase tracking-[0.06em] text-[color:var(--text-quaternary)]">
                 <tr className="border-b border-border">
                   <th className="w-9 px-2 py-2 text-center">
@@ -646,13 +646,13 @@ export default function MySchedulePage() {
                       className="h-3.5 w-3.5"
                     />
                   </th>
-                  <th className="w-[20%] px-4 py-2 text-left align-top font-semibold">채널</th>
-                  <th className="w-[8%] px-4 py-2 text-left align-top font-semibold">카테고리</th>
-                  <th className="w-[26%] px-4 py-2 text-left align-top font-semibold">소재</th>
-                  <th className="px-4 py-2 text-left align-top font-semibold">마지막 예약 영상</th>
-                  <th className="w-[10%] px-4 py-2 text-left align-top font-semibold">예약일시</th>
-                  <th className="w-[12%] px-4 py-2 text-left align-top font-semibold">완성본 (최대 5)</th>
-                  <th className="w-[9%] px-3 py-2 text-right align-top font-semibold">상태</th>
+                  <th className="w-[250px] px-4 py-2 text-left align-top font-semibold">채널</th>
+                  <th className="w-[130px] px-4 py-2 text-left align-top font-semibold">카테고리</th>
+                  <th className="w-[300px] px-4 py-2 text-left align-top font-semibold">소재</th>
+                  <th className="w-[220px] px-4 py-2 text-left align-top font-semibold">마지막 예약 영상</th>
+                  <th className="w-[170px] px-4 py-2 text-left align-top font-semibold">예약일시</th>
+                  <th className="w-[150px] px-4 py-2 text-left align-top font-semibold">완성본 (최대 5)</th>
+                  <th className="w-[160px] px-3 py-2 text-right align-top font-semibold">상태</th>
                 </tr>
               </thead>
               <tbody>
@@ -898,23 +898,23 @@ function DashRow({
             </div>
           </div>
         </td>
-        <td className="px-3 py-3 text-sm">
+        <td className="px-3 py-3 align-top text-sm">
           {c.category ? (
-            <span className="inline-block rounded-md bg-secondary/80 px-2 py-0.5 text-[13px] font-medium text-foreground/80">
+            <span className="inline-block max-w-full truncate whitespace-nowrap rounded-md bg-secondary px-2 py-0.5 text-[12.5px] font-semibold text-[color:var(--text-tertiary)]">
               {c.category}
             </span>
           ) : (
             <span className="text-muted-foreground/50">—</span>
           )}
         </td>
-        <td className="px-4 py-3 text-sm">
+        <td className="px-4 py-3 align-top text-sm">
           <MaterialsCell
             materials={c.materials}
             onAdd={onAddMaterial}
             onRemove={onRemoveMaterial}
           />
         </td>
-        <td className="px-4 py-3">
+        <td className="px-4 py-3 align-top">
           <InlineTitleCell
             last={last}
             count={c.videos.length}
@@ -922,22 +922,22 @@ function DashRow({
             onCreate={(title) => onAddVideo(title, todayKstInputValue(), '')}
           />
         </td>
-        <td className="px-4 py-3 text-sm">
+        <td className="px-4 py-3 align-top text-sm">
           <InlineDateCell
             last={last}
             onSaveExisting={(id, iso) => onUpdateVideo(id, { scheduledAt: iso })}
             onCreate={(localStr) => onAddVideo('', localStr, '')}
           />
         </td>
-        <td className="px-4 py-3 text-sm">
+        <td className="px-4 py-3 align-top text-sm">
           <AttachmentsCell
             items={c.attachments}
             onAdd={onAddAttachment}
             onRemove={onRemoveAttachment}
           />
         </td>
-        <td className="px-3 py-3 text-sm">
-          <div className="flex items-center justify-end gap-1.5">
+        <td className="px-3 py-3 align-top text-sm">
+          <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
             {/* 상태 칩 — 예약 유무 */}
             <span
               className="shrink-0 rounded-md px-2 py-1 text-[11.5px] font-bold"
@@ -1264,9 +1264,8 @@ function InlineTitleCell({
           <span className="ml-1.5 text-[15px] font-bold">({count})</span>
         </div>
       ) : (
-        <span className="text-sm text-amber-700 dark:text-amber-300">
-          영상 없음 — 업로드 필요
-          <span className="ml-1.5 text-[15px] font-bold">(0)</span>
+        <span className="block truncate whitespace-nowrap text-[13px] font-semibold text-[#D9A55C]">
+          업로드 필요 <span className="text-[14px] font-bold">(0)</span>
         </span>
       )}
     </div>
@@ -1658,7 +1657,7 @@ function AttachmentsCell({
       <button
         onClick={() => inputRef.current?.click()}
         disabled={full || uploading}
-        className="block w-full rounded border border-dashed border-border/60 px-1 py-1 text-left text-[13px] font-semibold text-muted-foreground hover:border-foreground/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+        className="block w-full truncate whitespace-nowrap rounded border border-dashed border-[color:var(--border-dashed)] px-1.5 py-1 text-left text-[12.5px] font-semibold text-muted-foreground hover:border-[color:var(--border-hover)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
         title={full ? '최대 5개' : '파일 선택 (영상/이미지 최대 100MB)'}
       >
         {uploading
