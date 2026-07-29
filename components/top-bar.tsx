@@ -30,9 +30,9 @@ export function TopBar() {
         className="flex shrink-0 items-center gap-2 text-[15px] font-extrabold tracking-tight"
       >
         <span className="grid h-6 w-6 place-items-center rounded-md bg-brand text-[12px] font-black text-brand-foreground">
-          T
+          새
         </span>
-        <span className="hidden sm:inline">Trend Finder</span>
+        <span className="hidden sm:inline">새로이 대시보드</span>
       </Link>
 
       {/* 모바일: 가로 스크롤 가능. 데스크탑: 그대로 */}

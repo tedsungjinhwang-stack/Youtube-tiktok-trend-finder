@@ -1,12 +1,12 @@
 {
-  "name": "Trend Finder",
-  "short_name": "Trend Finder",
-  "description": "TikTok / Instagram / YouTube 트렌드 영상 파인더",
+  "name": "새로이 대시보드",
+  "short_name": "새로이",
+  "description": "유튜브·틱톡·인스타 채널 발행 예약과 트렌드 소재 관리",
   "start_url": "/share",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#0a0a0a",
+  "background_color": "#171A1D",
+  "theme_color": "#171A1D",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -38,17 +38,28 @@
   },
   "shortcuts": [
     {
-      "name": "커뮤니티/뉴스",
-      "short_name": "커뮤니티",
-      "description": "한국·일본 커뮤니티 인기글, 뉴스, 레딧",
-      "url": "/share?type=community",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "name": "채널 대시보드",
+      "short_name": "대시보드",
+      "description": "채널별 마지막 발행 예약",
+      "url": "/channel-dashboard",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
-      "name": "채널 스케줄",
-      "short_name": "스케줄",
-      "url": "/my-schedule",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "name": "소재 공유",
+      "short_name": "공유",
+      "description": "링크를 채널 소재로 저장",
+      "url": "/share",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }
