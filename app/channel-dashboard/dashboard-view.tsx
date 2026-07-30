@@ -19,6 +19,7 @@ type ScheduledVideo = {
   notes: string | null;
   scheduledAt: string;
   status: string;
+  publishedUrl?: string | null;
   gcalEventId: string | null;
   gcalSyncedAt: string | null;
 };
@@ -1212,6 +1213,25 @@ function DashRow({
                       >
                         {v.notes}
                       </span>
+                    )}
+                    {/* 발행 완료 후 실제 게시물 링크 — 전체 현황의 '최근 발행된 글' 에 표시됨 */}
+                    <input
+                      value={v.publishedUrl ?? ''}
+                      onChange={(e) => onUpdateVideo(v.id, { publishedUrl: e.target.value })}
+                      placeholder="발행 링크"
+                      title="발행 후 게시물 URL 을 넣으면 전체 현황에 표시됩니다"
+                      className="h-8 w-[150px] shrink-0 rounded border bg-background px-1.5 text-[12px] text-brand"
+                    />
+                    {v.publishedUrl && (
+                      <a
+                        href={v.publishedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 rounded border bg-card px-1.5 py-1 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+                        title="게시물 열기"
+                      >
+                        열기
+                      </a>
                     )}
                     <button
                       onClick={() => onRemoveVideo(v.id)}
