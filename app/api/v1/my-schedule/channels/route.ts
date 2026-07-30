@@ -30,6 +30,28 @@ function isMissingTable(e: unknown): boolean {
   return /relation .* does not exist|P2021|table .* does not exist/i.test(msg);
 }
 
+/** 마이그레이션 전 신규 컬럼(publishedUrl/todoistGroup 등) 이 없을 때 */
+function isMissingColumn(e: unknown): boolean {
+  const msg = (e as Error)?.message ?? '';
+  return /column .* does not exist|P2022|Unknown argument/i.test(msg);
+}
+
+/** publishedUrl 컬럼 없이도 동작하도록 명시 select (폴백용) */
+const VIDEO_SELECT_LEGACY = {
+  id: true,
+  channelId: true,
+  title: true,
+  notes: true,
+  scheduledAt: true,
+  status: true,
+  youtubeVideoId: true,
+  gcalEventId: true,
+  gcalSyncedAt: true,
+  todoistTaskId: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 export async function GET() {
   try {
     const channels = await prisma.myChannel.findMany({
@@ -57,6 +79,29 @@ export async function GET() {
     });
     return NextResponse.json({ success: true, data: sortByPlatform(channels) }, { headers: NO_STORE });
   } catch (e) {
+    // 신규 컬럼 마이그레이션 전 → 레거시 select 로 재시도
+    if (isMissingColumn(e)) {
+      try {
+        const channels = await prisma.myChannel.findMany({
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          include: {
+            videos: { orderBy: { scheduledAt: 'asc' }, select: VIDEO_SELECT_LEGACY },
+            materials: { orderBy: { createdAt: 'asc' } },
+            attachments: { orderBy: { createdAt: 'asc' } },
+          },
+        });
+        return NextResponse.json(
+          {
+            success: true,
+            data: sortByPlatform(channels),
+            warning: 'DB 마이그레이션 미실행 (publishedUrl 등). 일부 기능이 비활성화됩니다.',
+          },
+          { headers: NO_STORE }
+        );
+      } catch {
+        /* 아래 공통 에러 처리로 */
+      }
+    }
     if (isMissingTable(e)) {
       // ChannelYouTubeOAuth 만 없는 경우 → include 없이 재시도
       try {
