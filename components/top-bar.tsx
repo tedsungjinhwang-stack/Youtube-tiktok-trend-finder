@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const tabs = [
+  { href: '/', label: '전체 현황', match: ['/'] },
   { href: '/channel-dashboard', label: '유튜브', match: ['/channel-dashboard', '/my-schedule'] },
   { href: '/shopping-dashboard', label: '쇼핑쇼츠' },
   { href: '/threads-dashboard', label: '스레드' },
@@ -22,7 +23,8 @@ export function TopBar() {
 
   const isActive = (t: (typeof tabs)[number]) => {
     const paths = t.match ?? [t.href.split('?')[0]];
-    return paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+    // '/' 는 모든 경로의 접두사라 정확히 일치할 때만 활성 처리
+    return paths.some((p) => (p === '/' ? pathname === '/' : pathname === p || pathname.startsWith(`${p}/`)));
   };
 
   return (

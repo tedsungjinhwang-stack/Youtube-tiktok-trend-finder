@@ -316,6 +316,8 @@ model ScheduledVideo {
   notes          String?
   scheduledAt    DateTime
   status         String    @default("planned")
+  /// 발행 완료 후 실제 게시물 링크 (스레드/인스타 등 수동 입력)
+  publishedUrl   String?
   youtubeVideoId String?
   gcalEventId    String?
   gcalSyncedAt   DateTime?

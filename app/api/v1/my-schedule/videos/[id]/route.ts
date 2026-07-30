@@ -12,11 +12,13 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const data: {
     title?: string;
     notes?: string | null;
+    publishedUrl?: string | null;
     scheduledAt?: Date;
     status?: string;
   } = {};
   if (typeof body.title === 'string') data.title = body.title.trim();
   if ('notes' in body) data.notes = body.notes?.trim() || null;
+  if ('publishedUrl' in body) data.publishedUrl = body.publishedUrl?.trim() || null;
   if (typeof body.scheduledAt === 'string')
     data.scheduledAt = new Date(body.scheduledAt);
   if (typeof body.status === 'string') data.status = body.status;
