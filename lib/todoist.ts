@@ -1,4 +1,9 @@
 import { prisma } from '@/lib/db';
+import {
+  DASHBOARD_GROUPS,
+  defaultGroupForPlatform,
+  type DashboardGroup,
+} from './todoist-groups';
 
 // Todoist 통합 API v1 (REST v2 는 2025 폐기 — 410). https://developer.todoist.com/api/v1/
 const BASE = 'https://api.todoist.com/api/v1';
@@ -90,14 +95,53 @@ async function ensureProject(token: string, projectName: string, existingId: str
   return p.id;
 }
 
-/**
- * 한 채널의 예약 영상들을 Todoist 태스크로 upsert.
- * - content: "채널명 - 제목"
- * - due_datetime: 예약시각 (RFC3339)
- * - labels: [채널명]  (Todoist 가 없으면 자동 생성)
- * 반환: 처리한 태스크 수
- */
 type TodoistTask = { id: string; labels?: string[]; content?: string };
+
+/* ─────────────── 대시보드 그룹 ─────────────── */
+
+export {
+  DASHBOARD_GROUPS,
+  GROUP_LABEL,
+  GROUP_PLATFORMS,
+  GROUP_PATH,
+  defaultGroupForPlatform,
+} from './todoist-groups';
+export type { DashboardGroup } from './todoist-groups';
+
+type TodoistConfigRow = {
+  apiToken: string;
+  projectId: string | null;
+  projectName: string;
+  shoppingProjectId: string | null;
+  shoppingProjectName: string;
+  threadsProjectId: string | null;
+  threadsProjectName: string;
+};
+
+/** 그룹 → config 의 프로젝트 id/name 필드 매핑 */
+function groupProjectFields(group: DashboardGroup): {
+  idField: 'projectId' | 'shoppingProjectId' | 'threadsProjectId';
+  nameField: 'projectName' | 'shoppingProjectName' | 'threadsProjectName';
+} {
+  if (group === 'shopping') return { idField: 'shoppingProjectId', nameField: 'shoppingProjectName' };
+  if (group === 'threads') return { idField: 'threadsProjectId', nameField: 'threadsProjectName' };
+  return { idField: 'projectId', nameField: 'projectName' };
+}
+
+/** 그룹의 Todoist 프로젝트 확보 (없으면 생성) + config 에 id 저장 */
+async function ensureGroupProject(
+  config: TodoistConfigRow,
+  group: DashboardGroup
+): Promise<string> {
+  const { idField, nameField } = groupProjectFields(group);
+  const projectId = await ensureProject(config.apiToken, config[nameField], config[idField]);
+  if (projectId !== config[idField]) {
+    await prisma.todoistConfig
+      .update({ where: { id: 'default' }, data: { [idField]: projectId } })
+      .catch(() => {});
+  }
+  return projectId;
+}
 
 /**
  * 프로젝트 내 활성 태스크 목록 (페이지네이션 병합).
@@ -269,10 +313,6 @@ export async function syncChannelToTodoist(channelId: string): Promise<number> {
   const config = await prisma.todoistConfig.findUnique({ where: { id: 'default' } });
   if (!config) throw new Error('Todoist 미연결');
   const token = config.apiToken;
-  const projectId = await ensureProject(token, config.projectName, config.projectId);
-  if (projectId !== config.projectId) {
-    await prisma.todoistConfig.update({ where: { id: 'default' }, data: { projectId } });
-  }
 
   await prisma.scheduledVideo
     .deleteMany({ where: { channelId, scheduledAt: { lt: new Date() } } })
@@ -283,6 +323,10 @@ export async function syncChannelToTodoist(channelId: string): Promise<number> {
     include: { videos: { orderBy: { scheduledAt: 'desc' }, take: 1 }, _count: { select: { videos: true } } },
   });
   if (!ch || !ch.isActive) return 0;
+
+  // 채널이 속한 그룹의 프로젝트로만 동기화
+  const group = (ch.todoistGroup as DashboardGroup) ?? defaultGroupForPlatform(ch.platform);
+  const projectId = await ensureGroupProject(config, group);
 
   // 목록 조회 실패 → throw (조용히 생성하면 중복 생김)
   const active = await listTasks(token, projectId);
@@ -304,13 +348,21 @@ export async function syncChannelToTodoist(channelId: string): Promise<number> {
 /** 채널 삭제/비활성 시 그 채널 라벨의 Todoist 태스크 제거. */
 export async function unsyncChannelFromTodoist(channelId: string): Promise<void> {
   const config = await prisma.todoistConfig.findUnique({ where: { id: 'default' } });
-  if (!config?.projectId) return;
+  if (!config) return;
   const ch = await prisma.myChannel.findUnique({ where: { id: channelId }, select: { name: true } });
   if (!ch) return;
   const label = ch.name.replace(/\s+/g, '_').slice(0, 60);
-  const tasks = await listTasks(config.apiToken, config.projectId).catch(() => []);
-  for (const t of tasks.filter((t) => (t.labels ?? []).includes(label))) {
-    await tdFetch(config.apiToken, `/tasks/${t.id}`, { method: 'DELETE' }).catch(() => {});
+  // 그룹이 바뀐 뒤일 수 있어 모든 그룹 프로젝트에서 제거
+  const projectIds = [config.projectId, config.shoppingProjectId, config.threadsProjectId].filter(
+    (x): x is string => !!x
+  );
+  for (const pid of projectIds) {
+    const tasks = await listTasks(config.apiToken, pid).catch(() => []);
+    for (const t of tasks) {
+      if ((t.labels ?? []).includes(label) || (t.content && taskBelongsTo(t.content, [ch.name]))) {
+        await tdFetch(config.apiToken, `/tasks/${t.id}`, { method: 'DELETE' }).catch(() => {});
+      }
+    }
   }
 }
 
@@ -323,48 +375,75 @@ export async function unsyncChannelFromTodoist(channelId: string): Promise<void>
  * 2. 삭제→재생성 대신 **제자리 업데이트(reconcile)**. 기존 태스크가 있으면 그걸
  *    갱신하므로 어떤 부분 실패에서도 중복이 생길 수 없고, 남는 중복은 지워짐.
  */
-export async function syncAllToTodoist(): Promise<{ tasks: number; channels: number; totalInProject: number | null }> {
+export async function syncAllToTodoist(): Promise<{
+  tasks: number;
+  channels: number;
+  totalInProject: number | null;
+  groups: Record<string, { tasks: number; total: number | null; project: string }>;
+}> {
   const config = await prisma.todoistConfig.findUnique({ where: { id: 'default' } });
   if (!config) throw new Error('Todoist 미연결');
   const token = config.apiToken;
-  const projectId = await ensureProject(token, config.projectName, config.projectId);
-  if (projectId !== config.projectId) {
-    await prisma.todoistConfig.update({ where: { id: 'default' }, data: { projectId } });
-  }
 
   // 지난 예약 정리 (전 활성 채널)
   await prisma.scheduledVideo
     .deleteMany({ where: { scheduledAt: { lt: new Date() }, channel: { isActive: true } } })
     .catch(() => {});
 
-  const channels = await prisma.myChannel.findMany({
+  const all = await prisma.myChannel.findMany({
     where: { isActive: true },
     include: { videos: { orderBy: { scheduledAt: 'desc' }, take: 1 }, _count: { select: { videos: true } } },
   });
-  const names = channels.map((c) => c.name);
 
-  // 1) 활성 태스크 1회 조회 (실패 시 throw → 아무것도 안 만듦) → 채널별 분배
-  const active = await listTasks(token, projectId);
-  const byChannel = partitionByChannel(active, channels);
-
-  // 2) 채널마다 제자리 갱신 (기존 있으면 업데이트+잉여 삭제, 없으면 생성)
   let tasks = 0;
-  for (const ch of channels) {
-    await reconcileChannelTask(token, projectId, ch, byChannel.get(ch.id) ?? []);
-    tasks += 1;
-  }
+  let totalInProject = 0;
+  const groups: Record<string, { tasks: number; total: number | null; project: string }> = {};
 
-  // 3) 완료(체크)된 이전 태스크 정리 — best effort (핵심 상태는 이미 정합)
-  try {
-    const completed = await listCompletedTasks(token, projectId);
-    for (const t of completed) {
-      if (t.content && taskBelongsTo(t.content, names)) await deleteTask(token, t.id);
+  // 그룹(=Todoist 프로젝트)별로 독립 동기화. 한 그룹이 실패해도 나머지는 진행.
+  for (const group of DASHBOARD_GROUPS) {
+    const channels = all.filter(
+      (c) => ((c.todoistGroup as DashboardGroup) ?? defaultGroupForPlatform(c.platform)) === group
+    );
+    const { nameField } = groupProjectFields(group);
+    const projectName = config[nameField];
+    if (channels.length === 0) {
+      groups[group] = { tasks: 0, total: 0, project: projectName };
+      continue;
     }
-  } catch {
-    /* noop */
+
+    const projectId = await ensureGroupProject(config, group);
+    const names = channels.map((c) => c.name);
+
+    // 1) 활성 태스크 1회 조회 (실패 시 throw → 이 그룹은 아무것도 안 만듦)
+    const active = await listTasks(token, projectId);
+    const byChannel = partitionByChannel(active, channels);
+
+    // 2) 채널마다 제자리 갱신
+    let groupTasks = 0;
+    for (const ch of channels) {
+      await reconcileChannelTask(token, projectId, ch, byChannel.get(ch.id) ?? []);
+      groupTasks += 1;
+    }
+
+    // 3) 완료(체크)된 이전 태스크 정리 — best effort
+    try {
+      const completed = await listCompletedTasks(token, projectId);
+      for (const t of completed) {
+        if (t.content && taskBelongsTo(t.content, names)) await deleteTask(token, t.id);
+      }
+    } catch {
+      /* noop */
+    }
+
+    const total = await listTasks(token, projectId).then((t) => t.length).catch(() => null);
+    groups[group] = { tasks: groupTasks, total, project: projectName };
+    tasks += groupTasks;
+    if (total != null) totalInProject += total;
   }
 
-  await prisma.todoistConfig.update({ where: { id: 'default' }, data: { lastSyncedAt: new Date(), lastSyncError: null } });
-  const totalInProject = await listTasks(token, projectId).then((t) => t.length).catch(() => null);
-  return { tasks, channels: channels.length, totalInProject };
+  await prisma.todoistConfig.update({
+    where: { id: 'default' },
+    data: { lastSyncedAt: new Date(), lastSyncError: null },
+  });
+  return { tasks, channels: all.length, totalInProject, groups };
 }

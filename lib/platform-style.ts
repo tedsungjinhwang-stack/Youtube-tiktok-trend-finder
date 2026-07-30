@@ -7,6 +7,7 @@ export type PlatformKey =
   | 'YOUTUBE'
   | 'TIKTOK'
   | 'INSTAGRAM'
+  | 'FACEBOOK'
   | 'THREADS'
   | 'NAVER_CLIP'
   | 'XIAOHONGSHU'
@@ -46,6 +47,13 @@ export const PLATFORM_STYLE: Record<string, PlatformStyle> = {
     dot: '#D07EA0',
     chipBg: 'rgba(208,126,160,0.15)',
     chipText: '#DB94B2',
+  },
+  FACEBOOK: {
+    mark: 'F',
+    label: 'Facebook',
+    dot: '#7B93D0',
+    chipBg: 'rgba(123,147,208,0.15)',
+    chipText: '#93A8DB',
   },
   THREADS: {
     mark: '@',

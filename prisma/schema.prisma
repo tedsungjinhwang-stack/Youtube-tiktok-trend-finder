@@ -254,8 +254,11 @@ model OpenAIOAuth {
 model MyChannel {
   id           String                @id @default(cuid())
   name         String
-  /// 대분류 플랫폼: 'YOUTUBE' | 'INSTAGRAM' | 'THREADS' | 'NAVER_CLIP'
+  /// 대분류 플랫폼: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK' | 'THREADS' | 'NAVER_CLIP'
   platform     String                @default("YOUTUBE")
+  /// 소속 대시보드/Todoist 그룹: 'youtube' | 'shopping' | 'threads'.
+  /// 플랫폼으로 자동 결정되지만 TikTok 은 양쪽 대시보드에 보이므로 이 값으로 Todoist 귀속을 정함.
+  todoistGroup String                @default("youtube")
   category     String?
   url          String?
   adsense      String?
@@ -340,8 +343,15 @@ model PixiTemplate {
 model TodoistConfig {
   id          String   @id @default("default")
   apiToken    String
-  projectId   String? // "유튜브 예약" 프로젝트 id (최초 sync 때 생성/저장)
-  projectName String   @default("유튜브 예약 스케줄")
+  /// 유튜브 대시보드용 프로젝트 (레거시 컬럼명 유지)
+  projectId   String?
+  projectName String   @default("유튜브")
+  /// 쇼핑쇼츠 대시보드용
+  shoppingProjectId   String?
+  shoppingProjectName String  @default("쇼핑쇼츠")
+  /// 스레드 대시보드용
+  threadsProjectId    String?
+  threadsProjectName  String  @default("스레드")
   accountName String?
   lastSyncedAt DateTime?
   lastSyncError String?

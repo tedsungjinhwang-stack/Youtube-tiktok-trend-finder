@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { defaultGroupForPlatform } from '@/lib/todoist';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,10 +9,12 @@ const PLATFORM_ORDER: Record<string, number> = {
   YOUTUBE: 0,
   TIKTOK: 1,
   INSTAGRAM: 2,
-  THREADS: 3,
-  NAVER_CLIP: 4,
+  FACEBOOK: 3,
+  THREADS: 4,
+  NAVER_CLIP: 5,
 };
 const ALLOWED_PLATFORMS = new Set(Object.keys(PLATFORM_ORDER));
+const ALLOWED_GROUPS = new Set(['youtube', 'shopping', 'threads']);
 
 function sortByPlatform<T extends { platform?: string | null }>(rows: T[]): T[] {
   // 안정적 정렬 + 알 수 없는 플랫폼은 뒤로
@@ -97,15 +100,19 @@ const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' } as const;
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { name, category, url, platform } = body as {
+  const { name, category, url, platform, todoistGroup } = body as {
     name?: string;
     category?: string;
     url?: string;
     platform?: string;
+    todoistGroup?: string;
   };
   const trimmedName = name?.trim() || '';
   const normalizedPlatform =
     platform && ALLOWED_PLATFORMS.has(platform) ? platform : 'YOUTUBE';
+  const normalizedGroup = ALLOWED_GROUPS.has(todoistGroup ?? '')
+    ? (todoistGroup as string)
+    : defaultGroupForPlatform(normalizedPlatform);
   try {
     // 이름 중복 체크 (대소문자 무시). 비어있으면 패스 (YouTube 가 자동 채움)
     if (trimmedName) {
@@ -130,6 +137,7 @@ export async function POST(req: Request) {
       data: {
         name: trimmedName || '(미설정)',
         platform: normalizedPlatform,
+        todoistGroup: normalizedGroup,
         category: category?.trim() || null,
         url: url?.trim() || null,
         sortOrder: (max._max.sortOrder ?? 0) + 1,
