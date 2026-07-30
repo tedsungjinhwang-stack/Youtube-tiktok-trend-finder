@@ -81,9 +81,11 @@ export async function GET(req: Request) {
   }
   // 2) DB 예약 → Todoist: 전역 1회 동기화 (조회 1번 + 전부 삭제 + 채널당 생성).
   //    채널마다 돌던 예전 방식은 rate limit 으로 삭제가 실패해 매일 중복이 쌓였음.
+  let tdGroups: Record<string, { tasks: number; total: number | null; project: string }> | null = null;
   try {
     const r = await syncAllToTodoist();
     tdSynced = r.tasks;
+    tdGroups = r.groups;
   } catch (e) {
     tdFailed = channels.length;
     const reason = `TD: ${(e as Error).message.slice(0, 100)}`;
@@ -121,7 +123,7 @@ export async function GET(req: Request) {
     success: true,
     data: {
       allChannels: channels.length,
-      todoist: { synced: tdSynced, failed: tdFailed, project: todoist.projectName },
+      todoist: { synced: tdSynced, failed: tdFailed, groups: tdGroups },
       ytSynced,
       ytFailed,
       cleanedVideos,

@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const tabs = [
-  { href: '/channel-dashboard', label: '채널 대시보드', match: ['/channel-dashboard', '/my-schedule'] },
+  { href: '/channel-dashboard', label: '유튜브', match: ['/channel-dashboard', '/my-schedule'] },
+  { href: '/shopping-dashboard', label: '쇼핑쇼츠' },
+  { href: '/threads-dashboard', label: '스레드' },
   { href: '/pixi', label: '픽시에디터' },
   { href: '/popular-feed', label: '해시태그검색' },
   { href: '/trending', label: '실시간 인기' },

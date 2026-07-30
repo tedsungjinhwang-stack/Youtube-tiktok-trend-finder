@@ -6,7 +6,8 @@ export const dynamic = 'force-dynamic';
 
 type Ctx = { params: Promise<{ id: string }> };
 
-const ALLOWED_PLATFORMS = new Set(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'THREADS', 'NAVER_CLIP']);
+const ALLOWED_PLATFORMS = new Set(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK', 'THREADS', 'NAVER_CLIP']);
+const ALLOWED_GROUPS = new Set(['youtube', 'shopping', 'threads']);
 
 export async function PATCH(req: Request, { params }: Ctx) {
   const { id } = await params;
@@ -15,6 +16,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     name?: string;
     platform?: string;
     category?: string | null;
+    todoistGroup?: string;
     url?: string | null;
     adsense?: string | null;
     email?: string | null;
@@ -31,11 +33,22 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if ('email' in body) data.email = body.email?.trim() || null;
   if ('phone' in body) data.phone = body.phone?.trim() || null;
   if (typeof body.isActive === 'boolean') data.isActive = body.isActive;
+  if (typeof body.todoistGroup === 'string' && ALLOWED_GROUPS.has(body.todoistGroup)) {
+    data.todoistGroup = body.todoistGroup;
+  }
   const updated = await prisma.myChannel.update({ where: { id }, data });
   // 채널명 변경 또는 활성 상태 변경 → Todoist 동기화
-  if (data.name !== undefined || data.isActive !== undefined) {
-    if (data.isActive === false) unsyncChannelFromTodoist(id).catch(() => {});
-    else syncChannelToTodoist(id).catch(() => {});
+  if (data.name !== undefined || data.isActive !== undefined || data.todoistGroup !== undefined) {
+    if (data.isActive === false) {
+      unsyncChannelFromTodoist(id).catch(() => {});
+    } else if (data.todoistGroup !== undefined) {
+      // 그룹 이동: 모든 프로젝트에서 제거 후 새 그룹 프로젝트에 생성
+      unsyncChannelFromTodoist(id)
+        .then(() => syncChannelToTodoist(id))
+        .catch(() => {});
+    } else {
+      syncChannelToTodoist(id).catch(() => {});
+    }
   }
   return NextResponse.json({ success: true, data: updated });
 }
