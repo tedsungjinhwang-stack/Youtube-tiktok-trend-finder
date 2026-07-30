@@ -8,6 +8,7 @@ import { platformStyle } from '@/lib/platform-style';
 import {
   GROUP_LABEL,
   GROUP_PLATFORMS,
+  GROUP_UNIT,
   type DashboardGroup,
 } from '@/lib/todoist-groups';
 
@@ -97,6 +98,7 @@ function toInputValue(iso: string): string {
 export function DashboardView({ group }: { group: DashboardGroup }) {
   const groupLabel = GROUP_LABEL[group];
   const groupPlatforms = GROUP_PLATFORMS[group];
+  const unit = GROUP_UNIT[group]; // '채널' | '계정'
   const [channels, setChannels] = useState<MyChannel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [todoist, setTodoist] = useState<TodoistStatus>({ connected: false });
@@ -147,7 +149,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         setChannels(rows.filter((ch) => groupPlatforms.includes(ch.platform ?? 'YOUTUBE')));
         setSetupWarning(c.warning ?? null);
       } else {
-        setSetupWarning(c.error?.message ?? '채널 목록 로드 실패');
+        setSetupWarning(c.error?.message ?? `${unit} 목록 로드 실패`);
       }
       if (t.success) setTodoist(t.data);
     } catch (e) {
@@ -190,7 +192,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
   };
 
   const removeChannel = async (id: string) => {
-    if (!confirm('이 채널과 모든 예약 영상을 삭제할까요?')) return;
+    if (!confirm(`이 ${unit}과 모든 예약 영상을 삭제할까요?`)) return;
     try {
       const res = await fetch(`/api/v1/my-schedule/channels/${id}`, {
         method: 'DELETE',
@@ -342,7 +344,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
     if (ids.length === 0) return;
     if (
       !confirm(
-        `${ids.length}개 채널의 예약 영상을 모두 삭제하고 "업로드 필요" 상태로 만들까요?`
+        `${ids.length}개 ${unit}의 예약 영상을 모두 삭제하고 "업로드 필요" 상태로 만들까요?`
       )
     )
       return;
@@ -397,7 +399,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
     try {
       const r = await fetch('/api/v1/todoist/sync', { method: 'POST' });
       const j = await r.json();
-      if (j.success) setTdMsg(`${j.data.tasks}개 태스크 · ${j.data.channels}개 채널 동기화됨`);
+      if (j.success) setTdMsg(`${j.data.tasks}개 태스크 · ${j.data.channels}개 ${unit} 동기화됨`);
       else setTdMsg(`동기화 실패: ${j.error?.message ?? ''}`);
     } catch (e) {
       setTdMsg(`동기화 실패: ${(e as Error).message}`);
@@ -415,7 +417,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
       const r = await fetch('/api/v1/todoist/sync', { method: 'POST' });
       const j = await r.json();
       if (!j.success) alert(j.error?.message ?? '실패');
-      else alert(`Todoist 동기화 완료 (${j.data.tasks}개 태스크 · ${j.data.channels}개 채널)`);
+      else alert(`Todoist 동기화 완료 (${j.data.tasks}개 태스크 · ${j.data.channels}개 ${unit})`);
       refresh();
     } finally {
       setSyncingGcal(false);
@@ -453,7 +455,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
       {syncingGcal && (
         <div className="mb-4 flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-[13px] font-semibold text-brand">
           <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-          Todoist 전체 동기화 진행 중… (활성 채널 모두 처리)
+          Todoist 전체 동기화 진행 중… (활성 {unit} 모두 처리)
         </div>
       )}
 
@@ -462,7 +464,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         <div>
           <h1 className="text-[26px] font-extrabold tracking-[-0.03em]">{groupLabel} 대시보드</h1>
           <p className="mt-1.5 text-[13px] font-semibold text-muted-foreground">
-            {groupPlatforms.map((p) => PLATFORM_LABEL[p as Platform] ?? p).join(' · ')} — 채널별 마지막 발행 예약
+            {groupPlatforms.map((p) => PLATFORM_LABEL[p as Platform] ?? p).join(' · ')} — {unit}별 마지막 발행 예약
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -479,7 +481,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
             onClick={() => setShowAddChannel((v) => !v)}
             className="h-9 rounded-lg bg-brand px-3.5 text-[13px] font-bold text-brand-foreground hover:opacity-90"
           >
-            + 채널 추가
+            + {unit} 추가
           </button>
         </div>
       </div>
@@ -501,13 +503,13 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="채널명 *"
+            placeholder={`${unit}명 *`}
             className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
           />
           <input
             value={newUrl}
             onChange={(e) => setNewUrl(e.target.value)}
-            placeholder="채널 URL"
+            placeholder={`${unit} URL`}
             className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
           />
           <input
@@ -561,7 +563,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         <p className="mb-3 text-[12px] font-semibold text-muted-foreground">{tdMsg}</p>
       )}
 
-      {channels.length > 0 && <DashboardSummary channels={summaryChannels} />}
+      {channels.length > 0 && <DashboardSummary channels={summaryChannels} unit={unit} />}
 
       <main className="flex flex-col">
         {/* 일괄 작업 툴바 — 채널 1개 이상 선택 시 노출 */}
@@ -636,7 +638,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         )}
         {channels.length === 0 ? (
           <div className="rounded-2xl border border-border bg-card px-4 py-14 text-center text-[14px] text-muted-foreground">
-            상단 「+ 채널 추가」로 채널을 등록하세요
+            상단 「+ {unit} 추가」로 {unit}을 등록하세요
           </div>
         ) : (
           <div className="overflow-x-auto overflow-y-hidden rounded-2xl border border-border bg-card">
@@ -659,7 +661,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                       className="h-3.5 w-3.5"
                     />
                   </th>
-                  <th className="w-[250px] px-4 py-2 text-left align-top font-semibold">채널</th>
+                  <th className="w-[250px] px-4 py-2 text-left align-top font-semibold">{unit}</th>
                   <th className="w-[130px] px-4 py-2 text-left align-top font-semibold">카테고리</th>
                   <th className="w-[300px] px-4 py-2 text-left align-top font-semibold">소재</th>
                   <th className="w-[220px] px-4 py-2 text-left align-top font-semibold">마지막 예약 영상</th>
@@ -699,13 +701,14 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                                 }}
                               />
                               {PLATFORM_LABEL[(c.platform ?? 'YOUTUBE') as Platform]} ·{' '}
-                              {countInGroup}채널
+                              {countInGroup}{unit}
                             </span>
                           </td>
                         </tr>
                       )}
                       <DashRow
                         c={c}
+                        unit={unit}
                         last={last}
                         isExpanded={isExpanded}
                         checked={bulkIds.has(c.id)}
@@ -751,6 +754,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
 
 function DashRow({
   c,
+  unit,
   last,
   isExpanded,
   checked,
@@ -768,6 +772,7 @@ function DashRow({
   onRemoveAttachment,
 }: {
   c: MyChannel;
+  unit: string;
   last?: ScheduledVideo;
   isExpanded: boolean;
   checked: boolean;
@@ -980,7 +985,7 @@ function DashRow({
                 e.stopPropagation();
                 onRemove();
               }}
-              title="채널 삭제 (예약·소재 모두 삭제)"
+              title={`${unit} 삭제 (예약·소재 모두 삭제)`}
               className="hover-action shrink-0 rounded-md border border-input px-2 py-1 text-[11.5px] font-bold text-muted-foreground hover:border-destructive hover:text-destructive"
             >
               삭제
@@ -1013,7 +1018,7 @@ function DashRow({
                   onChange={(e) =>
                     onUpdate(c.id, { todoistGroup: e.target.value } as Partial<MyChannel>)
                   }
-                  title="이 채널의 Todoist 태스크가 들어갈 프로젝트"
+                  title={`이 ${unit}의 Todoist 태스크가 들어갈 프로젝트`}
                   className="col-span-2 h-8 rounded border bg-background px-2 text-sm"
                 >
                   <option value="youtube">Todoist: 유튜브</option>
@@ -1060,7 +1065,7 @@ function DashRow({
                 onClick={onRemove}
                 className="rounded-md border bg-card px-2.5 py-1 text-[13px] hover:border-destructive/40"
               >
-                채널 삭제
+                {unit} 삭제
               </button>
             </div>
 
