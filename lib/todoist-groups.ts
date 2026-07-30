@@ -25,6 +25,16 @@ export const GROUP_PLATFORMS: Record<DashboardGroup, string[]> = {
   threads: ['THREADS'],
 };
 
+/**
+ * 그룹별 단위 명칭. 유튜브는 '채널', 쇼핑쇼츠·스레드는 '계정'.
+ * 화면 문구("+ OO 추가", "총 N개 OO" 등)에 사용.
+ */
+export const GROUP_UNIT: Record<DashboardGroup, string> = {
+  youtube: '채널',
+  shopping: '계정',
+  threads: '계정',
+};
+
 /** 그룹별 페이지 경로 */
 export const GROUP_PATH: Record<DashboardGroup, string> = {
   youtube: '/channel-dashboard',

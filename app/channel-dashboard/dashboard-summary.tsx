@@ -41,7 +41,14 @@ function isUrgent(d: number | null): boolean {
   return d === null || d <= 1;
 }
 
-export function DashboardSummary({ channels }: { channels: SummaryChannel[] }) {
+export function DashboardSummary({
+  channels,
+  unit = '채널',
+}: {
+  channels: SummaryChannel[];
+  /** '채널' | '계정' — 그룹별 단위 명칭 */
+  unit?: string;
+}) {
   const withD = channels.map((c) => ({ c, d: channelDDay(c) }));
   const empty = withD.filter((x) => x.d === null);
   const soon = withD.filter((x) => x.d !== null && x.d <= 1);
@@ -83,7 +90,7 @@ export function DashboardSummary({ channels }: { channels: SummaryChannel[] }) {
 
         <div className="rounded-2xl border border-border bg-card p-4">
           <div className="text-[12.5px] font-bold text-muted-foreground">
-            여유 있는 채널 (D-2 이상)
+            여유 있는 {unit} (D-2 이상)
           </div>
           <div className="mt-1.5 num text-[29px] font-extrabold leading-none tracking-tight">
             {relaxed.length}
@@ -152,7 +159,7 @@ export function DashboardSummary({ channels }: { channels: SummaryChannel[] }) {
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[13px] font-bold">
         <span className="text-[color:var(--text-quaternary)]">플랫폼별 · 임박한 순</span>
         <span className="text-[12px] font-semibold text-[color:var(--text-faint)]">
-          오늘 {kstTodayLabel()} KST · 총 {channels.length}채널
+          오늘 {kstTodayLabel()} KST · 총 {channels.length}{unit}
         </span>
       </div>
     </>
