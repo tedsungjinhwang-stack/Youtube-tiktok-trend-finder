@@ -16,7 +16,12 @@ import {
   type DashboardGroup,
 } from '@/lib/todoist-groups';
 
-type Video = { id: string; title: string; scheduledAt: string };
+type Video = {
+  id: string;
+  title: string;
+  scheduledAt: string;
+  publishedUrl?: string | null;
+};
 
 type Channel = {
   id: string;
@@ -60,12 +65,16 @@ export function OverviewClient() {
       const future = [...ch.videos].sort(
         (a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()
       );
+      const pub = future.find((v) => !!v.publishedUrl);
       map.get(g)?.push({
         id: ch.id,
         name: ch.name,
         platform: ch.platform,
         category: ch.category,
         lastScheduledAt: future[0]?.scheduledAt ?? null,
+        published: pub
+          ? { title: pub.title, url: pub.publishedUrl!, scheduledAt: pub.scheduledAt }
+          : null,
       });
     }
     return map;
@@ -129,7 +138,12 @@ export function OverviewClient() {
                   등록된 {unit}이 없습니다
                 </div>
               ) : (
-                <DashboardSummary channels={rows} unit={unit} showSortLabel={false} />
+                <DashboardSummary
+                  channels={rows}
+                  unit={unit}
+                  showSortLabel={false}
+                  showPublished={g === 'threads'}
+                />
               )}
             </section>
           );

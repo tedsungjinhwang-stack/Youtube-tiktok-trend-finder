@@ -10,6 +10,8 @@ export type SummaryChannel = {
   category: string | null;
   /** 마지막(가장 미래) 예약 시각 ISO. 없으면 null */
   lastScheduledAt: string | null;
+  /** 최근 발행된 글/영상 (publishedUrl 입력된 것 중 최신) */
+  published?: { title: string; url: string; scheduledAt: string } | null;
 };
 
 /** 채널별 D-day. 예약 없으면 null → 가장 먼저 정렬 */
@@ -45,12 +47,15 @@ export function DashboardSummary({
   channels,
   unit = '채널',
   showSortLabel = true,
+  showPublished = false,
 }: {
   channels: SummaryChannel[];
   /** '채널' | '계정' — 그룹별 단위 명칭 */
   unit?: string;
   /** 하단 '플랫폼별 · 임박한 순' 라벨 (아래에 테이블이 있을 때만 의미 있음) */
   showSortLabel?: boolean;
+  /** '최근 발행한 글' 섹션 (스레드처럼 발행 링크를 관리하는 그룹) */
+  showPublished?: boolean;
 }) {
   const withD = channels.map((c) => ({ c, d: channelDDay(c) }));
   const empty = withD.filter((x) => x.d === null);
@@ -157,6 +162,61 @@ export function DashboardSummary({
           })}
         </div>
       </section>
+
+      {/* 최근 발행한 글 */}
+      {showPublished && (
+        <section className="mb-4 rounded-2xl border border-border bg-card">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+            <h2 className="text-[14px] font-extrabold tracking-tight">최근 발행한 글</h2>
+            <span className="text-[12px] font-semibold text-[color:var(--text-faint)]">
+              발행 링크가 입력된 항목
+            </span>
+          </div>
+          {channels.filter((c) => c.published).length === 0 ? (
+            <p className="px-4 py-8 text-center text-[13px] text-muted-foreground">
+              아직 없습니다. 예약 행의 「발행 링크」 칸에 게시물 URL 을 넣으면 여기 표시됩니다.
+            </p>
+          ) : (
+            <ul className="divide-y divide-[color:var(--border-row)]">
+              {channels
+                .filter((c) => c.published)
+                .sort(
+                  (a, b) =>
+                    new Date(b.published!.scheduledAt).getTime() -
+                    new Date(a.published!.scheduledAt).getTime()
+                )
+                .map((c) => {
+                  const ps = platformStyle(c.platform);
+                  return (
+                    <li key={c.id} className="flex items-center gap-3 px-4 py-2.5">
+                      <span
+                        className="grid h-[24px] w-[24px] shrink-0 place-items-center rounded-lg text-[11.5px] font-black"
+                        style={{ background: ps.chipBg, color: ps.dot }}
+                      >
+                        {ps.mark}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-bold">{c.name}</span>
+                        <a
+                          href={c.published!.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block truncate text-[12px] font-semibold text-brand hover:underline"
+                          title={c.published!.url}
+                        >
+                          {c.published!.title || c.published!.url}
+                        </a>
+                      </span>
+                      <span className="num shrink-0 text-[12px] font-semibold text-[color:var(--text-faint)]">
+                        {kstShort(c.published!.scheduledAt)}
+                      </span>
+                    </li>
+                  );
+                })}
+            </ul>
+          )}
+        </section>
+      )}
 
       {/* 정렬 라벨 — 아래 테이블이 있을 때만 */}
       {showSortLabel && (

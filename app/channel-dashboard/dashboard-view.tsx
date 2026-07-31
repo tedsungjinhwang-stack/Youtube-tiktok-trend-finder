@@ -437,12 +437,16 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
       const future = [...c.videos].sort(
         (a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()
       );
+      const pub = future.find((v) => !!v.publishedUrl);
       return {
         id: c.id,
         name: c.name,
         platform: c.platform,
         category: c.category,
         lastScheduledAt: future[0]?.scheduledAt ?? null,
+        published: pub
+          ? { title: pub.title, url: pub.publishedUrl!, scheduledAt: pub.scheduledAt }
+          : null,
       };
     });
 
@@ -564,7 +568,11 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         <p className="mb-3 text-[12px] font-semibold text-muted-foreground">{tdMsg}</p>
       )}
 
-      {channels.length > 0 && <DashboardSummary channels={summaryChannels} unit={unit} />}
+      {channels.length > 0 && <DashboardSummary
+          channels={summaryChannels}
+          unit={unit}
+          showPublished={group === 'threads'}
+        />}
 
       <main className="flex flex-col">
         {/* 일괄 작업 툴바 — 채널 1개 이상 선택 시 노출 */}
