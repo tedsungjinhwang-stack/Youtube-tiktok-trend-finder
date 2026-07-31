@@ -44,10 +44,13 @@ function isUrgent(d: number | null): boolean {
 export function DashboardSummary({
   channels,
   unit = '채널',
+  showSortLabel = true,
 }: {
   channels: SummaryChannel[];
   /** '채널' | '계정' — 그룹별 단위 명칭 */
   unit?: string;
+  /** 하단 '플랫폼별 · 임박한 순' 라벨 (아래에 테이블이 있을 때만 의미 있음) */
+  showSortLabel?: boolean;
 }) {
   const withD = channels.map((c) => ({ c, d: channelDDay(c) }));
   const empty = withD.filter((x) => x.d === null);
@@ -155,13 +158,15 @@ export function DashboardSummary({
         </div>
       </section>
 
-      {/* 정렬 라벨 */}
+      {/* 정렬 라벨 — 아래 테이블이 있을 때만 */}
+      {showSortLabel && (
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[13px] font-bold">
         <span className="text-[color:var(--text-quaternary)]">플랫폼별 · 임박한 순</span>
         <span className="text-[12px] font-semibold text-[color:var(--text-faint)]">
           오늘 {kstTodayLabel()} KST · 총 {channels.length}{unit}
         </span>
       </div>
+      )}
     </>
   );
 }
