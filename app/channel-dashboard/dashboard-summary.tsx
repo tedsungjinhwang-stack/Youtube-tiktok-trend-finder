@@ -48,6 +48,7 @@ export function DashboardSummary({
   unit = '채널',
   showSortLabel = true,
   showPublished = false,
+  compact = false,
 }: {
   channels: SummaryChannel[];
   /** '채널' | '계정' — 그룹별 단위 명칭 */
@@ -56,6 +57,8 @@ export function DashboardSummary({
   showSortLabel?: boolean;
   /** '최근 발행한 글' 섹션 (스레드처럼 발행 링크를 관리하는 그룹) */
   showPublished?: boolean;
+  /** 밀도 압축 — 전체 현황처럼 한 화면에 담아야 할 때 */
+  compact?: boolean;
 }) {
   const withD = channels.map((c) => ({ c, d: channelDDay(c) }));
   const empty = withD.filter((x) => x.d === null);
@@ -68,10 +71,10 @@ export function DashboardSummary({
   return (
     <>
       {/* KPI 3장 */}
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="surface-warn rounded-2xl border p-4">
+      <div className={(compact ? 'mb-3 gap-2.5 ' : 'mb-4 gap-3 ') + 'grid grid-cols-1 sm:grid-cols-3'}>
+        <div className={'surface-warn rounded-2xl border ' + (compact ? 'p-3' : 'p-4')}>
           <div className="text-[12.5px] font-bold text-[#D7C6A6]">오늘 업로드 필요</div>
-          <div className="mt-1.5 num text-[29px] font-extrabold leading-none tracking-tight text-[#D9A55C]">
+          <div className={'mt-1.5 num font-extrabold leading-none tracking-tight text-[#D9A55C] ' + (compact ? 'text-[24px]' : 'text-[29px]')}>
             {todayNeed}
           </div>
           <div className="mt-2 text-[12px] font-semibold text-[#B09A76]">
@@ -79,11 +82,11 @@ export function DashboardSummary({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-4">
+        <div className={'rounded-2xl border border-border bg-card ' + (compact ? 'p-3' : 'p-4')}>
           <div className="text-[12.5px] font-bold text-muted-foreground">
             예약 소진 임박 (D-1 이내)
           </div>
-          <div className="mt-1.5 num text-[29px] font-extrabold leading-none tracking-tight">
+          <div className={'mt-1.5 num font-extrabold leading-none tracking-tight ' + (compact ? 'text-[24px]' : 'text-[29px]')}>
             {soon.length}
           </div>
           <div className="mt-2 line-clamp-2 text-[12px] font-semibold text-[color:var(--text-faint)]">
@@ -96,11 +99,11 @@ export function DashboardSummary({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-4">
+        <div className={'rounded-2xl border border-border bg-card ' + (compact ? 'p-3' : 'p-4')}>
           <div className="text-[12.5px] font-bold text-muted-foreground">
             여유 있는 {unit} (D-2 이상)
           </div>
-          <div className="mt-1.5 num text-[29px] font-extrabold leading-none tracking-tight">
+          <div className={'mt-1.5 num font-extrabold leading-none tracking-tight ' + (compact ? 'text-[24px]' : 'text-[29px]')}>
             {relaxed.length}
           </div>
           <div className="mt-2 line-clamp-2 text-[12px] font-semibold text-[color:var(--text-faint)]">
@@ -110,14 +113,14 @@ export function DashboardSummary({
       </div>
 
       {/* 예약이 끝나는 순서 */}
-      <section className="mb-4 rounded-2xl border border-border bg-card">
-        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <section className={(compact ? 'mb-3 ' : 'mb-4 ') + 'rounded-2xl border border-border bg-card'}>
+        <div className={'flex items-center justify-between gap-3 border-b border-border px-4 ' + (compact ? 'py-2.5' : 'py-3')}>
           <h2 className="text-[14px] font-extrabold tracking-tight">예약이 끝나는 순서</h2>
           <span className="text-[12px] font-semibold text-[color:var(--text-faint)]">
             임박한 순
           </span>
         </div>
-        <div className="grid gap-2.5 p-4 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))]">
+        <div className={(compact ? 'gap-2 p-3 [grid-template-columns:repeat(auto-fill,minmax(228px,1fr))] ' : 'gap-2.5 p-4 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))] ') + 'grid'}>
           {sorted.map((c) => {
             const d = channelDDay(c);
             const urgent = isUrgent(d);
@@ -125,7 +128,7 @@ export function DashboardSummary({
             return (
               <div
                 key={c.id}
-                className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5"
+                className={'flex items-center gap-2.5 rounded-xl border px-3 ' + (compact ? 'py-2' : 'py-2.5')}
                 style={{
                   background: urgent ? '#221F19' : '#20242A',
                   borderColor: urgent ? '#3A3324' : '#2B3036',
