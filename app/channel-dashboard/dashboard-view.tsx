@@ -363,6 +363,39 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
     }
   };
 
+  /** 선택한 채널/계정 자체를 삭제 (예약·소재·완성본 모두 함께 삭제됨) */
+  const bulkDelete = async () => {
+    const ids = [...bulkIds];
+    if (ids.length === 0) return;
+    const names = channels
+      .filter((c) => ids.includes(c.id))
+      .map((c) => c.name)
+      .join(', ');
+    if (
+      !confirm(
+        `${ids.length}개 ${unit}을 삭제할까요?\n\n${names}\n\n예약·소재·완성본이 모두 함께 삭제되며 되돌릴 수 없습니다.`
+      )
+    )
+      return;
+    setBulkBusy(true);
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`/api/v1/my-schedule/channels/${id}`, { method: 'DELETE' }).then((r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          })
+        )
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed > 0) alert(`${failed}개 삭제 실패. 새로고침 후 다시 시도해주세요.`);
+      clearBulk();
+      setSelectedChannelId(null);
+      refresh();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const connectTodoist = async () => {
     const token = tdToken.trim();
     if (!token) return;
@@ -622,6 +655,13 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
             >
               업로드 필요로 변경 (예약 비우기)
             </button>
+            <button
+              onClick={bulkDelete}
+              disabled={bulkBusy}
+              className="h-7 rounded-md border border-destructive/60 bg-destructive/10 px-3 text-[13px] font-bold text-destructive hover:bg-destructive/20 disabled:opacity-40"
+            >
+              선택 {unit} 삭제
+            </button>
             {todoist.connected && (
               <button
                 onClick={syncGcalAll}
@@ -651,7 +691,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
           </div>
         ) : (
           <div className="overflow-x-auto overflow-y-hidden rounded-2xl border border-border bg-card">
-            <table className="w-full min-w-[1320px] table-fixed text-[14px]">
+            <table className="w-full min-w-[1170px] table-fixed text-[14px]">
               <thead className="bg-[color:var(--surface-table-header)] text-[11.5px] font-bold uppercase tracking-[0.06em] text-[color:var(--text-quaternary)]">
                 <tr className="border-b border-border">
                   <th className="w-9 px-2 py-2 text-center">
@@ -675,7 +715,6 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                   <th className="w-[300px] px-4 py-2 text-left align-top font-semibold">소재</th>
                   <th className="w-[220px] px-4 py-2 text-left align-top font-semibold">마지막 예약 영상</th>
                   <th className="w-[170px] px-4 py-2 text-left align-top font-semibold">예약일시</th>
-                  <th className="w-[150px] px-4 py-2 text-left align-top font-semibold">완성본 (최대 5)</th>
                   <th className="w-[160px] px-3 py-2 text-right align-top font-semibold">상태</th>
                 </tr>
               </thead>
@@ -699,7 +738,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                       {showHeader && (
                         <tr style={{ background: 'var(--surface-group-header)' }}>
                           <td
-                            colSpan={8}
+                            colSpan={7}
                             className="px-4 py-2 text-[11.5px] font-extrabold uppercase tracking-[0.06em] text-[color:var(--text-quaternary)]"
                           >
                             <span className="inline-flex items-center gap-2">
@@ -956,13 +995,6 @@ function DashRow({
             onCreate={(localStr) => onAddVideo('', localStr, '')}
           />
         </td>
-        <td className="px-4 py-3 align-top text-sm">
-          <AttachmentsCell
-            items={c.attachments}
-            onAdd={onAddAttachment}
-            onRemove={onRemoveAttachment}
-          />
-        </td>
         <td className="px-3 py-3 align-top text-sm">
           <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
             {/* 상태 칩 — 예약 유무 */}
@@ -1004,7 +1036,7 @@ function DashRow({
       </tr>
       {isExpanded && (
         <tr className="border-b bg-secondary/20">
-          <td colSpan={8} className="px-6 py-3">
+          <td colSpan={7} className="px-6 py-3">
             {/* 채널 메타 인라인 편집 */}
             <div className="mb-3 grid grid-cols-12 gap-2">
               <select
@@ -1170,6 +1202,18 @@ function DashRow({
               >
                 + 예약
               </button>
+            </div>
+
+            {/* 완성본 — 테이블에서 빼고 펼침 영역으로 이동 */}
+            <div className="mb-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
+              <p className="mb-1.5 text-[11.5px] font-extrabold uppercase tracking-[0.06em] text-[color:var(--text-quaternary)]">
+                완성본 (최대 5)
+              </p>
+              <AttachmentsCell
+                items={c.attachments}
+                onAdd={onAddAttachment}
+                onRemove={onRemoveAttachment}
+              />
             </div>
 
             {/* 영상 리스트 — 컴팩트 한 줄 */}
