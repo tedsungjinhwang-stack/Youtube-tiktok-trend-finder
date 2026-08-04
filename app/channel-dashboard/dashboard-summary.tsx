@@ -168,15 +168,15 @@ export function DashboardSummary({
 
       {/* 최근 발행한 글 */}
       {showPublished && (
-        <section className="mb-4 rounded-2xl border border-border bg-card">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <section className={(compact ? 'mb-3 ' : 'mb-4 ') + 'rounded-2xl border border-border bg-card'}>
+          <div className={'flex items-center justify-between gap-3 border-b border-border px-4 ' + (compact ? 'py-2.5' : 'py-3')}>
             <h2 className="text-[14px] font-extrabold tracking-tight">최근 발행한 글</h2>
             <span className="text-[12px] font-semibold text-[color:var(--text-faint)]">
               발행 링크가 입력된 항목
             </span>
           </div>
           {channels.filter((c) => c.published).length === 0 ? (
-            <p className="px-4 py-8 text-center text-[13px] text-muted-foreground">
+            <p className={'px-4 text-center text-[12.5px] text-muted-foreground ' + (compact ? 'py-5' : 'py-8')}>
               아직 없습니다. 예약 행의 「발행 링크」 칸에 게시물 URL 을 넣으면 여기 표시됩니다.
             </p>
           ) : (
