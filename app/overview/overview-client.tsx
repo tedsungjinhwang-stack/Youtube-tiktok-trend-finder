@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { kstTodayLabel } from '@/lib/kst';
+import { kstTodayDate, kstTodayLabel } from '@/lib/kst';
+import { quoteOfDay } from '@/lib/quotes';
 import {
   DashboardSummary,
   channelDDay,
@@ -81,9 +82,29 @@ export function OverviewClient() {
     return map;
   }, [channels]);
 
+  const quote = useMemo(() => quoteOfDay(kstTodayDate()), []);
+
+  /** 전체 합계 (그룹 무관) */
+  const totals = useMemo(() => {
+    let need = 0;
+    let soon = 0;
+    let relaxed = 0;
+    for (const list of byGroup.values()) {
+      for (const c of list) {
+        const d = channelDDay(c);
+        if (d === null || d <= 0) need += 1;
+        else if (d === 1) soon += 1;
+        else relaxed += 1;
+      }
+    }
+    return { need, soon, relaxed };
+  }, [byGroup]);
+
   if (loading) {
     return <div className="p-8 text-[15px] text-muted-foreground">로딩 중…</div>;
   }
+
+  const { need: totalNeed, soon: totalSoon, relaxed: totalRelaxed } = totals;
 
   return (
     <div className="mx-auto max-w-[1180px] px-5 pb-12 pt-5">
@@ -94,11 +115,31 @@ export function OverviewClient() {
       )}
 
       {/* 헤더 */}
-      <div className="mb-4">
+      <div className="mb-3">
         <h1 className="text-[22px] font-extrabold tracking-[-0.03em]">전체 현황</h1>
         <p className="mt-1 text-[12.5px] font-semibold text-muted-foreground">
           {kstTodayLabel()} KST · 전체 {channels.length}개
         </p>
+      </div>
+
+      {/* 오늘의 한마디 — 날짜 기준으로 매일 바뀜 */}
+      <blockquote
+        className="mb-4 rounded-2xl border border-border px-5 py-3.5"
+        style={{ background: 'linear-gradient(90deg, rgba(111,199,177,0.10), transparent 70%)' }}
+      >
+        <p className="text-[15px] font-bold leading-relaxed text-foreground">
+          “{quote.text}”
+        </p>
+        <footer className="mt-1.5 text-[11.5px] font-bold uppercase tracking-[0.06em] text-brand">
+          {quote.who}
+        </footer>
+      </blockquote>
+
+      {/* 오늘의 현황판 */}
+      <div className="mb-5 grid grid-cols-3 divide-x divide-[color:var(--border-row)] overflow-hidden rounded-2xl border border-border bg-card">
+        <ScoreCell label="오늘 업로드 필요" value={totalNeed} tone={totalNeed > 0 ? 'warn' : 'ok'} />
+        <ScoreCell label="소진 임박 (D-1)" value={totalSoon} tone={totalSoon > 0 ? 'caution' : 'plain'} />
+        <ScoreCell label="여유 (D-2 이상)" value={totalRelaxed} tone="plain" />
       </div>
 
       {/* 그룹별로 세로 스택 (compact 밀도) */}
@@ -165,6 +206,34 @@ export function OverviewClient() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/** 상단 현황판 한 칸 */
+function ScoreCell({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: 'warn' | 'caution' | 'ok' | 'plain';
+}) {
+  const color =
+    tone === 'warn'
+      ? '#D9A55C'
+      : tone === 'caution'
+        ? '#C0A177'
+        : tone === 'ok'
+          ? 'hsl(var(--brand))'
+          : 'var(--text-tertiary)';
+  return (
+    <div className="px-4 py-3 text-center">
+      <div className="num text-[26px] font-extrabold leading-none tracking-tight" style={{ color }}>
+        {value}
+      </div>
+      <div className="mt-1.5 text-[11.5px] font-bold text-muted-foreground">{label}</div>
     </div>
   );
 }
