@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { kstTodayDate, kstTodayLabel } from '@/lib/kst';
 import { quoteOfDay } from '@/lib/quotes';
+import { SaeroiAvatar } from '@/components/saeroi-avatar';
 import {
   DashboardSummary,
   channelDDay,
@@ -124,15 +125,18 @@ export function OverviewClient() {
 
       {/* 오늘의 한마디 — 날짜 기준으로 매일 바뀜 */}
       <blockquote
-        className="mb-4 rounded-2xl border border-border px-5 py-3.5"
+        className="mb-4 flex items-center gap-4 rounded-2xl border border-border px-5 py-3.5"
         style={{ background: 'linear-gradient(90deg, rgba(111,199,177,0.10), transparent 70%)' }}
       >
-        <p className="text-[15px] font-bold leading-relaxed text-foreground">
-          “{quote.text}”
-        </p>
-        <footer className="mt-1.5 text-[11.5px] font-bold uppercase tracking-[0.06em] text-brand">
-          {quote.who}
-        </footer>
+        <SaeroiAvatar />
+        <div className="min-w-0">
+          <p className="text-[15px] font-bold leading-relaxed text-foreground">
+            “{quote.text}”
+          </p>
+          <footer className="mt-1.5 text-[11.5px] font-bold uppercase tracking-[0.06em] text-brand">
+            {quote.who}
+          </footer>
+        </div>
       </blockquote>
 
       {/* 오늘의 현황판 */}
