@@ -109,6 +109,29 @@ export function OverviewClient() {
 
   return (
     <div className="mx-auto max-w-[1180px] px-5 pb-12 pt-5">
+      {/*
+        좌측 여백 아트 — 본문이 1180px 로 가운데 정렬돼 있어 넓은 화면에선 양쪽이 비는데,
+        그 빈 폭만큼만 차지하는 고정 패널이라 본문 레이아웃에는 전혀 영향을 주지 않는다.
+        여백이 좁은 화면에선 아예 렌더하지 않는다.
+      */}
+      <aside
+        aria-hidden
+        className="pointer-events-none fixed left-0 top-0 hidden h-screen select-none items-center justify-center min-[1480px]:flex"
+        style={{ width: 'calc((100vw - 1180px) / 2)' }}
+      >
+        <div className="relative flex w-[84%] max-w-[320px] flex-col items-center">
+          {/* 뒤에 깔리는 은은한 발광 — 그냥 붙여넣은 것처럼 보이지 않게 */}
+          <div
+            className="absolute inset-0 -z-10 blur-2xl"
+            style={{
+              background:
+                'radial-gradient(circle at 50% 45%, rgba(111,201,177,0.14), transparent 68%)',
+            }}
+          />
+          <SaeroiAvatar size="100%" />
+        </div>
+      </aside>
+
       {err && (
         <div className="surface-warn mb-4 rounded-xl border px-4 py-3 text-[13px] font-semibold">
           {err}

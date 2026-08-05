@@ -1,10 +1,16 @@
+'use client';
+
+import { useId } from 'react';
+
 /**
  * 오늘의 한마디 옆에 붙는 아바타.
  *
  * 실제 인물 사진을 따온 게 아니라 직접 그린 기하학적 플랫 아이콘이다.
  * (밤톨머리 + 수트 깃 실루엣 — 특정 인물의 얼굴이 아니라 '분위기'만 가져옴)
  */
-export function SaeroiAvatar({ size = 44 }: { size?: number }) {
+export function SaeroiAvatar({ size = 44 }: { size?: number | string }) {
+  // 한 페이지에 여러 번 그려도 clipPath id 가 겹치지 않게
+  const clip = `saeroi-clip-${useId()}`;
   return (
     <svg
       width={size}
@@ -16,12 +22,12 @@ export function SaeroiAvatar({ size = 44 }: { size?: number }) {
       className="shrink-0"
     >
       <defs>
-        <clipPath id="saeroi-clip">
+        <clipPath id={clip}>
           <circle cx="32" cy="32" r="32" />
         </clipPath>
       </defs>
 
-      <g clipPath="url(#saeroi-clip)">
+      <g clipPath={`url(#${clip})`}>
         {/* 배경 */}
         <circle cx="32" cy="32" r="32" fill="#20242A" />
         <circle cx="32" cy="32" r="32" fill="hsl(166 42% 61%)" fillOpacity="0.10" />
