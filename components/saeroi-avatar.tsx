@@ -1,40 +1,48 @@
 /**
- * 오늘의 한마디 옆 / 좌측 여백에 붙는 아바타. public/saeroi.jpg 를 쓴다.
+ * 오늘의 한마디 배너 / 좌측 여백에 붙는 사진.
  *
- * variant
- *  - 'face' (기본) 원형으로 얼굴만. 원본이 상반신이라 그대로 두면 얼굴이 너무 작아서
- *    확대한 뒤 아래로 밀어 얼굴만 담는다 (조합을 여러 개 렌더해 보고 고른 값).
- *  - 'full'         원본을 자르지 않고 통째로. 좌측 여백처럼 크게 놓는 자리용.
- *                   높이를 강제하지 않으므로 세로 사진이든 정사각이든 비율 그대로 들어간다.
+ * 자리마다 쓰는 사진이 다르다. 원본보다 크게 그리면 확대 보간이 들어가 뿌옇게 나오므로
+ * 각 사진의 실제 픽셀 폭을 같이 들고 다니며 그 값을 상한으로 쓴다.
+ * 더 큰 파일로 교체하면 width 숫자만 올리면 된다.
  */
-const FACE_ZOOM = 'scale(2.4) translateY(30%)';
+export const SAEROI_PHOTOS = {
+  /** 흰 배경 후디 — 정사각 */
+  hoodie: { src: '/saeroi.jpg', width: 148 },
+  /** 단밤 수트 — 세로 2:3 */
+  danbam: { src: '/saeroi-full.jpg', width: 452 },
+} as const;
+
+export type SaeroiPhoto = keyof typeof SAEROI_PHOTOS;
 
 /**
- * saeroi.jpg 의 실제 픽셀 폭. 이보다 크게 그리면 확대 보간이 들어가 뿌옇게 나오므로
- * 'full' 로 크게 놓는 자리에선 이 값을 상한으로 쓴다.
- * 더 큰 파일로 교체하면 이 숫자만 올리면 된다.
+ * hoodie 사진 기준 얼굴 크롭값. 원본이 상반신이라 그대로 두면 얼굴이 너무 작아서
+ * 확대한 뒤 아래로 밀어 얼굴만 담는다 (조합을 여러 개 렌더해 보고 고른 값).
  */
-export const SAEROI_NATURAL_WIDTH = 148;
+const FACE_ZOOM = 'scale(2.4) translateY(30%)';
 
 export function SaeroiAvatar({
   size = 44,
   variant = 'face',
+  photo = 'hoodie',
 }: {
   size?: number | string;
+  /** 'face' 원형 얼굴 크롭 · 'full' 원본 무크롭 (비율 그대로, 높이 강제 없음) */
   variant?: 'face' | 'full';
+  photo?: SaeroiPhoto;
 }) {
   const full = variant === 'full';
+  const { src } = SAEROI_PHOTOS[photo];
   return (
     <div
       className={
-        'relative shrink-0 overflow-hidden bg-white ring-1 ring-[color:var(--border-row)] ' +
-        (full ? 'rounded-2xl' : 'rounded-full')
+        'relative shrink-0 overflow-hidden ring-1 ring-[color:var(--border-row)] ' +
+        (full ? 'rounded-2xl' : 'rounded-full bg-white')
       }
       style={{ width: size, aspectRatio: full ? undefined : '1 / 1' }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- 크기 고정된 로컬 정적 파일이라 최적화 불필요 */}
       <img
-        src="/saeroi.jpg"
+        src={src}
         alt=""
         draggable={false}
         className={
