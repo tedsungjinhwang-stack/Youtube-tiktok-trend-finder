@@ -128,7 +128,7 @@ export function OverviewClient() {
                 'radial-gradient(circle at 50% 45%, rgba(111,201,177,0.14), transparent 68%)',
             }}
           />
-          <SaeroiAvatar size="100%" />
+          <SaeroiAvatar size="100%" variant="full" />
         </div>
       </aside>
 
