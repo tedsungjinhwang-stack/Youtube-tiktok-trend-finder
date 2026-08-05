@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { kstTodayDate, kstTodayLabel } from '@/lib/kst';
 import { quoteOfDay } from '@/lib/quotes';
-import { SaeroiAvatar } from '@/components/saeroi-avatar';
+import { SaeroiAvatar, SAEROI_NATURAL_WIDTH } from '@/components/saeroi-avatar';
 import {
   DashboardSummary,
   channelDDay,
@@ -119,7 +119,14 @@ export function OverviewClient() {
         className="pointer-events-none fixed left-0 top-0 hidden h-screen select-none items-center justify-center min-[1480px]:flex"
         style={{ width: 'calc((100vw - 1180px) / 2)' }}
       >
-        <div className="relative flex w-[84%] max-w-[320px] flex-col items-center">
+        {/*
+          폭을 원본 해상도(148px)에서 멈춘다. 그 이상 늘리면 확대 보간이 들어가 뿌옇게 나온다.
+          더 큰 saeroi.jpg 로 교체하면 SAEROI_NATURAL_WIDTH 만 올리면 된다.
+        */}
+        <div
+          className="relative flex flex-col items-center"
+          style={{ width: `min(84%, ${SAEROI_NATURAL_WIDTH}px)` }}
+        >
           {/* 뒤에 깔리는 은은한 발광 — 그냥 붙여넣은 것처럼 보이지 않게 */}
           <div
             className="absolute inset-0 -z-10 blur-2xl"
@@ -151,7 +158,7 @@ export function OverviewClient() {
         className="mb-4 flex items-center gap-4 rounded-2xl border border-border px-5 py-3.5"
         style={{ background: 'linear-gradient(90deg, rgba(111,199,177,0.10), transparent 70%)' }}
       >
-        <SaeroiAvatar />
+        <SaeroiAvatar size={112} variant="full" />
         <div className="min-w-0">
           <p className="text-[15px] font-bold leading-relaxed text-foreground">
             “{quote.text}”
