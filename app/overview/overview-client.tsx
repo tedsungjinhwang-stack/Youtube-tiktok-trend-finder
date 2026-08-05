@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { kstTodayDate, kstTodayLabel } from '@/lib/kst';
 import { quoteOfDay } from '@/lib/quotes';
-import { SaeroiAvatar, SAEROI_NATURAL_WIDTH } from '@/components/saeroi-avatar';
+import { SaeroiAvatar, SAEROI_PHOTOS } from '@/components/saeroi-avatar';
 import {
   DashboardSummary,
   channelDDay,
@@ -119,13 +119,10 @@ export function OverviewClient() {
         className="pointer-events-none fixed left-0 top-0 hidden h-screen select-none items-center justify-center min-[1480px]:flex"
         style={{ width: 'calc((100vw - 1180px) / 2)' }}
       >
-        {/*
-          폭을 원본 해상도(148px)에서 멈춘다. 그 이상 늘리면 확대 보간이 들어가 뿌옇게 나온다.
-          더 큰 saeroi.jpg 로 교체하면 SAEROI_NATURAL_WIDTH 만 올리면 된다.
-        */}
+        {/* 폭을 원본 해상도에서 멈춘다 — 그 이상 늘리면 확대 보간이 들어가 뿌옇게 나온다 */}
         <div
           className="relative flex flex-col items-center"
-          style={{ width: `min(84%, ${SAEROI_NATURAL_WIDTH}px)` }}
+          style={{ width: `min(90%, ${SAEROI_PHOTOS.danbam.width}px)` }}
         >
           {/* 뒤에 깔리는 은은한 발광 — 그냥 붙여넣은 것처럼 보이지 않게 */}
           <div
@@ -135,7 +132,7 @@ export function OverviewClient() {
                 'radial-gradient(circle at 50% 45%, rgba(111,201,177,0.14), transparent 68%)',
             }}
           />
-          <SaeroiAvatar size="100%" variant="full" />
+          <SaeroiAvatar size="100%" variant="full" photo="danbam" />
         </div>
       </aside>
 
