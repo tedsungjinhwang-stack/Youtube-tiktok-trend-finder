@@ -47,22 +47,31 @@ export const QUOTES: Quote[] = [
     text: '소신, 패기… 없는 것들이 자존심 지키자고 쓰는 단어. 이득이 없다면 고집이고 객기일 뿐이야.',
     who: '장대희',
   },
-  {
-    text: '단밤 요리사 마현이. 저는 트랜스젠더입니다. 그리고 저는 오늘 우승하겠습니다.',
-    who: '마현이',
-  },
 ];
 
-/** KST 기준 날짜 문자열(YYYY-MM-DD)을 숫자 씨앗으로 */
-function seedFromDate(date: string): number {
-  let h = 0;
-  for (let i = 0; i < date.length; i++) {
-    h = (h * 31 + date.charCodeAt(i)) % 2147483647;
-  }
-  return h;
+/** KST 기준 날짜 문자열(YYYY-MM-DD) → 에포크 기준 일수 (하루마다 정확히 1씩 증가) */
+function dayIndex(date: string): number {
+  const [y, m, d] = date.split('-').map(Number);
+  return Math.floor(Date.UTC(y, m - 1, d) / 86_400_000);
 }
+
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b);
+}
+
+/**
+ * 목록 길이와 서로소인 보폭. 이러면 (일수 × 보폭) % 길이가 전체를 한 바퀴 도는
+ * 순열이 되어 ① 한 주기 안에 모든 대사가 정확히 한 번씩 나오고
+ * ② 연속한 날이 같은 대사가 되는 일이 없다 (목록 개수를 바꿔도 유지된다).
+ */
+const STRIDE = (() => {
+  const n = QUOTES.length;
+  for (let k = Math.floor(n / 2); k > 1; k--) if (gcd(k, n) === 1) return k;
+  return 1;
+})();
 
 /** 그 날의 대사 (같은 날엔 항상 같은 문장) */
 export function quoteOfDay(kstDate: string): Quote {
-  return QUOTES[seedFromDate(kstDate) % QUOTES.length];
+  const n = QUOTES.length;
+  return QUOTES[(((dayIndex(kstDate) * STRIDE) % n) + n) % n];
 }
