@@ -223,23 +223,48 @@ type ChannelRec = {
   _count: { videos: number };
 };
 
+/**
+ * 우리가 만든 태스크임을 표시하는 고정 라벨.
+ *
+ * 채널 라벨은 채널명에서 만들기 때문에 채널 이름이 바뀌면 옛 태스크를 다시 찾을 수 없다.
+ * 그래서 이름과 무관한 고정 라벨을 하나 더 붙여 둔다 — 이 라벨이 있는데 현재 어느
+ * 채널에도 안 붙는 태스크는 우리가 만들었다가 주인을 잃은 것이므로 지워도 안전하다.
+ * (사용자가 직접 만든 태스크에는 이 라벨이 없으므로 건드리지 않는다.)
+ */
+export const AUTO_LABEL = '새로이자동';
+
 /** 채널 → Todoist 태스크 body (예약 있으면 시각, 없으면 '영상업로드 필요'). */
 function channelTaskBody(ch: ChannelRec, projectId: string): Record<string, unknown> {
   const label = ch.name.replace(/\s+/g, '_').slice(0, 60);
+  const labels = [label, AUTO_LABEL];
   const count = ch._count.videos;
   const latest = ch.videos[0];
   if (count === 0 || !latest) {
     const content = ch.category ? `${ch.name}(${ch.category}) 영상업로드 필요` : `${ch.name} 영상업로드 필요`;
-    return { content, due_date: kstToday(), project_id: projectId, labels: [label], description: '예약된 영상이 없습니다' };
+    return { content, due_date: kstToday(), project_id: projectId, labels, description: '예약된 영상이 없습니다' };
   }
   const content = ch.category ? `${ch.name}_${ch.category}_${kstHHmm(latest.scheduledAt)}` : `${ch.name}_${kstHHmm(latest.scheduledAt)}`;
   return {
     content,
     due_datetime: new Date(latest.scheduledAt).toISOString(),
     project_id: projectId,
-    labels: [label],
+    labels,
     description: `예약 영상 ${count}개${latest.title ? `. 마지막: ${latest.title}` : ''}`,
   };
+}
+
+/**
+ * 우리가 만든 태스크인지 판별.
+ *
+ * AUTO_LABEL 이 1차 근거지만, 이 라벨을 쓰기 전에 만들어진 태스크에는 없다.
+ * 그런 예전 것들까지 정리하려고 우리가 쓰는 제목 형식도 같이 본다 —
+ * "… 영상업로드 필요" 로 끝나거나 "이름_분류_HH:mm" 꼴.
+ * 사용자가 직접 쓴 제목이 이 형식과 겹칠 일은 사실상 없다.
+ */
+function isAutoTask(t: TodoistTask): boolean {
+  if ((t.labels ?? []).includes(AUTO_LABEL)) return true;
+  const c = t.content ?? '';
+  return / 영상업로드 필요$/.test(c) || /_\d{2}:\d{2}$/.test(c);
 }
 
 /** 태스크 제목이 주어진 채널명들 중 하나에 속하는지 (제목은 항상 "채널명"으로 시작). */
@@ -380,6 +405,10 @@ export async function syncAllToTodoist(): Promise<{
   channels: number;
   totalInProject: number | null;
   groups: Record<string, { tasks: number; total: number | null; project: string }>;
+  /** 채널이 사라져 주인을 잃은 태스크 중 지운 개수 */
+  orphansDeleted: number;
+  /** 실패한 그룹만. 비어 있으면 전부 성공. */
+  groupErrors: Record<string, string>;
 }> {
   const config = await prisma.todoistConfig.findUnique({ where: { id: 'default' } });
   if (!config) throw new Error('Todoist 미연결');
@@ -397,7 +426,9 @@ export async function syncAllToTodoist(): Promise<{
 
   let tasks = 0;
   let totalInProject = 0;
+  let orphansDeleted = 0;
   const groups: Record<string, { tasks: number; total: number | null; project: string }> = {};
+  const groupErrors: Record<string, string> = {};
 
   // 그룹(=Todoist 프로젝트)별로 독립 동기화. 한 그룹이 실패해도 나머지는 진행.
   for (const group of DASHBOARD_GROUPS) {
@@ -411,39 +442,69 @@ export async function syncAllToTodoist(): Promise<{
       continue;
     }
 
-    const projectId = await ensureGroupProject(config, group);
-    const names = channels.map((c) => c.name);
-
-    // 1) 활성 태스크 1회 조회 (실패 시 throw → 이 그룹은 아무것도 안 만듦)
-    const active = await listTasks(token, projectId);
-    const byChannel = partitionByChannel(active, channels);
-
-    // 2) 채널마다 제자리 갱신
-    let groupTasks = 0;
-    for (const ch of channels) {
-      await reconcileChannelTask(token, projectId, ch, byChannel.get(ch.id) ?? []);
-      groupTasks += 1;
-    }
-
-    // 3) 완료(체크)된 이전 태스크 정리 — best effort
+    // 한 그룹이 실패해도 나머지 그룹은 계속 간다.
+    // 예전엔 try/catch 가 없어서 그룹 하나만 삐끗해도 동기화 전체가 죽었고,
+    // 그 결과 모든 그룹의 어제 태스크가 그대로 남았다.
     try {
-      const completed = await listCompletedTasks(token, projectId);
-      for (const t of completed) {
-        if (t.content && taskBelongsTo(t.content, names)) await deleteTask(token, t.id);
-      }
-    } catch {
-      /* noop */
-    }
+      const projectId = await ensureGroupProject(config, group);
+      const names = channels.map((c) => c.name);
 
-    const total = await listTasks(token, projectId).then((t) => t.length).catch(() => null);
-    groups[group] = { tasks: groupTasks, total, project: projectName };
-    tasks += groupTasks;
-    if (total != null) totalInProject += total;
+      // 1) 활성 태스크 1회 조회 (실패 시 throw → 이 그룹은 아무것도 안 만듦)
+      const active = await listTasks(token, projectId);
+      const byChannel = partitionByChannel(active, channels);
+
+      // 2) 채널마다 제자리 갱신
+      let groupTasks = 0;
+      for (const ch of channels) {
+        await reconcileChannelTask(token, projectId, ch, byChannel.get(ch.id) ?? []);
+        groupTasks += 1;
+      }
+
+      // 3) 주인 잃은 태스크 정리.
+      //    채널 이름이 바뀌거나 채널이 비활성화되면 그 채널의 옛 태스크는 어느 채널에도
+      //    안 붙어서 아무도 안 지웠다 — 「영상업로드 필요」가 계속 남던 이유.
+      //    우리가 만든 것(isAutoTask)만 지우므로 직접 만든 태스크는 건드리지 않는다.
+      const claimed = new Set<string>();
+      for (const list of byChannel.values()) for (const t of list) claimed.add(t.id);
+      for (const t of active) {
+        if (claimed.has(t.id) || !isAutoTask(t)) continue;
+        await deleteTask(token, t.id).catch(() => {});
+        orphansDeleted += 1;
+      }
+
+      // 4) 완료(체크)된 이전 태스크 정리 — best effort
+      try {
+        const completed = await listCompletedTasks(token, projectId);
+        for (const t of completed) {
+          if (t.content && (taskBelongsTo(t.content, names) || isAutoTask(t))) {
+            await deleteTask(token, t.id);
+          }
+        }
+      } catch {
+        /* noop */
+      }
+
+      const total = await listTasks(token, projectId).then((t) => t.length).catch(() => null);
+      groups[group] = { tasks: groupTasks, total, project: projectName };
+      tasks += groupTasks;
+      if (total != null) totalInProject += total;
+    } catch (e) {
+      const msg = (e as Error).message;
+      groupErrors[group] = msg;
+      groups[group] = { tasks: 0, total: null, project: projectName };
+      console.error('[todoist sync] 그룹 실패', group, msg);
+    }
   }
 
+  const failed = Object.keys(groupErrors);
   await prisma.todoistConfig.update({
     where: { id: 'default' },
-    data: { lastSyncedAt: new Date(), lastSyncError: null },
+    data: {
+      lastSyncedAt: new Date(),
+      lastSyncError: failed.length
+        ? failed.map((g) => `${g}: ${groupErrors[g]}`).join(' / ').slice(0, 500)
+        : null,
+    },
   });
-  return { tasks, channels: all.length, totalInProject, groups };
+  return { tasks, channels: all.length, totalInProject, groups, orphansDeleted, groupErrors };
 }

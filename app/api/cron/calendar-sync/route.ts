@@ -53,14 +53,24 @@ export async function GET(req: Request) {
     }, { status: 503 });
   }
 
-  const channels = await prisma.myChannel.findMany({
-    where: { isActive: true },
-    select: {
-      id: true,
-      name: true,
-      youtubeOauth: { select: { id: true } },
-    },
-  });
+  let channels: Array<{ id: string; name: string; youtubeOauth: { id: string } | null }>;
+  try {
+    channels = await prisma.myChannel.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        youtubeOauth: { select: { id: true } },
+      },
+    });
+  } catch (e) {
+    // 여기서 던지면 처리 안 된 500 이 나가서 cron 알림만 오고 원인을 알 수 없었다.
+    console.error('[cron] 채널 조회 실패', (e as Error).message);
+    return NextResponse.json(
+      { success: false, error: 'DB_QUERY_FAILED', message: (e as Error).message },
+      { status: 500 }
+    );
+  }
   let ytSynced = 0;
   let ytFailed = 0;
   let tdSynced = 0;
@@ -82,13 +92,24 @@ export async function GET(req: Request) {
   // 2) DB 예약 → Todoist: 전역 1회 동기화 (조회 1번 + 전부 삭제 + 채널당 생성).
   //    채널마다 돌던 예전 방식은 rate limit 으로 삭제가 실패해 매일 중복이 쌓였음.
   let tdGroups: Record<string, { tasks: number; total: number | null; project: string }> | null = null;
+  let tdError: string | null = null;
+  let orphansDeleted = 0;
   try {
     const r = await syncAllToTodoist();
     tdSynced = r.tasks;
     tdGroups = r.groups;
+    orphansDeleted = r.orphansDeleted;
+    // 그룹 단위 실패는 이제 throw 되지 않고 모여서 돌아온다. 하나라도 있으면 실패로 본다.
+    const failed = Object.entries(r.groupErrors);
+    if (failed.length > 0) {
+      tdError = failed.map(([g, m]) => `${g}: ${m}`).join(' / ');
+      tdFailed = failed.length;
+      for (const [g, m] of failed) failedDetails.push({ name: g, reason: m });
+    }
   } catch (e) {
     tdFailed = channels.length;
-    const reason = `TD: ${(e as Error).message.slice(0, 100)}`;
+    tdError = (e as Error).message;
+    const reason = `TD: ${tdError.slice(0, 100)}`;
     failedDetails.push({ name: '(전체)', reason });
     console.error('[todoist cron]', reason);
   }
@@ -119,15 +140,20 @@ export async function GET(req: Request) {
     cleanedVideos,
   });
 
-  return NextResponse.json({
-    success: true,
+  // Todoist 동기화가 통째로 실패했으면 200 을 주면 안 된다.
+  // 예전엔 여기서도 200 을 돌려줘서, 실제로는 아무것도 동기화되지 않았는데
+  // cron 대시보드는 초록으로 떠 며칠씩 모르고 지나갔다.
+  const body = {
+    success: tdError === null,
+    ...(tdError ? { error: 'TODOIST_SYNC_FAILED', message: tdError } : {}),
     data: {
       allChannels: channels.length,
-      todoist: { synced: tdSynced, failed: tdFailed, groups: tdGroups },
+      todoist: { synced: tdSynced, failed: tdFailed, groups: tdGroups, orphansDeleted },
       ytSynced,
       ytFailed,
       cleanedVideos,
       ...(failedDetails.length > 0 ? { failures: failedDetails.slice(0, 10) } : {}),
     },
-  });
+  };
+  return NextResponse.json(body, { status: tdError ? 500 : 200 });
 }
