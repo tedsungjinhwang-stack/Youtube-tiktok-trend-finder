@@ -104,10 +104,15 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
   const unit = GROUP_UNIT[group]; // '채널' | '계정'
   /**
    * 스레드는 표 구성이 다르다. 애드센스·전화 같은 수익화 정보 대신
-   * 이메일·프로필(멀티로그인 몇 번인지)을 각각 칸으로 두고, 소재 칸은 쓰지 않는다.
+   * 이메일·프로필(멀티로그인 몇 번인지)을 칸으로 두고, 소재 칸은 쓰지 않는다.
+   * 예약보다 이미 올린 글을 추적하는 쪽이라 예약 영상·예약일시 대신
+   * 마지막 게시글 링크 한 칸을 쓴다.
+   *
+   * 체크 / 닉네임 / 카테고리 / 이메일 / 프로필 / 게시글링크 / 상태 = 7
+   * 체크 / 채널 / 카테고리 / 소재 / 예약영상 / 예약일시 / 상태 = 7
    */
   const isThreads = group === 'threads';
-  const colCount = isThreads ? 8 : 7;
+  const colCount = 7;
   const [channels, setChannels] = useState<MyChannel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [todoist, setTodoist] = useState<TodoistStatus>({ connected: false });
@@ -730,8 +735,16 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                   ) : (
                     <th className="w-[300px] px-4 py-2 text-left align-top font-semibold">소재</th>
                   )}
-                  <th className="w-[220px] px-4 py-2 text-left align-top font-semibold">마지막 예약 영상</th>
-                  <th className="w-[170px] px-4 py-2 text-left align-top font-semibold">예약일시</th>
+                  {isThreads ? (
+                    <th className="w-[390px] px-4 py-2 text-left align-top font-semibold">
+                      마지막 게시글 링크
+                    </th>
+                  ) : (
+                    <>
+                      <th className="w-[220px] px-4 py-2 text-left align-top font-semibold">마지막 예약 영상</th>
+                      <th className="w-[170px] px-4 py-2 text-left align-top font-semibold">예약일시</th>
+                    </>
+                  )}
                   <th className="w-[160px] px-3 py-2 text-right align-top font-semibold">상태</th>
                 </tr>
               </thead>
@@ -786,7 +799,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                         onUpdate={updateChannel}
                         onRemove={() => removeChannel(c.id)}
                         onRefresh={refresh}
-                        onAddVideo={async (t, w, n) => {
+                        onAddVideo={async (t, w, n, publishedUrl) => {
                           if (!w) return;
                           await fetch('/api/v1/my-schedule/videos', {
                             method: 'POST',
@@ -796,6 +809,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                               title: t,
                               scheduledAt: kstLocalToISO(w),
                               notes: n,
+                              ...(publishedUrl ? { publishedUrl } : {}),
                             }),
                           });
                           refresh();
@@ -853,7 +867,7 @@ function DashRow({
   onUpdate: (id: string, patch: Partial<MyChannel>) => void;
   onRemove: () => void;
   onRefresh: () => void;
-  onAddVideo: (title: string, when: string, notes: string) => void;
+  onAddVideo: (title: string, when: string, notes: string, publishedUrl?: string) => void;
   onUpdateVideo: (id: string, patch: Record<string, unknown>) => void;
   onRemoveVideo: (id: string) => void;
   onAddMaterial: (url: string) => void;
@@ -1026,21 +1040,33 @@ function DashRow({
             />
           </td>
         )}
-        <td className="px-4 py-3 align-top">
-          <InlineTitleCell
-            last={last}
-            count={c.videos.length}
-            onSaveExisting={(id, title) => onUpdateVideo(id, { title })}
-            onCreate={(title) => onAddVideo(title, todayKstInputValue(), '')}
-          />
-        </td>
-        <td className="px-4 py-3 align-top text-sm">
-          <InlineDateCell
-            last={last}
-            onSaveExisting={(id, iso) => onUpdateVideo(id, { scheduledAt: iso })}
-            onCreate={(localStr) => onAddVideo('', localStr, '')}
-          />
-        </td>
+        {isThreads ? (
+          <td className="px-4 py-3 align-top text-sm">
+            <PublishedLinkCell
+              videos={c.videos}
+              onSave={(id, url) => onUpdateVideo(id, { publishedUrl: url })}
+              onCreate={(url) => onAddVideo('', todayKstInputValue(), '', url)}
+            />
+          </td>
+        ) : (
+          <>
+            <td className="px-4 py-3 align-top">
+              <InlineTitleCell
+                last={last}
+                count={c.videos.length}
+                onSaveExisting={(id, title) => onUpdateVideo(id, { title })}
+                onCreate={(title) => onAddVideo(title, todayKstInputValue(), '')}
+              />
+            </td>
+            <td className="px-4 py-3 align-top text-sm">
+              <InlineDateCell
+                last={last}
+                onSaveExisting={(id, iso) => onUpdateVideo(id, { scheduledAt: iso })}
+                onCreate={(localStr) => onAddVideo('', localStr, '')}
+              />
+            </td>
+          </>
+        )}
         <td className="px-3 py-3 align-top text-sm">
           <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
             {/* 상태 칩 — 예약 유무 */}
@@ -1345,6 +1371,97 @@ function DashRow({
         </tr>
       )}
     </>
+  );
+}
+
+/**
+ * 스레드용 — 마지막으로 올린 글 링크.
+ *
+ * 링크는 ScheduledVideo.publishedUrl 에 붙으므로, 링크가 들어 있는 것 중
+ * 가장 최근 것을 보여준다. 아직 아무 글도 없으면 새 항목을 만들면서 링크를 넣는다.
+ */
+function PublishedLinkCell({
+  videos,
+  onSave,
+  onCreate,
+}: {
+  videos: ScheduledVideo[];
+  onSave: (id: string, url: string) => void;
+  onCreate: (url: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const target = [...videos]
+    .filter((v) => !!v.publishedUrl)
+    .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())[0];
+  // 링크가 붙은 게 없으면 가장 최근 항목에 붙인다.
+  const fallback = [...videos].sort(
+    (a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()
+  )[0];
+  const current = target ?? fallback;
+  const url = target?.publishedUrl ?? null;
+
+  const commit = () => {
+    setEditing(false);
+    const v = draft.trim();
+    if ((url ?? '') === v) return;
+    if (current) onSave(current.id, v);
+    else if (v) onCreate(v);
+  };
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          } else if (e.key === 'Escape') {
+            setEditing(false);
+          }
+        }}
+        onClick={(e) => e.stopPropagation()}
+        placeholder="https://www.threads.net/..."
+        className="h-8 w-full rounded border bg-background px-2 text-[13px]"
+      />
+    );
+  }
+
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      {url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-brand hover:underline"
+          title={url}
+        >
+          {url}
+        </a>
+      ) : (
+        <span className="min-w-0 flex-1 truncate text-[13.5px] text-muted-foreground/50">
+          게시글 없음
+        </span>
+      )}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setDraft(url ?? '');
+          setEditing(true);
+        }}
+        className="hover-action shrink-0 rounded px-1.5 py-0.5 text-[12px] font-semibold text-muted-foreground"
+        title="링크 입력"
+      >
+        {url ? '수정' : '입력'}
+      </button>
+    </div>
   );
 }
 
