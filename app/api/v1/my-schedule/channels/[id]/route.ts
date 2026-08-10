@@ -21,6 +21,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     adsense?: string | null;
     email?: string | null;
     phone?: string | null;
+    profile?: string | null;
     isActive?: boolean;
   } = {};
   if (typeof body.name === 'string') data.name = body.name.trim();
@@ -32,6 +33,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if ('adsense' in body) data.adsense = body.adsense?.trim() || null;
   if ('email' in body) data.email = body.email?.trim() || null;
   if ('phone' in body) data.phone = body.phone?.trim() || null;
+  if ('profile' in body) data.profile = body.profile?.trim() || null;
   if (typeof body.isActive === 'boolean') data.isActive = body.isActive;
   if (typeof body.todoistGroup === 'string' && ALLOWED_GROUPS.has(body.todoistGroup)) {
     data.todoistGroup = body.todoistGroup;
