@@ -130,6 +130,9 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
   );
   const [newCategory, setNewCategory] = useState('');
   const [newUrl, setNewUrl] = useState('');
+  // 스레드 전용 — 표에 있는 칸은 추가할 때도 넣을 수 있어야 한다
+  const [newEmail, setNewEmail] = useState('');
+  const [newProfile, setNewProfile] = useState('');
 
   // 영상 추가 폼
   const [vTitle, setVTitle] = useState('');
@@ -190,6 +193,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         todoistGroup: group,
         category: newCategory,
         url: newUrl,
+        ...(isThreads ? { email: newEmail, profile: newProfile } : {}),
       }),
     });
     const j = await r.json();
@@ -197,6 +201,8 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
       setNewName('');
       setNewCategory('');
       setNewUrl('');
+      setNewEmail('');
+      setNewProfile('');
       setSelectedChannelId(j.data.id);
       refresh();
       return j.data.id as string;
@@ -539,7 +545,14 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
 
       {/* 채널 추가 폼 (토글) */}
       {showAddChannel && (
-        <div className="mb-4 grid gap-2 rounded-2xl border border-border bg-card p-4 sm:grid-cols-[150px_1fr_1fr_170px_110px]">
+        <div
+          className={
+            'mb-4 grid gap-2 rounded-2xl border border-border bg-card p-4 ' +
+            (isThreads
+              ? 'sm:grid-cols-[150px_1fr_1fr_150px_1fr_130px_110px]'
+              : 'sm:grid-cols-[150px_1fr_1fr_170px_110px]')
+          }
+        >
           <select
             value={newPlatform}
             onChange={(e) => setNewPlatform(e.target.value as Platform)}
@@ -554,7 +567,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder={`${unit}명 *`}
+            placeholder={isThreads ? '닉네임 *' : `${unit}명 *`}
             className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
           />
           <input
@@ -569,6 +582,22 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
             placeholder="카테고리"
             className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
           />
+          {isThreads && (
+            <>
+              <input
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="이메일"
+                className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
+              />
+              <input
+                value={newProfile}
+                onChange={(e) => setNewProfile(e.target.value)}
+                placeholder="프로필"
+                className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
+              />
+            </>
+          )}
           <button
             onClick={() => addChannel()}
             disabled={!newName.trim()}
