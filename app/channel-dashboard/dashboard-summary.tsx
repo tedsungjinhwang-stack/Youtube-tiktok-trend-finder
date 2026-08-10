@@ -48,6 +48,7 @@ export function DashboardSummary({
   unit = '채널',
   showSortLabel = true,
   showPublished = false,
+  showSchedule = true,
   compact = false,
 }: {
   channels: SummaryChannel[];
@@ -57,6 +58,11 @@ export function DashboardSummary({
   showSortLabel?: boolean;
   /** '최근 발행한 글' 섹션 (스레드처럼 발행 링크를 관리하는 그룹) */
   showPublished?: boolean;
+  /**
+   * 예약 기반 지표(KPI 3장 + '예약이 끝나는 순서').
+   * 스레드처럼 예약을 안 쓰는 그룹에서는 전부 '예약 없음'으로만 떠서 의미가 없다.
+   */
+  showSchedule?: boolean;
   /** 밀도 압축 — 전체 현황처럼 한 화면에 담아야 할 때 */
   compact?: boolean;
 }) {
@@ -70,6 +76,8 @@ export function DashboardSummary({
 
   return (
     <>
+      {showSchedule && (
+      <>
       {/* KPI 3장 */}
       <div className={(compact ? 'mb-3 gap-2.5 ' : 'mb-4 gap-3 ') + 'grid grid-cols-1 sm:grid-cols-3'}>
         <div className={'surface-warn rounded-2xl border ' + (compact ? 'p-3' : 'p-4')}>
@@ -165,6 +173,8 @@ export function DashboardSummary({
           })}
         </div>
       </section>
+      </>
+      )}
 
       {/* 최근 발행한 글 */}
       {showPublished && (

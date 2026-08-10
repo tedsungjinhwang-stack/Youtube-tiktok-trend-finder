@@ -85,12 +85,17 @@ export function OverviewClient() {
 
   const quote = useMemo(() => quoteOfDay(kstTodayDate()), []);
 
-  /** 전체 합계 (그룹 무관) */
+  /**
+   * 현황판 합계.
+   * 스레드는 예약을 쓰지 않아 계정 전부가 '예약 없음'이다. 그대로 더하면
+   * '오늘 업로드 필요'가 스레드 계정 수만큼 부풀어 숫자를 못 믿게 되므로 제외한다.
+   */
   const totals = useMemo(() => {
     let need = 0;
     let soon = 0;
     let relaxed = 0;
-    for (const list of byGroup.values()) {
+    for (const [g, list] of byGroup) {
+      if (g === 'threads') continue;
       for (const c of list) {
         const d = channelDDay(c);
         if (d === null || d <= 0) need += 1;
@@ -178,10 +183,14 @@ export function OverviewClient() {
         {DASHBOARD_GROUPS.map((g) => {
           const rows = byGroup.get(g) ?? [];
           const unit = GROUP_UNIT[g];
-          const risk = rows.filter((c) => {
-            const d = channelDDay(c);
-            return d === null || d <= 1;
-          }).length;
+          // 스레드는 예약 기준 지표를 안 쓰므로 '필요' 배지도 달지 않는다
+          const risk =
+            g === 'threads'
+              ? 0
+              : rows.filter((c) => {
+                  const d = channelDDay(c);
+                  return d === null || d <= 1;
+                }).length;
           return (
             <section key={g}>
               {/* 그룹 헤더 */}
@@ -230,6 +239,7 @@ export function OverviewClient() {
                   unit={unit}
                   showSortLabel={false}
                   showPublished={g === 'threads'}
+                  showSchedule={g !== 'threads'}
                   compact
                 />
               )}
