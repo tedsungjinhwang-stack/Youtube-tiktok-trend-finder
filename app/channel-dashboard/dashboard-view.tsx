@@ -1211,6 +1211,12 @@ function DashRow({
               </button>
             </div>
 
+            {/*
+              스레드는 YouTube 연결·예약 등록·완성본을 쓰지 않는다.
+              이미 올린 글 링크만 추적하므로 아래 세 블록은 스레드에서 감춘다.
+            */}
+            {!isThreads && (
+            <>
             {/* YouTube 연결 (선택) — 연결하면 예약 업로드가 자동으로 들어옴, 미연결이어도 수동 사용 OK */}
             <div className="mb-3 rounded-lg border border-border/60 bg-background/50 px-3 py-2">
               {c.youtubeOauth ? (
@@ -1316,11 +1322,15 @@ function DashRow({
                 onRemove={onRemoveAttachment}
               />
             </div>
+            </>
+            )}
 
             {/* 영상 리스트 — 컴팩트 한 줄 */}
             {sortedAsc.length === 0 ? (
               <p className="py-2 text-center text-[13px] text-muted-foreground">
-                예약 영상 없음
+                {isThreads
+                  ? '기록된 게시글 없음 — 표의 「마지막 게시글 링크」 칸에 URL 을 넣으면 여기 쌓입니다'
+                  : '예약 영상 없음'}
               </p>
             ) : (
               <ul className="space-y-1">
