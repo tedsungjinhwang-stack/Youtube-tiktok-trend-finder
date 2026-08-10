@@ -74,7 +74,7 @@ export function OverviewClient() {
         name: ch.name,
         platform: ch.platform,
         category: ch.category,
-        lastScheduledAt: future[0]?.scheduledAt ?? null,
+        lastScheduledAt: future.find((v) => !v.publishedUrl)?.scheduledAt ?? null,
         published: pub
           ? { title: pub.title, url: pub.publishedUrl!, scheduledAt: pub.scheduledAt }
           : null,

@@ -167,17 +167,18 @@ export async function syncMyChannel(channelId: string): Promise<void> {
 
   // 예약 일시가 이미 지난 영상은 자동 제거 (업로드 완료된 것으로 간주).
   // → 마지막 예약이 과거였던 채널은 자동으로 '영상업로드 필요' 상태로 전환됨.
+  // ★단 publishedUrl 이 있는 행은 발행 기록이라 보존한다(스레드 「최근 발행한 글」).
   await prisma.scheduledVideo
     .deleteMany({
-      where: { channelId, scheduledAt: { lt: new Date() } },
+      where: { channelId, scheduledAt: { lt: new Date() }, publishedUrl: null },
     })
     .catch(() => {});
 
   const ch = await prisma.myChannel.findUnique({
     where: { id: channelId },
     include: {
-      videos: { orderBy: { scheduledAt: 'desc' }, take: 1 },
-      _count: { select: { videos: true } },
+      videos: { where: { publishedUrl: null }, orderBy: { scheduledAt: 'desc' }, take: 1 },
+      _count: { select: { videos: { where: { publishedUrl: null } } } },
     },
   });
   if (!ch) return;

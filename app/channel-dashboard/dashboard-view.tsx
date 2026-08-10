@@ -508,7 +508,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         name: c.name,
         platform: c.platform,
         category: c.category,
-        lastScheduledAt: future[0]?.scheduledAt ?? null,
+        lastScheduledAt: future.find((v) => !v.publishedUrl)?.scheduledAt ?? null,
         published: pub
           ? { title: pub.title, url: pub.publishedUrl!, scheduledAt: pub.scheduledAt }
           : null,

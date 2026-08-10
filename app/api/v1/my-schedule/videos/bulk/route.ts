@@ -44,6 +44,9 @@ export async function POST(req: Request) {
 /**
  * 여러 채널의 예약영상 모두 삭제 (= "영상 업로드 필요" 상태로 만들기).
  * body: { channelIds: string[] }
+ *
+ * ★발행 기록(publishedUrl 있는 행)은 남긴다. 이 버튼의 의도는 '예약 비우기' 이지
+ *   '발행 이력 삭제' 가 아니다.
  */
 export async function DELETE(req: Request) {
   const body = await req.json().catch(() => ({}));
@@ -55,7 +58,7 @@ export async function DELETE(req: Request) {
     );
   }
   const deleted = await prisma.scheduledVideo.deleteMany({
-    where: { channelId: { in: channelIds } },
+    where: { channelId: { in: channelIds }, publishedUrl: null },
   });
   await Promise.all(channelIds.map((id) => syncChannelToTodoist(id).catch(() => {})));
   return NextResponse.json(

@@ -500,8 +500,11 @@ export async function syncChannelToTodoist(channelId: string): Promise<number> {
   const config = await prisma.todoistConfig.findUnique({ where: { id: 'default' } });
   if (!config) throw new Error('Todoist 미연결');
 
+  // ★publishedUrl 이 있는 행은 '예약' 이 아니라 '발행 기록' 이므로 지우지 않는다.
+  //   이 조건이 없던 동안, 스레드 대시보드의 「최근 발행한 글」 에 넣은 링크가 시각이
+  //   지나는 순간 이 정리 로직에 수거돼 사라졌다(그 화면이 계속 비어 있던 원인).
   await prisma.scheduledVideo
-    .deleteMany({ where: { channelId, scheduledAt: { lt: new Date() } } })
+    .deleteMany({ where: { channelId, scheduledAt: { lt: new Date() }, publishedUrl: null } })
     .catch(() => {});
 
   const ch = await prisma.myChannel.findUnique({
@@ -515,7 +518,10 @@ export async function syncChannelToTodoist(channelId: string): Promise<number> {
   const group = (ch.todoistGroup as DashboardGroup) ?? defaultGroupForPlatform(ch.platform);
   const all = await prisma.myChannel.findMany({
     where: { isActive: true },
-    include: { videos: { orderBy: { scheduledAt: 'desc' }, take: 1 }, _count: { select: { videos: true } } },
+    include: {
+      videos: { where: { publishedUrl: null }, orderBy: { scheduledAt: 'desc' }, take: 1 },
+      _count: { select: { videos: { where: { publishedUrl: null } } } },
+    },
   });
   const channels = all.filter(
     (c) => ((c.todoistGroup as DashboardGroup) ?? defaultGroupForPlatform(c.platform)) === group
@@ -570,14 +576,19 @@ export async function syncAllToTodoist(): Promise<{
   if (!config) throw new Error('Todoist 미연결');
   const token = config.apiToken;
 
-  // 지난 예약 정리 (전 활성 채널)
+  // 지난 예약 정리 (전 활성 채널). publishedUrl 있는 발행 기록은 보존 — 위 주석 참조.
   await prisma.scheduledVideo
-    .deleteMany({ where: { scheduledAt: { lt: new Date() }, channel: { isActive: true } } })
+    .deleteMany({
+      where: { scheduledAt: { lt: new Date() }, channel: { isActive: true }, publishedUrl: null },
+    })
     .catch(() => {});
 
   const all = await prisma.myChannel.findMany({
     where: { isActive: true },
-    include: { videos: { orderBy: { scheduledAt: 'desc' }, take: 1 }, _count: { select: { videos: true } } },
+    include: {
+      videos: { where: { publishedUrl: null }, orderBy: { scheduledAt: 'desc' }, take: 1 },
+      _count: { select: { videos: { where: { publishedUrl: null } } } },
+    },
   });
 
   let tasks = 0;
