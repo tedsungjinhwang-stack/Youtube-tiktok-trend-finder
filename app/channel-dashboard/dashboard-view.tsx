@@ -508,7 +508,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         name: c.name,
         platform: c.platform,
         category: c.category,
-        lastScheduledAt: future[0]?.scheduledAt ?? null,
+        lastScheduledAt: future.find((v) => !v.publishedUrl)?.scheduledAt ?? null,
         published: pub
           ? { title: pub.title, url: pub.publishedUrl!, scheduledAt: pub.scheduledAt }
           : null,
@@ -987,6 +987,12 @@ function DashRow({
     (a, b) =>
       new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
   );
+  /**
+   * 아직 안 올린 '예약' 개수. publishedUrl 이 붙은 행은 발행 기록이라 뺀다.
+   * 서버(lib/todoist.ts 의 isPending)와 같은 기준이어야 한다 — 안 그러면 표는
+   * '예약됨' 인데 Todoist·캘린더는 '영상업로드 필요' 로 갈려서 어느 쪽이 맞는지 알 수 없다.
+   */
+  const openCount = c.videos.filter((v) => !v.publishedUrl).length;
 
   return (
     <>
@@ -1100,7 +1106,7 @@ function DashRow({
             <td className="px-4 py-3 align-top">
               <InlineTitleCell
                 last={last}
-                count={c.videos.length}
+                count={openCount}
                 onSaveExisting={(id, title) => onUpdateVideo(id, { title })}
                 onCreate={(title) => onAddVideo(title, todayKstInputValue(), '')}
               />
@@ -1122,12 +1128,12 @@ function DashRow({
               style={
                 !c.isActive
                   ? { background: '#252A2F', color: '#8A939C' }
-                  : c.videos.length > 0
+                  : openCount > 0
                     ? { background: 'rgba(116,190,140,0.13)', color: '#74BE8C' }
                     : { background: 'rgba(217,165,92,0.15)', color: '#D9A55C' }
               }
             >
-              {!c.isActive ? '비활성' : c.videos.length > 0 ? '예약됨' : '비어있음'}
+              {!c.isActive ? '비활성' : openCount > 0 ? '예약됨' : '비어있음'}
             </span>
             {/* 부수 액션 — 행 hover 시에만 */}
             <button
@@ -1395,14 +1401,20 @@ function DashRow({
                         {v.notes}
                       </span>
                     )}
-                    {/* 발행 완료 후 실제 게시물 링크 — 전체 현황의 '최근 발행된 글' 에 표시됨 */}
-                    <input
-                      value={v.publishedUrl ?? ''}
-                      onChange={(e) => onUpdateVideo(v.id, { publishedUrl: e.target.value })}
-                      placeholder="발행 링크"
-                      title="발행 후 게시물 URL 을 넣으면 전체 현황에 표시됩니다"
-                      className="h-8 w-[150px] shrink-0 rounded border bg-background px-1.5 text-[12px] text-brand"
-                    />
+                    {/* 발행 완료 후 실제 게시물 링크 — 스레드 「최근 발행한 글」 에 표시됨.
+                        ★스레드에서만 노출한다: 링크가 붙은 행은 '예약' 집계에서 빠지므로,
+                          예약으로 운영하는 유튜브·쇼핑에서 이 칸을 쓰면 그 채널이 곧바로
+                          '예약 없음(업로드 필요)' 으로 강등된다. 표시도 스레드 전용이다
+                          (dashboard-summary 의 showPublished). */}
+                    {isThreads && (
+                      <input
+                        value={v.publishedUrl ?? ''}
+                        onChange={(e) => onUpdateVideo(v.id, { publishedUrl: e.target.value })}
+                        placeholder="발행 링크"
+                        title="발행 후 게시물 URL 을 넣으면 「최근 발행한 글」 에 표시됩니다"
+                        className="h-8 w-[150px] shrink-0 rounded border bg-background px-1.5 text-[12px] text-brand"
+                      />
+                    )}
                     {v.publishedUrl && (
                       <a
                         href={v.publishedUrl}

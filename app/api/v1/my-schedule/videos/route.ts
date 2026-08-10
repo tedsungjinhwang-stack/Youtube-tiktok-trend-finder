@@ -24,8 +24,10 @@ export async function POST(req: Request) {
   }
   try {
     if (replace) {
+      // ★미래 '예약' 만 대체한다. publishedUrl 이 붙은 행은 발행 기록이라 남긴다
+      //   (/share 빠른추가가 스레드 계정도 고를 수 있어 여기 걸리면 링크가 사라진다).
       await prisma.scheduledVideo
-        .deleteMany({ where: { channelId, scheduledAt: { gte: new Date() } } })
+        .deleteMany({ where: { channelId, scheduledAt: { gte: new Date() }, publishedUrl: null } })
         .catch(() => {});
     }
     const created = await prisma.scheduledVideo.create({
