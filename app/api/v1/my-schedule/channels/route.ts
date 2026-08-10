@@ -145,12 +145,15 @@ const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' } as const;
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { name, category, url, platform, todoistGroup } = body as {
+  const { name, category, url, platform, todoistGroup, email, profile } = body as {
     name?: string;
     category?: string;
     url?: string;
     platform?: string;
     todoistGroup?: string;
+    /** 스레드 계정은 추가할 때부터 이메일·프로필을 같이 받는다 */
+    email?: string;
+    profile?: string;
   };
   const trimmedName = name?.trim() || '';
   const normalizedPlatform =
@@ -185,6 +188,8 @@ export async function POST(req: Request) {
         todoistGroup: normalizedGroup,
         category: category?.trim() || null,
         url: url?.trim() || null,
+        email: email?.trim() || null,
+        profile: profile?.trim() || null,
         sortOrder: (max._max.sortOrder ?? 0) + 1,
       },
     });
