@@ -646,7 +646,8 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
       {channels.length > 0 && <DashboardSummary
           channels={summaryChannels}
           unit={unit}
-          showPublished={group === 'threads'}
+          showPublished={isThreads}
+          showSchedule={!isThreads}
         />}
 
       <main className="flex flex-col">
