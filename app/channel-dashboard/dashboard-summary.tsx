@@ -210,18 +210,22 @@ export function DashboardSummary({
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13px] font-bold">{c.name}</span>
-                        <a
-                          href={c.published!.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block truncate text-[12px] font-semibold text-brand hover:underline"
-                          title={c.published!.url}
-                        >
-                          {c.published!.title || c.published!.url}
-                        </a>
-                      </span>
-                      <span className="num shrink-0 text-[12px] font-semibold text-[color:var(--text-faint)]">
-                        {kstShort(c.published!.scheduledAt)}
+                        {/* 발행 시각은 제목 바로 옆에 붙인다 — 행 끝에 따로 두면 계정명·제목과
+                            시선이 멀어져 어느 글이 언제 나갔는지 한눈에 안 읽힌다. */}
+                        <span className="flex min-w-0 items-baseline gap-1.5">
+                          <a
+                            href={c.published!.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="min-w-0 truncate text-[12px] font-semibold text-brand hover:underline"
+                            title={c.published!.url}
+                          >
+                            {c.published!.title || c.published!.url}
+                          </a>
+                          <span className="num shrink-0 text-[11.5px] font-semibold text-[color:var(--text-faint)]">
+                            {kstShort(c.published!.scheduledAt)}
+                          </span>
+                        </span>
                       </span>
                     </li>
                   );
