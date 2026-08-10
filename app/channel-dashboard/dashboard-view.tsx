@@ -69,6 +69,8 @@ type MyChannel = {
   adsense: string | null;
   email: string | null;
   phone: string | null;
+  /** 스레드 계정 메모 — 멀티로그인 프로필 번호 등 */
+  profile: string | null;
   sortOrder: number;
   isActive: boolean;
   todoistGroup?: string | null;
@@ -100,6 +102,12 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
   const groupLabel = GROUP_LABEL[group];
   const groupPlatforms = GROUP_PLATFORMS[group];
   const unit = GROUP_UNIT[group]; // '채널' | '계정'
+  /**
+   * 스레드는 표 구성이 다르다. 애드센스·전화 같은 수익화 정보 대신
+   * 이메일·프로필(멀티로그인 몇 번인지)을 각각 칸으로 두고, 소재 칸은 쓰지 않는다.
+   */
+  const isThreads = group === 'threads';
+  const colCount = isThreads ? 8 : 7;
   const [channels, setChannels] = useState<MyChannel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [todoist, setTodoist] = useState<TodoistStatus>({ connected: false });
@@ -710,9 +718,18 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                       className="h-3.5 w-3.5"
                     />
                   </th>
-                  <th className="w-[250px] px-4 py-2 text-left align-top font-semibold">{unit}</th>
+                  <th className="w-[250px] px-4 py-2 text-left align-top font-semibold">
+                    {isThreads ? '닉네임' : unit}
+                  </th>
                   <th className="w-[130px] px-4 py-2 text-left align-top font-semibold">카테고리</th>
-                  <th className="w-[300px] px-4 py-2 text-left align-top font-semibold">소재</th>
+                  {isThreads ? (
+                    <>
+                      <th className="w-[210px] px-4 py-2 text-left align-top font-semibold">이메일</th>
+                      <th className="w-[150px] px-4 py-2 text-left align-top font-semibold">프로필</th>
+                    </>
+                  ) : (
+                    <th className="w-[300px] px-4 py-2 text-left align-top font-semibold">소재</th>
+                  )}
                   <th className="w-[220px] px-4 py-2 text-left align-top font-semibold">마지막 예약 영상</th>
                   <th className="w-[170px] px-4 py-2 text-left align-top font-semibold">예약일시</th>
                   <th className="w-[160px] px-3 py-2 text-right align-top font-semibold">상태</th>
@@ -738,7 +755,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                       {showHeader && (
                         <tr style={{ background: 'var(--surface-group-header)' }}>
                           <td
-                            colSpan={7}
+                            colSpan={colCount}
                             className="px-4 py-2 text-[11.5px] font-extrabold uppercase tracking-[0.06em] text-[color:var(--text-quaternary)]"
                           >
                             <span className="inline-flex items-center gap-2">
@@ -757,6 +774,8 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                       <DashRow
                         c={c}
                         unit={unit}
+                        isThreads={isThreads}
+                        colCount={colCount}
                         last={last}
                         isExpanded={isExpanded}
                         checked={bulkIds.has(c.id)}
@@ -803,6 +822,8 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
 function DashRow({
   c,
   unit,
+  isThreads,
+  colCount,
   last,
   isExpanded,
   checked,
@@ -821,6 +842,9 @@ function DashRow({
 }: {
   c: MyChannel;
   unit: string;
+  /** 스레드 계정용 표 구성 (이메일·프로필 칸, 소재 칸 없음) */
+  isThreads: boolean;
+  colCount: number;
   last?: ScheduledVideo;
   isExpanded: boolean;
   checked: boolean;
@@ -941,26 +965,29 @@ function DashRow({
                   </span>
                 )}
               </div>
-              <div className="space-y-px rounded-md border border-border/50 bg-background/40 px-2 py-1">
-                <ContactRow
-                  icon="애드센스"
-                  value={c.adsense}
-                  placeholder="애드센스 계정"
-                  onSave={(v) => onUpdate(c.id, { adsense: v } as Partial<MyChannel>)}
-                />
-                <ContactRow
-                  icon="이메일"
-                  value={c.email}
-                  placeholder="이메일"
-                  onSave={(v) => onUpdate(c.id, { email: v } as Partial<MyChannel>)}
-                />
-                <ContactRow
-                  icon="전화"
-                  value={c.phone}
-                  placeholder="핸드폰"
-                  onSave={(v) => onUpdate(c.id, { phone: v } as Partial<MyChannel>)}
-                />
-              </div>
+              {/* 스레드는 이메일을 별도 칸으로 빼고 애드센스·전화는 쓰지 않는다 */}
+              {!isThreads && (
+                <div className="space-y-px rounded-md border border-border/50 bg-background/40 px-2 py-1">
+                  <ContactRow
+                    icon="애드센스"
+                    value={c.adsense}
+                    placeholder="애드센스 계정"
+                    onSave={(v) => onUpdate(c.id, { adsense: v } as Partial<MyChannel>)}
+                  />
+                  <ContactRow
+                    icon="이메일"
+                    value={c.email}
+                    placeholder="이메일"
+                    onSave={(v) => onUpdate(c.id, { email: v } as Partial<MyChannel>)}
+                  />
+                  <ContactRow
+                    icon="전화"
+                    value={c.phone}
+                    placeholder="핸드폰"
+                    onSave={(v) => onUpdate(c.id, { phone: v } as Partial<MyChannel>)}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </td>
@@ -973,13 +1000,32 @@ function DashRow({
             <span className="text-muted-foreground/50">—</span>
           )}
         </td>
-        <td className="px-4 py-3 align-top text-sm">
-          <MaterialsCell
-            materials={c.materials}
-            onAdd={onAddMaterial}
-            onRemove={onRemoveMaterial}
-          />
-        </td>
+        {isThreads ? (
+          <>
+            <td className="px-4 py-3 align-top text-sm">
+              <InlineTextCell
+                value={c.email}
+                placeholder="이메일"
+                onSave={(v) => onUpdate(c.id, { email: v } as Partial<MyChannel>)}
+              />
+            </td>
+            <td className="px-4 py-3 align-top text-sm">
+              <InlineTextCell
+                value={c.profile}
+                placeholder="프로필"
+                onSave={(v) => onUpdate(c.id, { profile: v } as Partial<MyChannel>)}
+              />
+            </td>
+          </>
+        ) : (
+          <td className="px-4 py-3 align-top text-sm">
+            <MaterialsCell
+              materials={c.materials}
+              onAdd={onAddMaterial}
+              onRemove={onRemoveMaterial}
+            />
+          </td>
+        )}
         <td className="px-4 py-3 align-top">
           <InlineTitleCell
             last={last}
@@ -1036,7 +1082,7 @@ function DashRow({
       </tr>
       {isExpanded && (
         <tr className="border-b bg-secondary/20">
-          <td colSpan={7} className="px-6 py-3">
+          <td colSpan={colCount} className="px-6 py-3">
             {/* 채널 메타 인라인 편집 */}
             <div className="mb-3 grid grid-cols-12 gap-2">
               <select

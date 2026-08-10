@@ -264,6 +264,8 @@ model MyChannel {
   adsense      String?
   email        String?
   phone        String?
+  /// 스레드 계정 전용 메모 — 멀티로그인 프로필 번호 등 자유 텍스트.
+  profile      String?
   sortOrder    Int                   @default(0)
   /// 비활성화하면 cron/캘린더 동기화에서 제외. 기존 GCal 이벤트는 건드리지 않음.
   isActive     Boolean               @default(true)
