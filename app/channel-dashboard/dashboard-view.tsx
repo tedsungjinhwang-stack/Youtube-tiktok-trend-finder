@@ -60,6 +60,16 @@ const PLATFORM_LABEL: Record<Platform, string> = {
 };
 const PLATFORM_ORDER: Platform[] = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK', 'THREADS', 'NAVER_CLIP'];
 
+/** 프로필 미입력은 항상 뒤로. 같은 프로필끼리는 이름순. */
+function byProfile(a: { profile: string | null; name: string }, b: { profile: string | null; name: string }): number {
+  const pa = a.profile?.trim() ?? '';
+  const pb = b.profile?.trim() ?? '';
+  if (!pa !== !pb) return pa ? -1 : 1;
+  // '프로필2' 와 '프로필10' 이 뒤집히지 않도록 숫자를 숫자로 비교
+  if (pa !== pb) return pa.localeCompare(pb, 'ko', { numeric: true });
+  return a.name.localeCompare(b.name, 'ko');
+}
+
 type MyChannel = {
   id: string;
   name: string;
@@ -163,7 +173,10 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
       ]);
       if (c.success) {
         const rows: MyChannel[] = c.data ?? [];
-        setChannels(rows.filter((ch) => groupPlatforms.includes(ch.platform ?? 'YOUTUBE')));
+        const mine = rows.filter((ch) => groupPlatforms.includes(ch.platform ?? 'YOUTUBE'));
+        // 스레드는 전부 같은 플랫폼이라 플랫폼 순서가 의미 없다.
+        // 멀티로그인 프로필끼리 붙여 보는 게 실제로 쓰는 순서라 프로필로 정렬한다.
+        setChannels(group === 'threads' ? [...mine].sort(byProfile) : mine);
         setSetupWarning(c.warning ?? null);
       } else {
         setSetupWarning(c.error?.message ?? `${unit} 목록 로드 실패`);
@@ -788,11 +801,12 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                   const last = sorted[0];
                   const isExpanded = selectedChannelId === c.id;
                   const prev = channels[idx - 1];
-                  const showHeader =
-                    !prev || (prev.platform ?? 'YOUTUBE') !== (c.platform ?? 'YOUTUBE');
-                  const countInGroup = channels.filter(
-                    (x) => (x.platform ?? 'YOUTUBE') === (c.platform ?? 'YOUTUBE'),
-                  ).length;
+                  // 스레드는 플랫폼이 하나뿐이라 프로필로 묶는다
+                  const bandOf = (x: MyChannel) =>
+                    isThreads ? (x.profile?.trim() || '') : (x.platform ?? 'YOUTUBE');
+                  const band = bandOf(c);
+                  const showHeader = !prev || bandOf(prev) !== band;
+                  const countInGroup = channels.filter((x) => bandOf(x) === band).length;
                   return (
                     <Fragment key={c.id}>
                       {showHeader && (
@@ -808,8 +822,11 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                                   background: platformStyle(c.platform ?? 'YOUTUBE').dot,
                                 }}
                               />
-                              {PLATFORM_LABEL[(c.platform ?? 'YOUTUBE') as Platform]} ·{' '}
-                              {countInGroup}{unit}
+                              {isThreads
+                                ? band || '프로필 미지정'
+                                : PLATFORM_LABEL[(c.platform ?? 'YOUTUBE') as Platform]}{' '}
+                              · {countInGroup}
+                              {unit}
                             </span>
                           </td>
                         </tr>
