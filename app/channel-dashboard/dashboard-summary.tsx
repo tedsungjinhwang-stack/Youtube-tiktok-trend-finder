@@ -43,6 +43,14 @@ function isUrgent(d: number | null): boolean {
   return d === null || d <= 1;
 }
 
+/**
+ * 목록에 찍는 채널 표기 — 분류가 있으면 "이름(분류)".
+ * 이름만으로는 어느 계열인지 구분이 안 돼서 목록에서는 항상 분류를 같이 보여준다.
+ */
+export function channelCaption(c: { name: string; category: string | null }): string {
+  return c.category ? `${c.name}(${c.category})` : c.name;
+}
+
 /** KPI 한 장. 숫자 색은 값이 있을 때만 의미색을 쓴다. */
 function KpiCard({
   title,
@@ -133,7 +141,7 @@ export function DashboardSummary({
               ? '없음'
               : soon
                   .sort((a, b) => a.d! - b.d!)
-                  .map((x) => `${x.c.name} ${ddayLabel(x.d)}`)
+                  .map((x) => `${channelCaption(x.c)} ${ddayLabel(x.d)}`)
                   .join(' · ')
           }
           compact={compact}
@@ -142,7 +150,7 @@ export function DashboardSummary({
           title={`여유 있는 ${unit} (D-2 이상)`}
           value={relaxed.length}
           tone="plain"
-          detail={relaxed.length === 0 ? '없음' : relaxed.map((x) => x.c.name).join(' · ')}
+          detail={relaxed.length === 0 ? '없음' : relaxed.map((x) => channelCaption(x.c)).join(' · ')}
           compact={compact}
         />
       </div>
@@ -173,7 +181,9 @@ export function DashboardSummary({
                   {ps.mark}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13.5px] font-bold">{c.name}</span>
+                  <span className="block truncate text-[13.5px] font-bold" title={channelCaption(c)}>
+                    {channelCaption(c)}
+                  </span>
                   <span className="block truncate text-[11.5px] font-semibold text-[color:var(--text-faint)]">
                     {c.lastScheduledAt
                       ? `마지막 예약 ${kstShort(c.lastScheduledAt)}`
@@ -234,7 +244,9 @@ export function DashboardSummary({
                         {ps.mark}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-bold">{c.name}</span>
+                        <span className="block truncate text-[13px] font-bold" title={channelCaption(c)}>
+                          {channelCaption(c)}
+                        </span>
                         <a
                           href={c.published!.url}
                           target="_blank"
