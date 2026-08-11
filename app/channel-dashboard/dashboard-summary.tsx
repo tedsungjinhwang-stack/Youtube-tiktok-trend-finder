@@ -247,18 +247,21 @@ export function DashboardSummary({
                         <span className="block truncate text-[13px] font-bold" title={channelCaption(c)}>
                           {channelCaption(c)}
                         </span>
-                        <a
-                          href={c.published!.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block truncate text-[12px] font-semibold text-brand hover:underline"
-                          title={c.published!.url}
-                        >
-                          {c.published!.title || c.published!.url}
-                        </a>
-                      </span>
-                      <span className="num shrink-0 text-[12px] font-semibold text-[color:var(--text-faint)]">
-                        {kstShort(c.published!.scheduledAt)}
+                        {/* 발행 시각은 행 끝이 아니라 글 바로 옆에 — 멀리 떨어지면 어느 글의 시각인지 안 읽힌다 */}
+                        <span className="flex min-w-0 items-baseline gap-1.5">
+                          <a
+                            href={c.published!.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="min-w-0 truncate text-[12px] font-semibold text-brand hover:underline"
+                            title={c.published!.url}
+                          >
+                            {c.published!.title || c.published!.url}
+                          </a>
+                          <span className="num shrink-0 text-[12px] font-semibold text-[color:var(--text-faint)]">
+                            {kstShort(c.published!.scheduledAt)}
+                          </span>
+                        </span>
                       </span>
                     </li>
                   );
