@@ -14,7 +14,6 @@ const tabs = [
   { href: '/threads-dashboard', label: '스레드' },
   { href: '/pixi', label: '픽시에디터' },
   { href: '/popular-feed', label: '해시태그검색' },
-  { href: '/trending', label: '실시간 인기' },
   { href: '/all?platforms=YOUTUBE', label: '영상 조회', match: ['/all'] },
   { href: '/channels', label: '에셋 채널' },
   { href: '/stock', label: '소재창고' },
