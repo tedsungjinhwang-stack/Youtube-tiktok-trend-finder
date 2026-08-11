@@ -5,51 +5,181 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * 토스식 팔레트. 다크가 기본이고 <html class="light"> 로 라이트가 켜진다.
+   * Tailwind 색 유틸(bg-card, text-muted-foreground …)이 hsl(var(--x)) 를 쓰므로
+   * 그쪽은 HSL 삼값으로, 직접 style 에 넣는 값은 --hex 계열로 따로 둔다.
+   */
   :root {
-    /* 저대비 다크 팔레트 (리디자인) — 순흑/순백·고채도 액센트 제거 */
-    --background: 210 8% 10%; /* #171A1D */
-    --foreground: 213 8% 90%; /* #E4E7EA */
-    --card: 212 9% 13%; /* #1C2024 */
-    --card-foreground: 213 8% 90%;
-    --primary: 213 8% 90%;
-    --primary-foreground: 210 8% 10%;
-    --secondary: 213 9% 16%; /* #252A2F */
-    --secondary-foreground: 213 8% 88%;
-    --muted: 213 9% 16%;
-    --muted-foreground: 210 7% 58%; /* #8A939C */
-    --accent: 213 9% 16%;
-    --accent-foreground: 213 8% 90%;
-    --brand: 166 42% 61%; /* #6FC7B1 */
-    --brand-foreground: 166 37% 10%; /* #10221D */
-    --destructive: 5 63% 69%; /* #E5837B */
-    --destructive-foreground: 166 37% 10%;
-    --success: 140 33% 60%; /* #74BE8C */
-    --warning: 34 60% 60%; /* #D9A55C */
-    --border: 213 9% 19%; /* #2B3036 */
-    --input: 213 10% 23%; /* #333A41 */
-    --ring: 166 42% 61%;
+    --background: 210 12% 10%; /* #171A1D */
+    --foreground: 210 12% 91%; /* #E4E7EA */
+    --card: 210 12% 13%; /* #1E2226 */
+    --card-foreground: 210 12% 91%;
+    --primary: 210 12% 91%;
+    --primary-foreground: 210 12% 10%;
+    --secondary: 210 13% 18%; /* #282E34 chip */
+    --secondary-foreground: 210 12% 91%;
+    --muted: 210 13% 15%; /* #22272C subtle */
+    --muted-foreground: 208 10% 63%; /* #98A2AB */
+    --accent: 210 13% 18%;
+    --accent-foreground: 210 12% 91%;
+    /* 브랜드 = 토스 블루 (기존 민트에서 교체) */
+    --brand: 217 100% 68%; /* #5B9BFF */
+    --brand-foreground: 218 46% 10%; /* #0E1726 */
+    --destructive: 5 67% 69%; /* #E5837B */
+    --destructive-foreground: 218 46% 10%;
+    --success: 139 36% 60%; /* #74BE8C */
+    --warning: 35 62% 61%; /* #D9A55C */
+    --border: 213 13% 17%; /* #262B31 line */
+    --input: 210 13% 18%;
+    --ring: 217 100% 68%;
     --radius: 0.625rem;
 
-    /* 표면 계단 */
-    --surface-table-header: #202429;
+    /* 표면 */
+    --panel: #1e2226;
+    --subtle: #22272c;
+    --chip: #282e34;
+    --line: #262b31;
+    --hairline: #22262b;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --header-bg: rgba(23, 26, 29, 0.9);
+    --photo-fade: linear-gradient(
+      100deg,
+      rgba(30, 34, 38, 0) 45%,
+      rgba(30, 34, 38, 0.94) 100%
+    );
+    --accent-solid: #5b9bff;
+    --accent-hover: #7fb0ff;
+    --on-accent: #0e1726;
+
+    /* 의미색 (배지·강조선) */
+    --red: #e5837b;
+    --red-bg: rgba(229, 131, 123, 0.15);
+    --amber: #d9a55c;
+    --amber-bg: rgba(217, 165, 92, 0.15);
+    --green: #74be8c;
+    --green-bg: rgba(116, 190, 140, 0.15);
+    --neutral-bg: #282e34;
+    --neutral-text: #98a2ab;
+
+    /* 아래 이름들은 기존 화면 12개가 이미 참조 중이라 유지하고 값만 새 토큰에 맞춘다 */
+    --surface-table-header: #22272c;
     --surface-input: #22272c;
-    --surface-chip: #252a2f;
-    --surface-group-header: #191d21;
-    /* 텍스트 계단 */
-    --text-secondary: #d8dce1;
-    --text-tertiary: #b4bcc4;
+    --surface-chip: #282e34;
+    --surface-group-header: #22272c;
+    --text-secondary: #e4e7ea;
+    --text-tertiary: #98a2ab;
     --text-quaternary: #98a2ab;
     --text-faint: #6e767e;
     --text-disabled: #5f676e;
-    /* 경계선 */
-    --border-row: #252a2f;
-    --border-dashed: #414951;
+    --border-row: #22262b;
+    --border-dashed: #3a4149;
     --border-hover: #545c66;
     --toggle-on: #333a42;
-    /* 경고 표면 */
-    --warn-bg: #201d16;
-    --warn-border: #38321f;
-    --warn-text: #d7c6a6;
+    --warn-bg: rgba(217, 165, 92, 0.15);
+    --warn-border: rgba(217, 165, 92, 0.28);
+    --warn-text: #d9a55c;
+    --danger-bg: rgba(229, 131, 123, 0.15);
+    --danger-text: #e5837b;
+
+    /* 플랫폼 마크 — 테마를 따라가야 해서 JS 상수가 아니라 변수로 둔다 */
+    --plat-youtube-bg: rgba(224, 104, 95, 0.16);
+    --plat-youtube-fg: #e5837b;
+    --plat-tiktok-bg: rgba(111, 201, 198, 0.16);
+    --plat-tiktok-fg: #85d2cf;
+    --plat-instagram-bg: rgba(208, 126, 160, 0.16);
+    --plat-instagram-fg: #db94b2;
+    --plat-facebook-bg: rgba(123, 147, 208, 0.16);
+    --plat-facebook-fg: #93a8db;
+    --plat-naver-bg: rgba(87, 179, 126, 0.16);
+    --plat-naver-fg: #79c79a;
+    --plat-threads-bg: rgba(201, 204, 209, 0.12);
+    --plat-threads-fg: #c2c6cb;
+    --plat-etc-bg: #282e34;
+    --plat-etc-fg: #98a2ab;
+  }
+
+  html.light {
+    --background: 210 18% 96%; /* #F2F4F6 */
+    --foreground: 216 23% 13%; /* #191F28 */
+    --card: 0 0% 100%;
+    --card-foreground: 216 23% 13%;
+    --primary: 216 23% 13%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 18% 96%;
+    --secondary-foreground: 216 23% 13%;
+    --muted: 210 25% 98%; /* #FAFBFC */
+    --muted-foreground: 214 10% 47%; /* #6B7684 */
+    --accent: 210 18% 96%;
+    --accent-foreground: 216 23% 13%;
+    --brand: 215 92% 58%; /* #3182F6 */
+    --brand-foreground: 0 0% 100%;
+    --destructive: 355 85% 60%; /* #F04452 */
+    --destructive-foreground: 0 0% 100%;
+    --success: 151 83% 35%; /* #0FA45C */
+    --warning: 33 100% 44%; /* #E07C00 */
+    --border: 210 15% 95%; /* #F0F2F4 */
+    --input: 210 15% 91%;
+    --ring: 215 92% 58%;
+
+    --panel: #ffffff;
+    --subtle: #fafbfc;
+    --chip: #f2f4f6;
+    --line: #f0f2f4;
+    --hairline: #f7f8f9;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --header-bg: rgba(242, 244, 246, 0.9);
+    --photo-fade: linear-gradient(
+      100deg,
+      rgba(255, 255, 255, 0) 55%,
+      rgba(255, 255, 255, 0.92) 100%
+    );
+    --accent-solid: #3182f6;
+    --accent-hover: #1b64da;
+    --on-accent: #ffffff;
+
+    --red: #f04452;
+    --red-bg: #ffeaea;
+    --amber: #e07c00;
+    --amber-bg: #fff3e0;
+    --green: #0fa45c;
+    --green-bg: #e7f6ec;
+    --neutral-bg: #f2f4f6;
+    --neutral-text: #6b7684;
+
+    --surface-table-header: #fafbfc;
+    --surface-input: #ffffff;
+    --surface-chip: #f2f4f6;
+    --surface-group-header: #fafbfc;
+    --text-secondary: #191f28;
+    --text-tertiary: #6b7684;
+    --text-quaternary: #6b7684;
+    --text-faint: #b0b8c1;
+    --text-disabled: #c4cad1;
+    --border-row: #f7f8f9;
+    --border-dashed: #d7dce1;
+    --border-hover: #b0b8c1;
+    --toggle-on: #dfe4e9;
+    --warn-bg: #fff3e0;
+    --warn-border: #f5d9ae;
+    --warn-text: #e07c00;
+    --danger-bg: #ffeaea;
+    --danger-text: #f04452;
+
+    --plat-youtube-bg: #ffeaea;
+    --plat-youtube-fg: #f04452;
+    --plat-tiktok-bg: #e9f5f4;
+    --plat-tiktok-fg: #0f9e9a;
+    --plat-instagram-bg: #fcebf2;
+    --plat-instagram-fg: #d2447e;
+    --plat-facebook-bg: #eaf0fd;
+    --plat-facebook-fg: #3f63c8;
+    --plat-naver-bg: #e7f6ec;
+    --plat-naver-fg: #0fa45c;
+    --plat-threads-bg: #edeff2;
+    --plat-threads-fg: #4e5968;
+    --plat-etc-bg: #f2f4f6;
+    --plat-etc-fg: #6b7684;
   }
 }
 
@@ -60,8 +190,12 @@
   html,
   body {
     @apply bg-background text-foreground;
-    /* 없으면 가로 스크롤바 트랙이 흰색으로 렌더링됨 */
+    /* 없으면 스크롤바·기본 폼 컨트롤이 반대 테마로 렌더링됨 */
     color-scheme: dark;
+  }
+  html.light,
+  html.light body {
+    color-scheme: light;
   }
   body {
     font-family:
@@ -79,10 +213,10 @@
     width: 8px;
   }
   ::-webkit-scrollbar-track {
-    background: #1c2024;
+    background: var(--subtle);
   }
   ::-webkit-scrollbar-thumb {
-    background: #333a41;
+    background: var(--border-dashed);
     border-radius: 8px;
   }
 }
@@ -119,5 +253,27 @@
     background: var(--warn-bg);
     border-color: var(--warn-border);
     color: var(--warn-text);
+  }
+
+  /* 카드 한 장 — 패널 배경 + 얇은 테두리 + 토큰 그림자 */
+  .card-surface {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+  /* 테이블 헤더·밴드·행 hover 같은 한 단계 들어간 면 */
+  .subtle-surface {
+    background: var(--subtle);
+  }
+  .row-hover:hover {
+    background: var(--subtle);
+  }
+
+  /* 테마 전환 시 색만 부드럽게 (레이아웃 애니메이션은 없음) */
+  .theme-fade {
+    transition:
+      background-color 140ms ease,
+      color 140ms ease,
+      border-color 140ms ease;
   }
 }

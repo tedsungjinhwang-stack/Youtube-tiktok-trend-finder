@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { TopBar } from '@/components/top-bar';
+import { TopBar, THEME_KEY } from '@/components/top-bar';
 
 export const metadata: Metadata = {
   title: '새로이 대시보드',
@@ -27,6 +27,15 @@ export default function RootLayout({
   return (
     <html lang="ko" className="dark">
       <head>
+        {/*
+          저장해 둔 테마를 페인트 전에 적용한다. body 렌더 뒤에 붙이면
+          다크로 한 번 그려진 뒤 라이트로 바뀌어 깜빡인다.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('${THEME_KEY}')==='light')document.documentElement.classList.add('light')}catch(e){}`,
+          }}
+        />
         {/* 댓글 생성기에서 폰트 선택용 — preconnect + 가벼운 weight subset */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link

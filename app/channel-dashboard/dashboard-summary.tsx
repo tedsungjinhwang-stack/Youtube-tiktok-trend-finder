@@ -43,6 +43,43 @@ function isUrgent(d: number | null): boolean {
   return d === null || d <= 1;
 }
 
+/** KPI 한 장. 숫자 색은 값이 있을 때만 의미색을 쓴다. */
+function KpiCard({
+  title,
+  value,
+  detail,
+  tone,
+  compact,
+}: {
+  title: string;
+  value: number;
+  detail: string;
+  tone: 'red' | 'amber' | 'plain';
+  compact: boolean;
+}) {
+  // plain 은 색을 지정하지 않고 본문색을 그대로 물려받는다
+  const color = tone === 'red' ? 'var(--red)' : tone === 'amber' ? 'var(--amber)' : undefined;
+  return (
+    <div
+      className={'card-surface theme-fade rounded-[20px] ' + (compact ? 'px-4 py-3.5' : 'px-[22px] py-5')}
+    >
+      <div className="text-[13px] font-bold text-muted-foreground">{title}</div>
+      <div
+        className={
+          'num mt-2 font-extrabold leading-none tracking-[-0.045em] ' +
+          (compact ? 'text-[25px]' : 'text-[30px]')
+        }
+        style={color ? { color } : undefined}
+      >
+        {value}
+      </div>
+      <div className="mt-2 line-clamp-2 text-[12.5px] font-semibold text-[color:var(--text-faint)]">
+        {detail}
+      </div>
+    </div>
+  );
+}
+
 export function DashboardSummary({
   channels,
   unit = '채널',
@@ -78,51 +115,41 @@ export function DashboardSummary({
     <>
       {showSchedule && (
       <>
-      {/* KPI 3장 */}
-      <div className={(compact ? 'mb-3 gap-2.5 ' : 'mb-4 gap-3 ') + 'grid grid-cols-1 sm:grid-cols-3'}>
-        <div className={'surface-warn rounded-2xl border ' + (compact ? 'p-3' : 'p-4')}>
-          <div className="text-[12.5px] font-bold text-[#D7C6A6]">오늘 업로드 필요</div>
-          <div className={'mt-1.5 num font-extrabold leading-none tracking-tight text-[#D9A55C] ' + (compact ? 'text-[24px]' : 'text-[29px]')}>
-            {todayNeed}
-          </div>
-          <div className="mt-2 text-[12px] font-semibold text-[#B09A76]">
-            예약 없음 {empty.length} · 소진 임박 {soon.length}
-          </div>
-        </div>
-
-        <div className={'rounded-2xl border border-border bg-card ' + (compact ? 'p-3' : 'p-4')}>
-          <div className="text-[12.5px] font-bold text-muted-foreground">
-            예약 소진 임박 (D-1 이내)
-          </div>
-          <div className={'mt-1.5 num font-extrabold leading-none tracking-tight ' + (compact ? 'text-[24px]' : 'text-[29px]')}>
-            {soon.length}
-          </div>
-          <div className="mt-2 line-clamp-2 text-[12px] font-semibold text-[color:var(--text-faint)]">
-            {soon.length === 0
+      {/* KPI 3장 — 값이 0 이면 색을 빼서 '문제 없음'이 한눈에 보이게 한다 */}
+      <div className={(compact ? 'mb-2.5 gap-2.5 ' : 'mb-3 gap-2.5 ') + 'grid grid-cols-1 sm:grid-cols-3'}>
+        <KpiCard
+          title="오늘 업로드 필요"
+          value={todayNeed}
+          tone={todayNeed > 0 ? 'red' : 'plain'}
+          detail={`예약 없음 ${empty.length} · 소진 임박 ${soon.length}`}
+          compact={compact}
+        />
+        <KpiCard
+          title="예약 소진 임박 (D-1 이내)"
+          value={soon.length}
+          tone={soon.length > 0 ? 'amber' : 'plain'}
+          detail={
+            soon.length === 0
               ? '없음'
               : soon
-                  .sort((a, b) => (a.d! - b.d!))
+                  .sort((a, b) => a.d! - b.d!)
                   .map((x) => `${x.c.name} ${ddayLabel(x.d)}`)
-                  .join(' · ')}
-          </div>
-        </div>
-
-        <div className={'rounded-2xl border border-border bg-card ' + (compact ? 'p-3' : 'p-4')}>
-          <div className="text-[12.5px] font-bold text-muted-foreground">
-            여유 있는 {unit} (D-2 이상)
-          </div>
-          <div className={'mt-1.5 num font-extrabold leading-none tracking-tight ' + (compact ? 'text-[24px]' : 'text-[29px]')}>
-            {relaxed.length}
-          </div>
-          <div className="mt-2 line-clamp-2 text-[12px] font-semibold text-[color:var(--text-faint)]">
-            {relaxed.length === 0 ? '없음' : relaxed.map((x) => x.c.name).join(' · ')}
-          </div>
-        </div>
+                  .join(' · ')
+          }
+          compact={compact}
+        />
+        <KpiCard
+          title={`여유 있는 ${unit} (D-2 이상)`}
+          value={relaxed.length}
+          tone="plain"
+          detail={relaxed.length === 0 ? '없음' : relaxed.map((x) => x.c.name).join(' · ')}
+          compact={compact}
+        />
       </div>
 
       {/* 예약이 끝나는 순서 */}
-      <section className={(compact ? 'mb-3 ' : 'mb-4 ') + 'rounded-2xl border border-border bg-card'}>
-        <div className={'flex items-center justify-between gap-3 border-b border-border px-4 ' + (compact ? 'py-2.5' : 'py-3')}>
+      <section className={(compact ? 'mb-3 ' : 'mb-4 ') + 'card-surface theme-fade rounded-[22px]'}>
+        <div className={'flex items-center justify-between gap-3 px-[22px] ' + (compact ? 'py-2.5' : 'py-3')}>
           <h2 className="text-[14px] font-extrabold tracking-tight">예약이 끝나는 순서</h2>
           <span className="text-[12px] font-semibold text-[color:var(--text-faint)]">
             임박한 순
@@ -136,11 +163,8 @@ export function DashboardSummary({
             return (
               <div
                 key={c.id}
-                className={'flex items-center gap-2.5 rounded-xl border px-3 ' + (compact ? 'py-2' : 'py-2.5')}
-                style={{
-                  background: urgent ? '#221F19' : '#20242A',
-                  borderColor: urgent ? '#3A3324' : '#2B3036',
-                }}
+                className={'flex items-center gap-2.5 rounded-2xl px-3.5 ' + (compact ? 'py-2' : 'py-2.5')}
+                style={{ background: urgent ? 'var(--red-bg)' : 'var(--subtle)' }}
               >
                 <span
                   className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-lg text-[12px] font-black"
@@ -157,13 +181,14 @@ export function DashboardSummary({
                   </span>
                 </span>
                 <span
-                  className="shrink-0 rounded-md px-2 py-1 text-[11.5px] font-extrabold"
+                  className="shrink-0 rounded-[9px] px-2 py-1 text-[12.5px] font-extrabold"
+                  // 임박 타일은 배경이 이미 붉으므로 배지는 패널색을 깔아야 글자가 뜬다
                   style={
                     urgent
-                      ? { background: 'rgba(217,165,92,0.15)', color: '#D9A55C' }
+                      ? { background: 'var(--panel)', color: 'var(--red)' }
                       : d === 2
-                        ? { background: 'rgba(217,165,92,0.09)', color: '#C0A177' }
-                        : { background: '#252A2F', color: '#8A939C' }
+                        ? { background: 'var(--amber-bg)', color: 'var(--amber)' }
+                        : { background: 'var(--chip)', color: 'var(--text-faint)' }
                   }
                 >
                   {ddayLabel(d)}
@@ -178,8 +203,8 @@ export function DashboardSummary({
 
       {/* 최근 발행한 글 */}
       {showPublished && (
-        <section className={(compact ? 'mb-3 ' : 'mb-4 ') + 'rounded-2xl border border-border bg-card'}>
-          <div className={'flex items-center justify-between gap-3 border-b border-border px-4 ' + (compact ? 'py-2.5' : 'py-3')}>
+        <section className={(compact ? 'mb-3 ' : 'mb-4 ') + 'card-surface theme-fade rounded-[22px]'}>
+          <div className={'flex items-center justify-between gap-3 px-[22px] ' + (compact ? 'py-2.5' : 'py-3')}>
             <h2 className="text-[14px] font-extrabold tracking-tight">최근 발행한 글</h2>
             <span className="text-[12px] font-semibold text-[color:var(--text-faint)]">
               발행 링크가 입력된 항목
@@ -210,22 +235,18 @@ export function DashboardSummary({
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13px] font-bold">{c.name}</span>
-                        {/* 발행 시각은 제목 바로 옆에 붙인다 — 행 끝에 따로 두면 계정명·제목과
-                            시선이 멀어져 어느 글이 언제 나갔는지 한눈에 안 읽힌다. */}
-                        <span className="flex min-w-0 items-baseline gap-1.5">
-                          <a
-                            href={c.published!.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="min-w-0 truncate text-[12px] font-semibold text-brand hover:underline"
-                            title={c.published!.url}
-                          >
-                            {c.published!.title || c.published!.url}
-                          </a>
-                          <span className="num shrink-0 text-[11.5px] font-semibold text-[color:var(--text-faint)]">
-                            {kstShort(c.published!.scheduledAt)}
-                          </span>
-                        </span>
+                        <a
+                          href={c.published!.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block truncate text-[12px] font-semibold text-brand hover:underline"
+                          title={c.published!.url}
+                        >
+                          {c.published!.title || c.published!.url}
+                        </a>
+                      </span>
+                      <span className="num shrink-0 text-[12px] font-semibold text-[color:var(--text-faint)]">
+                        {kstShort(c.published!.scheduledAt)}
                       </span>
                     </li>
                   );

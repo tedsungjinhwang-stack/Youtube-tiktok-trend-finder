@@ -508,7 +508,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         name: c.name,
         platform: c.platform,
         category: c.category,
-        lastScheduledAt: future.find((v) => !v.publishedUrl)?.scheduledAt ?? null,
+        lastScheduledAt: future[0]?.scheduledAt ?? null,
         published: pub
           ? { title: pub.title, url: pub.publishedUrl!, scheduledAt: pub.scheduledAt }
           : null,
@@ -542,14 +542,15 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
             <button
               onClick={syncTodoist}
               disabled={tdBusy}
-              className="h-9 rounded-lg border border-input px-3.5 text-[13px] font-bold text-foreground hover:border-[color:var(--border-hover)] disabled:opacity-50"
+              className="theme-fade h-10 rounded-xl px-4 text-[14px] font-bold text-foreground hover:opacity-90 disabled:opacity-50"
+              style={{ background: 'var(--chip)' }}
             >
               {tdBusy ? '동기화 중…' : 'Todoist 동기화'}
             </button>
           )}
           <button
             onClick={() => setShowAddChannel((v) => !v)}
-            className="h-9 rounded-lg bg-brand px-3.5 text-[13px] font-bold text-brand-foreground hover:opacity-90"
+            className="theme-fade h-10 rounded-xl bg-brand px-4 text-[14px] font-bold text-brand-foreground hover:opacity-90"
           >
             + {unit} 추가
           </button>
@@ -560,7 +561,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
       {showAddChannel && (
         <div
           className={
-            'mb-4 grid gap-2 rounded-2xl border border-border bg-card p-4 ' +
+            'card-surface theme-fade mb-4 grid gap-2 rounded-[22px] p-5 ' +
             (isThreads
               ? 'sm:grid-cols-[150px_1fr_1fr_150px_1fr_130px_110px]'
               : 'sm:grid-cols-[150px_1fr_1fr_170px_110px]')
@@ -623,7 +624,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
 
       {/* Todoist 미연결 시 안내 */}
       {!todoist.connected && (
-        <div className="mb-4 rounded-2xl border border-border bg-card p-4">
+        <div className="card-surface theme-fade mb-4 rounded-[22px] p-5">
           <div className="mb-2 text-[13px] font-bold">Todoist 연결</div>
           <div className="flex flex-wrap gap-2">
             <input
@@ -742,14 +743,14 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
           </div>
         )}
         {channels.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-card px-4 py-14 text-center text-[14px] text-muted-foreground">
+          <div className="card-surface theme-fade rounded-[22px] px-4 py-14 text-center text-[14px] font-semibold text-muted-foreground">
             상단 「+ {unit} 추가」로 {unit}을 등록하세요
           </div>
         ) : (
-          <div className="overflow-x-auto overflow-y-hidden rounded-2xl border border-border bg-card">
+          <div className="card-surface theme-fade mt-[22px] overflow-x-auto overflow-y-hidden rounded-[22px]">
             <table className="w-full min-w-[1170px] table-fixed text-[14px]">
-              <thead className="bg-[color:var(--surface-table-header)] text-[11.5px] font-bold uppercase tracking-[0.06em] text-[color:var(--text-quaternary)]">
-                <tr className="border-b border-border">
+              <thead className="subtle-surface text-[11.5px] font-extrabold uppercase tracking-[0.06em] text-[color:var(--text-quaternary)]">
+                <tr style={{ borderBottom: '1px solid var(--line)' }}>
                   <th className="w-9 px-2 py-2 text-center">
                     <input
                       type="checkbox"
@@ -810,7 +811,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                   return (
                     <Fragment key={c.id}>
                       {showHeader && (
-                        <tr style={{ background: 'var(--surface-group-header)' }}>
+                        <tr style={{ background: 'var(--subtle)' }}>
                           <td
                             colSpan={colCount}
                             className="px-4 py-2 text-[11.5px] font-extrabold uppercase tracking-[0.06em] text-[color:var(--text-quaternary)]"
@@ -874,6 +875,14 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
               </tbody>
             </table>
           </div>
+        )}
+
+        {channels.length > 0 && (
+          <p className="mt-3.5 px-1 text-[12.5px] font-semibold text-[color:var(--text-faint)]">
+            {isThreads
+              ? '스레드는 예약 대신 실제 발행한 글을 추적합니다. 발행 링크를 넣으면 위 목록에 올라옵니다.'
+              : 'D-day 는 KST 자정 기준입니다. 행을 열면 예약 추가·소재·YouTube 연결을 다룹니다.'}
+          </p>
         )}
       </main>
     </div>
@@ -987,21 +996,15 @@ function DashRow({
     (a, b) =>
       new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
   );
-  /**
-   * 아직 안 올린 '예약' 개수. publishedUrl 이 붙은 행은 발행 기록이라 뺀다.
-   * 서버(lib/todoist.ts 의 isPending)와 같은 기준이어야 한다 — 안 그러면 표는
-   * '예약됨' 인데 Todoist·캘린더는 '영상업로드 필요' 로 갈려서 어느 쪽이 맞는지 알 수 없다.
-   */
-  const openCount = c.videos.filter((v) => !v.publishedUrl).length;
 
   return (
     <>
       <tr
         className={cn(
-          'group border-b border-border/40 align-top transition-colors hover:bg-accent/20',
+          'group row-hover theme-fade align-top',
           !c.isActive && 'opacity-50',
-          isExpanded && 'bg-accent/30',
-          checked && 'bg-primary/10'
+          isExpanded && 'subtle-surface',
+          checked && 'subtle-surface'
         )}
       >
         <td className="px-2 py-3 text-center">
@@ -1106,7 +1109,7 @@ function DashRow({
             <td className="px-4 py-3 align-top">
               <InlineTitleCell
                 last={last}
-                count={openCount}
+                count={c.videos.length}
                 onSaveExisting={(id, title) => onUpdateVideo(id, { title })}
                 onCreate={(title) => onAddVideo(title, todayKstInputValue(), '')}
               />
@@ -1127,13 +1130,13 @@ function DashRow({
               className="shrink-0 rounded-md px-2 py-1 text-[11.5px] font-bold"
               style={
                 !c.isActive
-                  ? { background: '#252A2F', color: '#8A939C' }
-                  : openCount > 0
-                    ? { background: 'rgba(116,190,140,0.13)', color: '#74BE8C' }
-                    : { background: 'rgba(217,165,92,0.15)', color: '#D9A55C' }
+                  ? { background: 'var(--chip)', color: 'var(--text-faint)' }
+                  : c.videos.length > 0
+                    ? { background: 'var(--green-bg)', color: 'var(--green)' }
+                    : { background: 'var(--amber-bg)', color: 'var(--amber)' }
               }
             >
-              {!c.isActive ? '비활성' : openCount > 0 ? '예약됨' : '비어있음'}
+              {!c.isActive ? '비활성' : c.videos.length > 0 ? '예약됨' : '비어있음'}
             </span>
             {/* 부수 액션 — 행 hover 시에만 */}
             <button
@@ -1401,20 +1404,14 @@ function DashRow({
                         {v.notes}
                       </span>
                     )}
-                    {/* 발행 완료 후 실제 게시물 링크 — 스레드 「최근 발행한 글」 에 표시됨.
-                        ★스레드에서만 노출한다: 링크가 붙은 행은 '예약' 집계에서 빠지므로,
-                          예약으로 운영하는 유튜브·쇼핑에서 이 칸을 쓰면 그 채널이 곧바로
-                          '예약 없음(업로드 필요)' 으로 강등된다. 표시도 스레드 전용이다
-                          (dashboard-summary 의 showPublished). */}
-                    {isThreads && (
-                      <input
-                        value={v.publishedUrl ?? ''}
-                        onChange={(e) => onUpdateVideo(v.id, { publishedUrl: e.target.value })}
-                        placeholder="발행 링크"
-                        title="발행 후 게시물 URL 을 넣으면 「최근 발행한 글」 에 표시됩니다"
-                        className="h-8 w-[150px] shrink-0 rounded border bg-background px-1.5 text-[12px] text-brand"
-                      />
-                    )}
+                    {/* 발행 완료 후 실제 게시물 링크 — 전체 현황의 '최근 발행된 글' 에 표시됨 */}
+                    <input
+                      value={v.publishedUrl ?? ''}
+                      onChange={(e) => onUpdateVideo(v.id, { publishedUrl: e.target.value })}
+                      placeholder="발행 링크"
+                      title="발행 후 게시물 URL 을 넣으면 전체 현황에 표시됩니다"
+                      className="h-8 w-[150px] shrink-0 rounded border bg-background px-1.5 text-[12px] text-brand"
+                    />
                     {v.publishedUrl && (
                       <a
                         href={v.publishedUrl}
