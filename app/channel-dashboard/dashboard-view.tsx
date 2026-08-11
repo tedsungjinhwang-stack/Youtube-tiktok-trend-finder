@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { kstLocalToISO, isoToKstLocal, tomorrowKstLocal } from '@/lib/kst';
+import { kstLocalToISO, isoToKstLocal, tomorrowKstLocal, kstShort } from '@/lib/kst';
 import { DashboardSummary } from './dashboard-summary';
 import { platformStyle } from '@/lib/platform-style';
 import {
@@ -1101,7 +1101,9 @@ function DashRow({
             <PublishedLinkCell
               videos={c.videos}
               onSave={(id, url) => onUpdateVideo(id, { publishedUrl: url })}
-              onCreate={(url) => onAddVideo('', todayKstInputValue(), '', url)}
+              // 이미 올린 글을 기록하는 것이라 시각은 '지금'. 예약 기본값(내일 16:30)을
+              // 쓰면 발행 시각이 미래로 찍힌다.
+              onCreate={(url) => onAddVideo('', isoToKstLocal(new Date()), '', url)}
             />
           </td>
         ) : (
@@ -1501,16 +1503,24 @@ function PublishedLinkCell({
   return (
     <div className="flex min-w-0 items-center gap-2">
       {url ? (
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-brand hover:underline"
-          title={url}
-        >
-          {url}
-        </a>
+        <span className="min-w-0 flex-1">
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="block truncate text-[13.5px] font-semibold text-brand hover:underline"
+            title={url}
+          >
+            {url}
+          </a>
+          {/* 언제 올린 글인지 — 링크만으로는 최신 여부를 알 수 없다 */}
+          {target && (
+            <span className="num mt-0.5 block text-[12px] font-semibold text-[color:var(--text-faint)]">
+              {kstShort(target.scheduledAt)}
+            </span>
+          )}
+        </span>
       ) : (
         <span className="min-w-0 flex-1 truncate text-[13.5px] text-muted-foreground/50">
           게시글 없음
