@@ -36,16 +36,30 @@ export default function RootLayout({
             __html: `try{if(localStorage.getItem('${THEME_KEY}')==='light')document.documentElement.classList.add('light')}catch(e){}`,
           }}
         />
-        {/* 댓글 생성기에서 폰트 선택용 — preconnect + 가벼운 weight subset */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        {/* 본문 폰트 — globals.css 의 @import 에서 옮겨왔다 (직렬 → 병렬) */}
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
         <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Roboto:wght@400;500;700&family=Gowun+Dodum&family=Nanum+Pen+Script&family=Oswald:wght@400;500;700&display=swap"
           rel="stylesheet"
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+        />
+
+        {/*
+          픽시·댓글생성기·인스타영상·오디오쇼츠의 폰트 선택용.
+          12개 탭 전부에서 렌더를 막고 있었는데, 정작 쓰는 화면은 4개뿐이라
+          media="print" 로 받아 렌더를 막지 않게 하고 다 받아지면 all 로 바꾼다.
+        */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          id="editor-fonts"
+          rel="stylesheet"
+          media="print"
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Roboto:wght@400;500;700&family=Gowun+Dodum&family=Nanum+Pen+Script&family=Oswald:wght@400;500;700&display=swap"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var l=document.getElementById('editor-fonts');if(!l)return;var f=function(){l.media='all'};if(l.sheet)f();else l.addEventListener('load',f)})()`,
+          }}
         />
       </head>
       <body className="min-h-screen antialiased">
