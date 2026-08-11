@@ -1,4 +1,8 @@
-@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+/*
+ * 본문 폰트(Pretendard)는 여기서 @import 하지 않는다.
+ * CSS 안의 @import 는 직렬이라 「앱 CSS 다운로드 → 파싱 → 그제서야 폰트 CSS 요청」이 되어
+ * 첫 렌더가 그만큼 밀린다. layout.tsx 의 <link> 로 옮겨 병렬로 받는다.
+ */
 
 @tailwind base;
 @tailwind components;
