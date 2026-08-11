@@ -1,6 +1,9 @@
 /**
- * 플랫폼별 표시 스타일 (리디자인 팔레트 — 원색 대신 채도·명도를 맞춘 톤다운 값).
- * 마크 칩 / 색점 / 상태 칩에서 공통으로 사용.
+ * 플랫폼별 표시 스타일. 마크 칩 / 색점 / 상태 칩에서 공통으로 사용.
+ *
+ * 색은 hex 를 직접 들고 있지 않고 globals.css 의 CSS 변수를 가리킨다.
+ * 다크/라이트 세트가 각각 정의돼 있어서, 이렇게 해야 테마를 바꿀 때
+ * 이 파일을 거치지 않고 색이 따라온다 (인라인 style 에 var() 를 넣어도 동작한다).
  */
 
 export type PlatformKey =
@@ -30,67 +33,67 @@ export const PLATFORM_STYLE: Record<string, PlatformStyle> = {
   YOUTUBE: {
     mark: 'Y',
     label: 'YouTube',
-    dot: '#E0685F',
-    chipBg: 'rgba(224,104,95,0.15)',
-    chipText: '#E5837B',
+    dot: 'var(--plat-youtube-fg)',
+    chipBg: 'var(--plat-youtube-bg)',
+    chipText: 'var(--plat-youtube-fg)',
   },
   TIKTOK: {
     mark: 'T',
     label: 'TikTok',
-    dot: '#6FC9C6',
-    chipBg: 'rgba(111,201,198,0.15)',
-    chipText: '#85D2CF',
+    dot: 'var(--plat-tiktok-fg)',
+    chipBg: 'var(--plat-tiktok-bg)',
+    chipText: 'var(--plat-tiktok-fg)',
   },
   INSTAGRAM: {
     mark: 'I',
     label: 'Instagram',
-    dot: '#D07EA0',
-    chipBg: 'rgba(208,126,160,0.15)',
-    chipText: '#DB94B2',
+    dot: 'var(--plat-instagram-fg)',
+    chipBg: 'var(--plat-instagram-bg)',
+    chipText: 'var(--plat-instagram-fg)',
   },
   FACEBOOK: {
     mark: 'F',
     label: 'Facebook',
-    dot: '#7B93D0',
-    chipBg: 'rgba(123,147,208,0.15)',
-    chipText: '#93A8DB',
+    dot: 'var(--plat-facebook-fg)',
+    chipBg: 'var(--plat-facebook-bg)',
+    chipText: 'var(--plat-facebook-fg)',
   },
   THREADS: {
     mark: '@',
     label: 'Threads',
-    dot: '#C9CCD1',
-    chipBg: 'rgba(201,204,209,0.10)',
-    chipText: '#C2C6CB',
+    dot: 'var(--plat-threads-fg)',
+    chipBg: 'var(--plat-threads-bg)',
+    chipText: 'var(--plat-threads-fg)',
   },
   NAVER_CLIP: {
     mark: 'N',
     label: '네이버클립',
-    dot: '#57B37E',
-    chipBg: 'rgba(87,179,126,0.15)',
-    chipText: '#79C79A',
+    dot: 'var(--plat-naver-fg)',
+    chipBg: 'var(--plat-naver-bg)',
+    chipText: 'var(--plat-naver-fg)',
   },
   XIAOHONGSHU: {
     mark: '小',
     label: '샤오홍수',
-    dot: '#DE9A94',
-    chipBg: 'rgba(224,104,95,0.12)',
-    chipText: '#DE9A94',
+    dot: 'var(--plat-youtube-fg)',
+    chipBg: 'var(--plat-youtube-bg)',
+    chipText: 'var(--plat-youtube-fg)',
   },
   DOUYIN: {
     mark: '抖',
     label: '도우인',
-    dot: '#8FC6C4',
-    chipBg: 'rgba(111,201,198,0.12)',
-    chipText: '#8FC6C4',
+    dot: 'var(--plat-tiktok-fg)',
+    chipBg: 'var(--plat-tiktok-bg)',
+    chipText: 'var(--plat-tiktok-fg)',
   },
 };
 
 const FALLBACK: PlatformStyle = {
   mark: '?',
   label: '기타',
-  dot: '#8A939C',
-  chipBg: '#252A2F',
-  chipText: '#98A2AB',
+  dot: 'var(--plat-etc-fg)',
+  chipBg: 'var(--plat-etc-bg)',
+  chipText: 'var(--plat-etc-fg)',
 };
 
 export function platformStyle(p: string | null | undefined): PlatformStyle {

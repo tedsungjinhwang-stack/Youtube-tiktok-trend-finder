@@ -2,6 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+/** 테마 저장 키. layout.tsx 의 선(先)적용 스크립트와 같은 값을 써야 한다. */
+export const THEME_KEY = 'saeroi-toss-theme';
 
 const tabs = [
   { href: '/', label: '전체 현황', match: ['/'] },
@@ -20,6 +24,23 @@ const tabs = [
 
 export function TopBar() {
   const pathname = usePathname();
+  const [light, setLight] = useState(false);
+
+  // 실제 적용은 head 스크립트가 이미 해뒀다. 여기서는 버튼 라벨을 맞추기 위해 읽기만.
+  useEffect(() => {
+    setLight(document.documentElement.classList.contains('light'));
+  }, []);
+
+  const toggleTheme = () => {
+    const next = !document.documentElement.classList.contains('light');
+    document.documentElement.classList.toggle('light', next);
+    try {
+      localStorage.setItem(THEME_KEY, next ? 'light' : 'dark');
+    } catch {
+      /* 프라이빗 모드 등 — 저장만 실패하고 전환은 유지 */
+    }
+    setLight(next);
+  };
 
   const isActive = (t: (typeof tabs)[number]) => {
     const paths = t.match ?? [t.href.split('?')[0]];
@@ -28,7 +49,10 @@ export function TopBar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-background/90 px-5 backdrop-blur-xl sm:gap-6">
+    <header
+      className="sticky top-0 z-40 flex h-[60px] items-center gap-3 border-b px-5 backdrop-blur-[14px] sm:gap-6"
+      style={{ background: 'var(--header-bg)', borderColor: 'var(--line)' }}
+    >
       <Link
         href="/"
         className="flex shrink-0 items-center gap-2 text-[15px] font-extrabold tracking-tight"
@@ -49,11 +73,10 @@ export function TopBar() {
               href={t.href}
               aria-current={active ? 'page' : undefined}
               className={
-                'shrink-0 rounded-lg px-3 py-1.5 transition-colors ' +
-                (active
-                  ? 'bg-secondary font-bold text-foreground'
-                  : 'font-semibold text-muted-foreground hover:text-foreground')
+                'shrink-0 rounded-[10px] px-3 py-[7px] font-bold theme-fade ' +
+                (active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')
               }
+              style={active ? { background: 'var(--chip)' } : undefined}
             >
               {t.label}
             </Link>
@@ -61,7 +84,15 @@ export function TopBar() {
         })}
       </nav>
 
-      <div className="flex shrink-0 items-center gap-1 text-[13.5px] text-muted-foreground">
+      <div className="flex shrink-0 items-center gap-2 text-[13.5px] text-muted-foreground">
+        <button
+          onClick={toggleTheme}
+          className="theme-fade h-[30px] shrink-0 rounded-[10px] border px-[11px] text-[12.5px] font-bold text-foreground"
+          style={{ background: 'var(--chip)', borderColor: 'var(--line)' }}
+          title="다크 / 라이트 전환"
+        >
+          {light ? '라이트' : '다크'}
+        </button>
         <Link
           href="/settings/api-keys"
           className="hidden rounded-lg px-2 py-1.5 font-semibold hover:text-foreground sm:inline-block"

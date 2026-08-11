@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { kstTodayDate, kstTodayLabel } from '@/lib/kst';
 import { quoteOfDay } from '@/lib/quotes';
-import { SaeroiAvatar, SAEROI_PHOTOS } from '@/components/saeroi-avatar';
+import { SAEROI_PHOTOS } from '@/components/saeroi-avatar';
 import {
   DashboardSummary,
   channelDDay,
@@ -36,11 +36,11 @@ type Channel = {
   videos: Video[];
 };
 
-/** 그룹 악센트 (대표 플랫폼 색) */
-const GROUP_ACCENT: Record<DashboardGroup, string> = {
-  youtube: '#E0685F',
-  shopping: '#57B37E',
-  threads: '#C9CCD1',
+/** 그룹 아이콘 — 대표 플랫폼의 마크와 색을 그대로 쓴다 (테마 따라 바뀌게 CSS 변수) */
+const GROUP_MARK: Record<DashboardGroup, { mark: string; bg: string; fg: string }> = {
+  youtube: { mark: 'Y', bg: 'var(--plat-youtube-bg)', fg: 'var(--plat-youtube-fg)' },
+  shopping: { mark: 'N', bg: 'var(--plat-naver-bg)', fg: 'var(--plat-naver-fg)' },
+  threads: { mark: '@', bg: 'var(--plat-threads-bg)', fg: 'var(--plat-threads-fg)' },
 };
 
 export function OverviewClient() {
@@ -74,7 +74,7 @@ export function OverviewClient() {
         name: ch.name,
         platform: ch.platform,
         category: ch.category,
-        lastScheduledAt: future.find((v) => !v.publishedUrl)?.scheduledAt ?? null,
+        lastScheduledAt: future[0]?.scheduledAt ?? null,
         published: pub
           ? { title: pub.title, url: pub.publishedUrl!, scheduledAt: pub.scheduledAt }
           : null,
@@ -114,33 +114,6 @@ export function OverviewClient() {
 
   return (
     <div className="mx-auto max-w-[1180px] px-5 pb-12 pt-5">
-      {/*
-        좌측 여백 아트 — 본문이 1180px 로 가운데 정렬돼 있어 넓은 화면에선 양쪽이 비는데,
-        그 빈 폭만큼만 차지하는 고정 패널이라 본문 레이아웃에는 전혀 영향을 주지 않는다.
-        여백이 좁은 화면에선 아예 렌더하지 않는다.
-      */}
-      <aside
-        aria-hidden
-        className="pointer-events-none fixed left-0 top-0 hidden h-screen select-none items-center justify-center min-[1480px]:flex"
-        style={{ width: 'calc((100vw - 1180px) / 2)' }}
-      >
-        {/* 폭을 원본 해상도에서 멈춘다 — 그 이상 늘리면 확대 보간이 들어가 뿌옇게 나온다 */}
-        <div
-          className="relative flex flex-col items-center"
-          style={{ width: `min(90%, ${SAEROI_PHOTOS.danbam.width}px)` }}
-        >
-          {/* 뒤에 깔리는 은은한 발광 — 그냥 붙여넣은 것처럼 보이지 않게 */}
-          <div
-            className="absolute inset-0 -z-10 blur-2xl"
-            style={{
-              background:
-                'radial-gradient(circle at 50% 45%, rgba(111,201,177,0.14), transparent 68%)',
-            }}
-          />
-          <SaeroiAvatar size="100%" variant="full" photo="danbam" />
-        </div>
-      </aside>
-
       {err && (
         <div className="surface-warn mb-4 rounded-xl border px-4 py-3 text-[13px] font-semibold">
           {err}
@@ -149,37 +122,46 @@ export function OverviewClient() {
 
       {/* 헤더 */}
       <div className="mb-3">
-        <h1 className="text-[22px] font-extrabold tracking-[-0.03em]">전체 현황</h1>
-        <p className="mt-1 text-[12.5px] font-semibold text-muted-foreground">
+        <h1 className="text-[26px] font-extrabold tracking-[-0.045em]">전체 현황</h1>
+        <p className="mt-1 text-[13.5px] font-semibold text-muted-foreground">
           {kstTodayLabel()} KST · 전체 {channels.length}개
         </p>
       </div>
 
       {/* 오늘의 한마디 — 날짜 기준으로 매일 바뀜 */}
-      <blockquote
-        className="mb-4 flex items-center gap-4 rounded-2xl border border-border px-5 py-3.5"
-        style={{ background: 'linear-gradient(90deg, rgba(111,199,177,0.10), transparent 70%)' }}
-      >
-        <SaeroiAvatar size={112} variant="full" />
-        <div className="min-w-0">
-          <p className="text-[15px] font-bold leading-relaxed text-foreground">
+      <blockquote className="card-surface theme-fade mb-3 grid overflow-hidden rounded-[24px] sm:grid-cols-[220px_1fr]">
+        {/* 사진: 좌측 고정 폭. 오른쪽 끝을 카드 배경색으로 흐려 글과 이어지게 한다 */}
+        <div className="relative hidden min-h-[200px] sm:block">
+          {/* eslint-disable-next-line @next/next/no-img-element -- 로컬 정적 파일 */}
+          <img
+            src={SAEROI_PHOTOS.danbam.src}
+            alt=""
+            draggable={false}
+            className="absolute inset-0 h-full w-full select-none object-cover"
+            style={{ objectPosition: '50% 18%' }}
+          />
+          <div className="absolute inset-0" style={{ background: 'var(--photo-fade)' }} />
+        </div>
+        <div className="flex flex-col justify-center gap-3 px-[26px] py-[30px] sm:pl-[26px] sm:pr-[34px]">
+          <span className="text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-brand">
+            오늘의 한마디
+          </span>
+          <p className="text-[22px] font-extrabold leading-[1.5] tracking-[-0.04em] text-foreground">
             “{quote.text}”
           </p>
-          <footer className="mt-1.5 text-[11.5px] font-bold uppercase tracking-[0.06em] text-brand">
-            {quote.who}
-          </footer>
+          <footer className="text-[13.5px] font-bold text-muted-foreground">{quote.who}</footer>
         </div>
       </blockquote>
 
       {/* 오늘의 현황판 */}
-      <div className="mb-5 grid grid-cols-3 divide-x divide-[color:var(--border-row)] overflow-hidden rounded-2xl border border-border bg-card">
-        <ScoreCell label="오늘 업로드 필요" value={totalNeed} tone={totalNeed > 0 ? 'warn' : 'ok'} />
-        <ScoreCell label="소진 임박 (D-1)" value={totalSoon} tone={totalSoon > 0 ? 'caution' : 'plain'} />
-        <ScoreCell label="여유 (D-2 이상)" value={totalRelaxed} tone="plain" />
+      <div className="mb-[30px] grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+        <ScoreCell label="오늘 업로드 필요" value={totalNeed} tone={totalNeed > 0 ? 'red' : 'plain'} />
+        <ScoreCell label="소진 임박 (D-1)" value={totalSoon} tone={totalSoon > 0 ? 'amber' : 'plain'} />
+        <ScoreCell label="여유 (D-2 이상)" value={totalRelaxed} tone="sub" />
       </div>
 
       {/* 그룹별로 세로 스택 (compact 밀도) */}
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-[30px]">
         {DASHBOARD_GROUPS.map((g) => {
           const rows = byGroup.get(g) ?? [];
           const unit = GROUP_UNIT[g];
@@ -193,28 +175,28 @@ export function OverviewClient() {
                 }).length;
           return (
             <section key={g}>
-              {/* 그룹 헤더 */}
-              <div
-                className="mb-2.5 flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-2"
-                style={{
-                  background: `linear-gradient(90deg, ${GROUP_ACCENT[g]}14, transparent 55%)`,
-                }}
-              >
+              {/* 그룹 헤더 — 배경 없이 아이콘 + 이름만 (카드가 바로 아래 오므로) */}
+              <div className="mb-3 flex items-center justify-between gap-3 px-1">
                 <Link href={GROUP_PATH[g]} className="group flex min-w-0 items-center gap-2.5">
                   <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ background: GROUP_ACCENT[g] }}
-                  />
-                  <span className="truncate text-[15px] font-extrabold tracking-tight group-hover:text-brand">
+                    className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[9px] text-[12.5px] font-black"
+                    style={{ background: GROUP_MARK[g].bg, color: GROUP_MARK[g].fg }}
+                  >
+                    {GROUP_MARK[g].mark}
+                  </span>
+                  <span className="truncate text-[18px] font-extrabold tracking-[-0.035em] group-hover:text-brand">
                     {GROUP_LABEL[g]}
                   </span>
-                  <span className="num shrink-0 rounded-md bg-secondary px-1.5 py-0.5 text-[11.5px] font-bold text-[color:var(--text-quaternary)]">
+                  <span
+                    className="num shrink-0 rounded-full px-[9px] py-[3px] text-[12.5px] font-bold text-[color:var(--text-quaternary)]"
+                    style={{ background: 'var(--chip)' }}
+                  >
                     {rows.length}
                   </span>
                   {risk > 0 && (
                     <span
-                      className="num shrink-0 rounded-md px-1.5 py-0.5 text-[11.5px] font-bold"
-                      style={{ background: 'rgba(217,165,92,0.15)', color: '#D9A55C' }}
+                      className="num shrink-0 rounded-full px-[9px] py-[3px] text-[12.5px] font-bold"
+                      style={{ background: 'var(--red-bg)', color: 'var(--red)' }}
                       title={`업로드 필요 ${risk}`}
                     >
                       필요 {risk}
@@ -223,14 +205,14 @@ export function OverviewClient() {
                 </Link>
                 <Link
                   href={GROUP_PATH[g]}
-                  className="shrink-0 text-[12px] font-bold text-muted-foreground hover:text-foreground"
+                  className="shrink-0 text-[13px] font-bold text-muted-foreground hover:text-foreground"
                 >
                   대시보드 →
                 </Link>
               </div>
 
               {rows.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-[color:var(--border-dashed)] px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+                <div className="card-surface theme-fade rounded-[22px] px-4 py-10 text-center text-[14px] font-semibold text-muted-foreground">
                   등록된 {unit}이 없습니다
                 </div>
               ) : (
@@ -259,22 +241,26 @@ function ScoreCell({
 }: {
   label: string;
   value: number;
-  tone: 'warn' | 'caution' | 'ok' | 'plain';
+  /** plain 은 본문색 — 0 일 때 색을 빼서 '문제 없음'이 바로 읽히게 한다 */
+  tone: 'red' | 'amber' | 'sub' | 'plain';
 }) {
   const color =
-    tone === 'warn'
-      ? '#D9A55C'
-      : tone === 'caution'
-        ? '#C0A177'
-        : tone === 'ok'
-          ? 'hsl(var(--brand))'
-          : 'var(--text-tertiary)';
+    tone === 'red'
+      ? 'var(--red)'
+      : tone === 'amber'
+        ? 'var(--amber)'
+        : tone === 'sub'
+          ? 'var(--text-quaternary)'
+          : undefined;
   return (
-    <div className="px-4 py-3 text-center">
-      <div className="num text-[26px] font-extrabold leading-none tracking-tight" style={{ color }}>
+    <div className="card-surface theme-fade rounded-[20px] px-[22px] py-5">
+      <div
+        className="num text-[30px] font-extrabold leading-none tracking-[-0.045em]"
+        style={color ? { color } : undefined}
+      >
         {value}
       </div>
-      <div className="mt-1.5 text-[11.5px] font-bold text-muted-foreground">{label}</div>
+      <div className="mt-2.5 text-[13.5px] font-semibold text-muted-foreground">{label}</div>
     </div>
   );
 }
