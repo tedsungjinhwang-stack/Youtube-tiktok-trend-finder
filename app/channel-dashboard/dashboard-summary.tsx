@@ -8,6 +8,8 @@ export type SummaryChannel = {
   name: string;
   platform: string;
   category: string | null;
+  /** 스레드 멀티로그인 프로필 (없을 수 있음) */
+  profile?: string | null;
   /** 마지막(가장 미래) 예약 시각 ISO. 없으면 null */
   lastScheduledAt: string | null;
   /** 최근 발행된 글/영상 (publishedUrl 입력된 것 중 최신) */
@@ -244,8 +246,19 @@ export function DashboardSummary({
                         {ps.mark}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-bold" title={channelCaption(c)}>
-                          {channelCaption(c)}
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          {/* 어느 멀티로그인 프로필로 올린 글인지 — 계정명만으로는 알 수 없다 */}
+                          {c.profile?.trim() && (
+                            <span
+                              className="shrink-0 rounded-md px-1.5 py-px text-[11.5px] font-bold text-[color:var(--text-quaternary)]"
+                              style={{ background: 'var(--chip)' }}
+                            >
+                              {c.profile.trim()}
+                            </span>
+                          )}
+                          <span className="truncate text-[13px] font-bold" title={channelCaption(c)}>
+                            {channelCaption(c)}
+                          </span>
                         </span>
                         {/* 발행 시각은 행 끝이 아니라 글 바로 옆에 — 멀리 떨어지면 어느 글의 시각인지 안 읽힌다 */}
                         <span className="flex min-w-0 items-baseline gap-1.5">

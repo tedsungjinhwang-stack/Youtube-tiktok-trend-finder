@@ -508,6 +508,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         name: c.name,
         platform: c.platform,
         category: c.category,
+        profile: c.profile,
         lastScheduledAt: future[0]?.scheduledAt ?? null,
         published: pub
           ? { title: pub.title, url: pub.publishedUrl!, scheduledAt: pub.scheduledAt }
