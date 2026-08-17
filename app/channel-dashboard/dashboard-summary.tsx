@@ -183,8 +183,19 @@ export function DashboardSummary({
                   {ps.mark}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13.5px] font-bold" title={channelCaption(c)}>
-                    {channelCaption(c)}
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {/* 어느 로그인 프로필에 물린 채널인지 — 이름만으로는 구분이 안 된다 */}
+                    {c.profile?.trim() && (
+                      <span
+                        className="shrink-0 rounded-md px-1.5 py-px text-[11px] font-bold text-[color:var(--text-quaternary)]"
+                        style={{ background: 'var(--chip)' }}
+                      >
+                        {c.profile.trim()}
+                      </span>
+                    )}
+                    <span className="truncate text-[13.5px] font-bold" title={channelCaption(c)}>
+                      {channelCaption(c)}
+                    </span>
                   </span>
                   <span className="block truncate text-[11.5px] font-semibold text-[color:var(--text-faint)]">
                     {c.lastScheduledAt

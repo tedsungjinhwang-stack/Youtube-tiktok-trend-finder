@@ -1218,6 +1218,19 @@ function DashRow({
                 placeholder="URL"
                 className="col-span-5 h-8 rounded border bg-background px-2 text-sm"
               />
+              {/*
+                스레드는 표에 프로필 칸이 따로 있다. 나머지 그룹은 입력할 데가 없어서
+                '예약이 끝나는 순서' 타일의 프로필 칩이 늘 비어 있었다.
+              */}
+              {!isThreads && (
+                <input
+                  value={c.profile ?? ''}
+                  onChange={(e) => onUpdate(c.id, { profile: e.target.value } as Partial<MyChannel>)}
+                  onBlur={(e) => onUpdate(c.id, { profile: e.target.value } as Partial<MyChannel>)}
+                  placeholder="프로필 (로그인 계정 구분용)"
+                  className="col-span-4 h-8 rounded border bg-background px-2 text-sm"
+                />
+              )}
             </div>
             <div className="mb-3 flex flex-wrap gap-2">
               <button
