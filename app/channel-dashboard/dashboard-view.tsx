@@ -206,7 +206,8 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         todoistGroup: group,
         category: newCategory,
         url: newUrl,
-        ...(isThreads ? { email: newEmail, profile: newProfile } : {}),
+        profile: newProfile,
+        ...(isThreads ? { email: newEmail } : {}),
       }),
     });
     const j = await r.json();
@@ -565,7 +566,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
             'card-surface theme-fade mb-4 grid gap-2 rounded-[22px] p-5 ' +
             (isThreads
               ? 'sm:grid-cols-[150px_1fr_1fr_150px_1fr_130px_110px]'
-              : 'sm:grid-cols-[150px_1fr_1fr_170px_110px]')
+              : 'sm:grid-cols-[150px_1fr_1fr_170px_150px_110px]')
           }
         >
           <select
@@ -598,21 +599,20 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
             className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
           />
           {isThreads && (
-            <>
-              <input
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="이메일"
-                className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
-              />
-              <input
-                value={newProfile}
-                onChange={(e) => setNewProfile(e.target.value)}
-                placeholder="프로필"
-                className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
-              />
-            </>
+            <input
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="이메일"
+              className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
+            />
           )}
+          {/* 프로필은 스레드만이 아니라 모든 그룹에서 쓴다 (로그인 계정 구분) */}
+          <input
+            value={newProfile}
+            onChange={(e) => setNewProfile(e.target.value)}
+            placeholder="프로필"
+            className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
+          />
           <button
             onClick={() => addChannel()}
             disabled={!newName.trim()}
