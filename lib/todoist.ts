@@ -638,3 +638,117 @@ export async function syncAllToTodoist(): Promise<{
   });
   return { tasks, channels: all.length, totalInProject, groups, orphansDeleted, groupErrors };
 }
+
+/* ─────────────── 직접 쓰는 할 일 (전체 현황) ─────────────── */
+
+/**
+ * 채널 자동 태스크와 같은 프로젝트에 두면 정리 로직(isAutoTask)에 휩쓸릴 수 있어
+ * 전용 프로젝트를 따로 쓴다.
+ */
+export type Todo = {
+  id: string;
+  content: string;
+  /** YYYY-MM-DD. 마감 없으면 null */
+  due: string | null;
+  /** p1(높음) ~ p4(기본). Todoist 는 4가 가장 높아서 뒤집어 담는다 */
+  priority: number;
+  completed: boolean;
+  url: string | null;
+};
+
+type TodoistTaskFull = {
+  id: string;
+  content?: string;
+  due?: { date?: string } | null;
+  priority?: number;
+  is_completed?: boolean;
+  checked?: boolean;
+  url?: string;
+};
+
+function toTodo(t: TodoistTaskFull): Todo {
+  return {
+    id: t.id,
+    content: t.content ?? '',
+    due: t.due?.date ?? null,
+    priority: t.priority ?? 1,
+    completed: t.is_completed ?? t.checked ?? false,
+    url: t.url ?? null,
+  };
+}
+
+async function todoConfig(): Promise<{ token: string; projectId: string }> {
+  const config = await prisma.todoistConfig.findUnique({ where: { id: 'default' } });
+  if (!config) throw new Error('Todoist 미연결');
+  const projectId = await ensureProject(
+    config.apiToken,
+    config.todoProjectName,
+    config.todoProjectId
+  );
+  if (projectId !== config.todoProjectId) {
+    await prisma.todoistConfig
+      .update({ where: { id: 'default' }, data: { todoProjectId: projectId } })
+      .catch(() => {});
+  }
+  return { token: config.apiToken, projectId };
+}
+
+/** 할 일 목록 (미완료만). 조회 실패는 throw — 빈 목록으로 감추면 지운 걸로 오해한다. */
+export async function listTodos(): Promise<Todo[]> {
+  const { token, projectId } = await todoConfig();
+  const all: TodoistTaskFull[] = [];
+  let cursor: string | null = null;
+  for (let i = 0; i < 20; i++) {
+    const qs =
+      `?project_id=${encodeURIComponent(projectId)}` +
+      (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
+    const r = await tdFetch(token, `/tasks${qs}`);
+    if (!r.ok) throw new Error(`할 일 조회 실패 (${r.status})`);
+    const j = (await r.json()) as Paginated<TodoistTaskFull> | TodoistTaskFull[];
+    all.push(...(Array.isArray(j) ? j : j.results ?? []));
+    cursor = Array.isArray(j) ? null : j.next_cursor ?? null;
+    if (!cursor) break;
+  }
+  return all.map(toTodo);
+}
+
+export async function createTodo(input: {
+  content: string;
+  due?: string | null;
+  priority?: number;
+}): Promise<Todo> {
+  const { token, projectId } = await todoConfig();
+  const body: Record<string, unknown> = { content: input.content, project_id: projectId };
+  if (input.due) body.due_date = input.due;
+  if (input.priority) body.priority = input.priority;
+  const r = await tdFetch(token, '/tasks', { method: 'POST', body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(`할 일 생성 실패 (${r.status})`);
+  return toTodo((await r.json()) as TodoistTaskFull);
+}
+
+export async function updateTodo(
+  id: string,
+  patch: { content?: string; due?: string | null; priority?: number }
+): Promise<void> {
+  const { token } = await todoConfig();
+  const body: Record<string, unknown> = {};
+  if (patch.content !== undefined) body.content = patch.content;
+  if (patch.priority !== undefined) body.priority = patch.priority;
+  // due 를 비우려면 빈 문자열을 보내야 한다 (null 은 무시됨)
+  if (patch.due !== undefined) body.due_date = patch.due ?? '';
+  const r = await tdFetch(token, `/tasks/${id}`, { method: 'POST', body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(`할 일 수정 실패 (${r.status})`);
+}
+
+/** 체크 = Todoist 완료 처리 (지우지 않는다 — 완료 기록이 남아야 한다) */
+export async function completeTodo(id: string): Promise<void> {
+  const { token } = await todoConfig();
+  const r = await tdFetch(token, `/tasks/${id}/close`, { method: 'POST' });
+  if (!r.ok) throw new Error(`할 일 완료 실패 (${r.status})`);
+}
+
+export async function deleteTodo(id: string): Promise<void> {
+  const { token } = await todoConfig();
+  const r = await tdFetch(token, `/tasks/${id}`, { method: 'DELETE' });
+  if (!r.ok && r.status !== 404) throw new Error(`할 일 삭제 실패 (${r.status})`);
+}
