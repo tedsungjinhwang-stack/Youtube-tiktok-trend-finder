@@ -6,6 +6,7 @@ import { kstTodayDate, kstTodayLabel } from '@/lib/kst';
 import { quoteOfDay } from '@/lib/quotes';
 import { SAEROI_PHOTOS } from '@/components/saeroi-avatar';
 import { TodoCard } from './todo-card';
+import { PlansCard } from './plan-pane';
 import {
   DashboardSummary,
   channelDDay,
@@ -159,6 +160,8 @@ export function OverviewClient() {
 
         <TodoCard />
       </div>
+
+      <PlansCard />
 
       {/* 오늘의 현황판 */}
       <div className="mb-[30px] grid grid-cols-1 gap-2.5 sm:grid-cols-3">
