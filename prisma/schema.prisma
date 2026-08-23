@@ -356,6 +356,9 @@ model TodoistConfig {
   /// 스레드 대시보드용
   threadsProjectId    String?
   threadsProjectName  String  @default("스레드")
+  /// 전체 현황의 직접 쓰는 할 일. 채널 자동 태스크와 섞이면 정리 로직에 지워질 수 있어 프로젝트를 분리한다.
+  todoProjectId       String?
+  todoProjectName     String  @default("새로이 할일")
   accountName String?
   lastSyncedAt DateTime?
   lastSyncError String?

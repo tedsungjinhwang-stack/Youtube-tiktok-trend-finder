@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { kstTodayDate, kstTodayLabel } from '@/lib/kst';
 import { quoteOfDay } from '@/lib/quotes';
 import { SAEROI_PHOTOS } from '@/components/saeroi-avatar';
+import { TodoCard } from './todo-card';
 import {
   DashboardSummary,
   channelDDay,
@@ -130,30 +131,34 @@ export function OverviewClient() {
         </p>
       </div>
 
-      {/* 오늘의 한마디 — 날짜 기준으로 매일 바뀜 */}
-      <blockquote className="card-surface theme-fade mb-3 grid overflow-hidden rounded-[24px] sm:grid-cols-[220px_1fr]">
-        {/* 사진: 좌측 고정 폭. 오른쪽 끝을 카드 배경색으로 흐려 글과 이어지게 한다 */}
-        <div className="relative hidden min-h-[200px] sm:block">
-          {/* eslint-disable-next-line @next/next/no-img-element -- 로컬 정적 파일 */}
-          <img
-            src={SAEROI_PHOTOS.danbam.src}
-            alt=""
-            draggable={false}
-            className="absolute inset-0 h-full w-full select-none object-cover"
-            style={{ objectPosition: '50% 18%' }}
-          />
-          <div className="absolute inset-0" style={{ background: 'var(--photo-fade)' }} />
-        </div>
-        <div className="flex flex-col justify-center gap-3 px-[26px] py-[30px] sm:pl-[26px] sm:pr-[34px]">
-          <span className="text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-brand">
-            오늘의 한마디
-          </span>
-          <p className="text-[22px] font-extrabold leading-[1.5] tracking-[-0.04em] text-foreground">
-            “{quote.text}”
-          </p>
-          <footer className="text-[13.5px] font-bold text-muted-foreground">{quote.who}</footer>
-        </div>
-      </blockquote>
+      {/* 오늘의 한마디(좌) + 할 일(우). 좁은 화면에서는 위아래로 쌓인다 */}
+      <div className="mb-3 grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <blockquote className="card-surface theme-fade grid overflow-hidden rounded-[24px] sm:grid-cols-[150px_1fr]">
+          {/* 사진: 좌측 고정 폭. 오른쪽 끝을 카드 배경색으로 흐려 글과 이어지게 한다 */}
+          <div className="relative hidden min-h-[200px] sm:block">
+            {/* eslint-disable-next-line @next/next/no-img-element -- 로컬 정적 파일 */}
+            <img
+              src={SAEROI_PHOTOS.danbam.src}
+              alt=""
+              draggable={false}
+              className="absolute inset-0 h-full w-full select-none object-cover"
+              style={{ objectPosition: '50% 18%' }}
+            />
+            <div className="absolute inset-0" style={{ background: 'var(--photo-fade)' }} />
+          </div>
+          <div className="flex flex-col justify-center gap-2.5 px-[22px] py-[26px]">
+            <span className="text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-brand">
+              오늘의 한마디
+            </span>
+            <p className="text-[17px] font-extrabold leading-[1.55] tracking-[-0.035em] text-foreground">
+              “{quote.text}”
+            </p>
+            <footer className="text-[13px] font-bold text-muted-foreground">{quote.who}</footer>
+          </div>
+        </blockquote>
+
+        <TodoCard />
+      </div>
 
       {/* 오늘의 현황판 */}
       <div className="mb-[30px] grid grid-cols-1 gap-2.5 sm:grid-cols-3">
