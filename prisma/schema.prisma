@@ -394,3 +394,11 @@ model ChannelYouTubeOAuth {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 }
+
+/// 전체 현황의 주간/월간/연간 계획 메모. Todoist 와 무관하게 앱 안에서만 보는 자유 텍스트.
+/// id 는 'weekly' | 'monthly' | 'yearly' 세 행만 쓴다.
+model PlanNote {
+  id        String   @id
+  content   String   @default("")
+  updatedAt DateTime @updatedAt
+}
