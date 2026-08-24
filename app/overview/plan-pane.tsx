@@ -220,17 +220,27 @@ export function PlanPane({ id, label }: { id: PlanId; label: string }) {
   );
 }
 
-/** 주간·월간·연간을 한 줄에 나란히. 좁은 화면에서는 쌓인다. */
-export function PlansCard() {
+/**
+ * 주간·월간·연간 묶음.
+ *
+ * vertical 이면 좌측 사이드 컬럼용으로 세로로 쌓고, 아니면 한 줄에 셋을 나란히 둔다.
+ * 사이드는 넓은 화면에서만 열리므로, 좁아지면 본문 위로 내려와 가로 배치로 돌아간다.
+ */
+export function PlansCard({ vertical = false }: { vertical?: boolean }) {
   return (
-    <section className="card-surface theme-fade mb-3 rounded-[24px] px-[22px] pb-5 pt-[18px]">
+    <section
+      className={
+        'card-surface theme-fade rounded-[24px] px-[22px] pb-5 pt-[18px] ' +
+        (vertical ? '' : 'mb-3')
+      }
+    >
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-[17px] font-extrabold tracking-[-0.03em]">계획</h2>
         <span className="text-[12px] font-semibold text-[color:var(--text-faint)]">
-          나만 보는 메모 · 자동 저장
+          {vertical ? '자동 저장' : '나만 보는 메모 · 자동 저장'}
         </span>
       </div>
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className={vertical ? 'flex flex-col gap-4' : 'grid gap-3 md:grid-cols-3'}>
         <PlanPane id="weekly" label="주간" />
         <PlanPane id="monthly" label="월간" />
         <PlanPane id="yearly" label="연간" />

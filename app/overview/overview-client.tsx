@@ -117,7 +117,18 @@ export function OverviewClient() {
   const { need: totalNeed, soon: totalSoon, relaxed: totalRelaxed } = totals;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-5 pb-12 pt-5">
+    /*
+      넓은 화면에서는 좌측에 계획 사이드를 두고 본문은 1180px 를 유지한다.
+      사이드를 여백에 띄우지 않고 실제 컬럼으로 두는 이유: 여백 오버레이는 폭이
+      모자라면 통째로 사라져서, 매일 보고 고치는 계획을 두기에 맞지 않는다.
+    */
+    <div className="mx-auto max-w-[1180px] px-5 pb-12 pt-5 xl:grid xl:max-w-[1544px] xl:grid-cols-[300px_minmax(0,1180px)] xl:items-start xl:gap-6">
+      {/* 계획 — 넓은 화면에서만 좌측 컬럼. 좁아지면 본문 위로 내려간다 */}
+      <aside className="hidden xl:sticky xl:top-[76px] xl:block xl:max-h-[calc(100vh-92px)] xl:overflow-y-auto">
+        <PlansCard vertical />
+      </aside>
+
+      <div className="min-w-0">
       {err && (
         <div className="surface-warn mb-4 rounded-xl border px-4 py-3 text-[13px] font-semibold">
           {err}
@@ -161,7 +172,10 @@ export function OverviewClient() {
         <TodoCard />
       </div>
 
-      <PlansCard />
+      {/* 사이드가 닫히는 폭에서는 여기 가로 배치로 나온다 */}
+      <div className="xl:hidden">
+        <PlansCard />
+      </div>
 
       {/* 오늘의 현황판 */}
       <div className="mb-[30px] grid grid-cols-1 gap-2.5 sm:grid-cols-3">
@@ -238,6 +252,7 @@ export function OverviewClient() {
             </section>
           );
         })}
+      </div>
       </div>
     </div>
   );
