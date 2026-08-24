@@ -17,6 +17,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     await updateTodo(id, {
       content: typeof body.content === 'string' ? body.content.trim() : undefined,
       due: 'due' in body ? (body.due || null) : undefined,
+      dueAt: 'dueAt' in body ? (body.dueAt || null) : undefined,
       priority: typeof body.priority === 'number' ? body.priority : undefined,
     });
     return NextResponse.json({ success: true });
