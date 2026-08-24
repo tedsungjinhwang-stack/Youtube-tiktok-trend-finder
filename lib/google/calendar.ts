@@ -1,10 +1,12 @@
 /**
  * Google Calendar API 헬퍼.
  *
- * 정책: **채널당 1개 이벤트** (개별 영상마다 X).
- *   - 이벤트 제목: `{channelName} ({videoCount})`
- *   - 이벤트 시각: 그 채널의 가장 마지막 예약 영상의 scheduledAt
- *   - 영상 0개면 이벤트 삭제
+ * 정책: **예약 1건 = 이벤트 1개**.
+ *   - 제목: `{채널명}_{분류}_{HH:mm}`
+ *   - 예약이 하나도 없는 채널은 오늘 종일 「영상업로드 필요」 하나
+ *
+ * 예전에는 채널당 1개(마지막 예약)만 올렸는데, 그러면 한 채널에 예약이 여럿이어도
+ * 캘린더에는 마지막 하나만 보여 중간 일정이 통째로 빠졌다.
  */
 
 import { getValidAccessToken } from './oauth';
@@ -166,7 +168,6 @@ export async function syncMyChannel(channelId: string): Promise<void> {
   if (!auth) return;
 
   // 예약 일시가 이미 지난 영상은 자동 제거 (업로드 완료된 것으로 간주).
-  // → 마지막 예약이 과거였던 채널은 자동으로 '영상업로드 필요' 상태로 전환됨.
   // ★단 publishedUrl 이 있는 행은 발행 기록이라 보존한다(스레드 「최근 발행한 글」).
   await prisma.scheduledVideo
     .deleteMany({
@@ -177,8 +178,7 @@ export async function syncMyChannel(channelId: string): Promise<void> {
   const ch = await prisma.myChannel.findUnique({
     where: { id: channelId },
     include: {
-      videos: { where: { publishedUrl: null }, orderBy: { scheduledAt: 'desc' }, take: 1 },
-      _count: { select: { videos: { where: { publishedUrl: null } } } },
+      videos: { where: { publishedUrl: null }, orderBy: { scheduledAt: 'asc' } },
     },
   });
   if (!ch) return;
@@ -186,43 +186,13 @@ export async function syncMyChannel(channelId: string): Promise<void> {
   // 비활성 채널: 기존 이벤트 그대로 두고 그냥 스킵 (다시 활성화하면 재개)
   if (!ch.isActive) return;
 
-  const count = ch._count.videos;
-  const latest = ch.videos[0];
-
-  let input: EventInput;
-  if (count === 0 || !latest) {
-    // 예약 영상 0개 → 오늘 종일로 "영상업로드 필요" 알림
-    const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
-    const today = `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, '0')}-${String(kstNow.getUTCDate()).padStart(2, '0')}`;
-    input = {
-      calendarId: auth.calendarId,
-      title: ch.category
-        ? `${ch.name}(${ch.category}) 영상업로드 필요`
-        : `${ch.name} 영상업로드 필요`,
-      allDayDate: today,
-      notes: '예약된 영상이 없습니다',
-    };
-  } else {
-    // 제목: "채널명_카테고리_16:30" (KST 시각 포함)
-    const hhmm = isoToKstLocal(latest.scheduledAt).slice(11, 16); // "HH:mm"
-    const titleStr = ch.category
-      ? `${ch.name}_${ch.category}_${hhmm}`
-      : `${ch.name}_${hhmm}`;
-    input = {
-      calendarId: auth.calendarId,
-      title: titleStr,
-      startISO: latest.scheduledAt.toISOString(),
-      notes: `예약 영상 ${count}개${latest.title ? `. 마지막: ${latest.title}` : ''}`,
-    };
-  }
-
-  // 중복 정리: 캘린더에서 이 채널명으로 시작하는 기존 이벤트 모두 찾아냄.
-  // 호출자(cron) 가 에러를 받아 실패 카운트에 반영할 수 있도록 try/catch 제거.
+  // 이 채널 것으로 보이는 기존 이벤트를 먼저 싹 지우고 다시 만든다.
+  // 예약 건수가 바뀌면 이벤트 수도 달라져서, 제자리 갱신보다 지우고 새로 만드는 쪽이 단순하다.
   let existingIds: string[] = [];
   try {
     existingIds = await findExistingChannelEvents(auth.calendarId, ch.name);
   } catch {
-    /* list 실패해도 createEvent 는 계속 시도 — 거기서 실패하면 throw */
+    /* list 실패해도 아래 생성은 계속 시도 — 거기서 실패하면 throw */
   }
   if (ch.gcalEventId && !existingIds.includes(ch.gcalEventId)) {
     existingIds.unshift(ch.gcalEventId);
@@ -230,10 +200,44 @@ export async function syncMyChannel(channelId: string): Promise<void> {
   for (const eid of existingIds) {
     await deleteEvent(eid, auth.calendarId).catch(() => {});
   }
-  const id = await createEvent(input);
+
+  if (ch.videos.length === 0) {
+    // 예약 0개 → 오늘 종일로 "영상업로드 필요" 하나
+    const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const today = `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, '0')}-${String(kstNow.getUTCDate()).padStart(2, '0')}`;
+    const id = await createEvent({
+      calendarId: auth.calendarId,
+      title: ch.category
+        ? `${ch.name}(${ch.category}) 영상업로드 필요`
+        : `${ch.name} 영상업로드 필요`,
+      allDayDate: today,
+      notes: '예약된 영상이 없습니다',
+    });
+    await prisma.myChannel.update({
+      where: { id: channelId },
+      data: { gcalEventId: id, gcalSyncedAt: new Date() },
+    });
+    return;
+  }
+
+  // 예약마다 이벤트 하나씩
+  let lastId: string | null = null;
+  for (const v of ch.videos) {
+    const hhmm = isoToKstLocal(v.scheduledAt).slice(11, 16); // "HH:mm"
+    const title = ch.category
+      ? `${ch.name}_${ch.category}_${hhmm}`
+      : `${ch.name}_${hhmm}`;
+    lastId = await createEvent({
+      calendarId: auth.calendarId,
+      title,
+      startISO: v.scheduledAt.toISOString(),
+      notes: v.title || undefined,
+    });
+  }
+  // gcalEventId 는 '이 채널이 만든 이벤트가 있다' 는 표시로만 남긴다 (마지막 것)
   await prisma.myChannel.update({
     where: { id: channelId },
-    data: { gcalEventId: id, gcalSyncedAt: new Date() },
+    data: { gcalEventId: lastId, gcalSyncedAt: new Date() },
   });
 }
 

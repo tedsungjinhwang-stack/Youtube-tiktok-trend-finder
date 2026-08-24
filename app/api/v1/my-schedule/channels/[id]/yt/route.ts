@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { syncChannelScheduled } from '@/lib/google/youtube';
-import { syncChannelToTodoist } from '@/lib/todoist';
+import { syncMyChannel } from '@/lib/google/calendar';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +20,7 @@ export async function POST(_req: Request, { params }: Ctx) {
   }
   try {
     const count = await syncChannelScheduled(oauth.id);
-    await syncChannelToTodoist(id).catch(() => {});
+    await syncMyChannel(id).catch(() => {});
     return NextResponse.json({ success: true, data: { count } });
   } catch (e) {
     const msg = (e as Error).message;
