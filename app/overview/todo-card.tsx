@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { kstTodayDate } from '@/lib/kst';
-import { PlanPane, type PlanId } from './plan-pane';
 
 type Todo = {
   id: string;
@@ -29,17 +28,7 @@ function dueLabel(due: string | null): { text: string; overdue: boolean } | null
   return { text: `${due.slice(5, 7)}.${due.slice(8, 10)}`, overdue: diff < 0 };
 }
 
-type Tab = 'todo' | PlanId;
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'todo', label: '할 일' },
-  { id: 'weekly', label: '주간' },
-  { id: 'monthly', label: '월간' },
-  { id: 'yearly', label: '연간' },
-];
-
 export function TodoCard() {
-  const [tab, setTab] = useState<Tab>('todo');
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [notConnected, setNotConnected] = useState(false);
@@ -137,31 +126,15 @@ export function TodoCard() {
 
   return (
     <section className="card-surface theme-fade flex min-h-[200px] flex-col rounded-[24px]">
-      <div className="flex items-center justify-between gap-3 px-[22px] pb-2.5 pt-[16px]">
-        <div className="flex min-w-0 items-center gap-1">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={
-                'theme-fade shrink-0 rounded-[9px] px-2.5 py-1.5 text-[13.5px] font-bold ' +
-                (tab === t.id ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')
-              }
-              style={tab === t.id ? { background: 'var(--chip)' } : undefined}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+      <div className="flex items-center justify-between gap-3 px-[22px] pb-2 pt-[18px]">
+        <h2 className="text-[17px] font-extrabold tracking-[-0.03em]">할 일</h2>
         <span className="shrink-0 text-[12px] font-semibold text-[color:var(--text-faint)]">
-          {tab === 'todo' ? 'Todoist 「새로이 할일」' : '나만 보는 메모'}
+          Todoist 「새로이 할일」
         </span>
       </div>
 
-      {tab !== 'todo' && <PlanPane id={tab} />}
-
       {/* 입력 */}
-      {tab === 'todo' && !notConnected && (
+      {!notConnected && (
         <div className="flex gap-1.5 px-[22px] pb-2">
           <input
             value={draft}
@@ -192,12 +165,11 @@ export function TodoCard() {
         </div>
       )}
 
-      {tab === 'todo' && err && (
+      {err && (
         <p className="px-[22px] pb-1 text-[12.5px] font-semibold text-[color:var(--red)]">{err}</p>
       )}
 
       {/* 목록 */}
-      {tab === 'todo' && (
       <div className="min-h-0 flex-1 overflow-y-auto px-[22px] pb-4">
         {notConnected ? (
           <p className="py-8 text-center text-[13px] font-semibold text-[color:var(--text-faint)]">
@@ -285,7 +257,6 @@ export function TodoCard() {
           </ul>
         )}
       </div>
-      )}
     </section>
   );
 }

@@ -16,7 +16,7 @@ const PLACEHOLDER: Record<PlanId, string> = {
  * Todoist 에는 올리지 않고 앱 DB 에만 둔다 (보기용). 저장 버튼을 따로 두지 않고
  * 입력이 멈추면 자동 저장한다 — 매번 누르게 하면 안 쓰게 된다.
  */
-export function PlanPane({ id }: { id: PlanId }) {
+export function PlanPane({ id, label }: { id: PlanId; label: string }) {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -78,7 +78,15 @@ export function PlanPane({ id }: { id: PlanId }) {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-[22px] pb-4">
+    <div className="flex min-w-0 flex-1 flex-col">
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <span className="text-[13px] font-extrabold tracking-[-0.02em]">{label}</span>
+        <span className="text-[11.5px] font-semibold">
+          {state === 'saving' && <span className="text-[color:var(--text-faint)]">저장 중…</span>}
+          {state === 'saved' && <span className="text-[color:var(--text-faint)]">저장됨</span>}
+          {state === 'error' && <span style={{ color: 'var(--red)' }}>저장 실패</span>}
+        </span>
+      </div>
       <textarea
         value={loading ? '' : text}
         onChange={(e) => onChange(e.target.value)}
@@ -88,13 +96,27 @@ export function PlanPane({ id }: { id: PlanId }) {
         }}
         placeholder={loading ? '' : PLACEHOLDER[id]}
         spellCheck={false}
-        className="min-h-[150px] w-full flex-1 resize-none rounded-[10px] border border-input bg-[color:var(--surface-input)] px-3 py-2.5 text-[13.5px] leading-[1.7] outline-none focus:border-[color:var(--accent-solid)]"
+        className="min-h-[132px] w-full flex-1 resize-y rounded-[10px] border border-input bg-[color:var(--surface-input)] px-3 py-2.5 text-[13.5px] leading-[1.7] outline-none focus:border-[color:var(--accent-solid)]"
       />
-      <div className="mt-1.5 h-4 text-right text-[11.5px] font-semibold">
-        {state === 'saving' && <span className="text-[color:var(--text-faint)]">저장 중…</span>}
-        {state === 'saved' && <span className="text-[color:var(--text-faint)]">저장됨</span>}
-        {state === 'error' && <span style={{ color: 'var(--red)' }}>저장 실패</span>}
-      </div>
     </div>
+  );
+}
+
+/** 주간·월간·연간을 한 줄에 나란히. 좁은 화면에서는 쌓인다. */
+export function PlansCard() {
+  return (
+    <section className="card-surface theme-fade mb-3 rounded-[24px] px-[22px] pb-5 pt-[18px]">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-[17px] font-extrabold tracking-[-0.03em]">계획</h2>
+        <span className="text-[12px] font-semibold text-[color:var(--text-faint)]">
+          나만 보는 메모 · 자동 저장
+        </span>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <PlanPane id="weekly" label="주간" />
+        <PlanPane id="monthly" label="월간" />
+        <PlanPane id="yearly" label="연간" />
+      </div>
+    </section>
   );
 }
