@@ -165,12 +165,16 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
 
   const refresh = async () => {
     try {
-      const [c, t] = await Promise.all([
+      const [c, t, g] = await Promise.all([
         fetch('/api/v1/my-schedule/channels', { cache: 'no-store' }).then((r) => r.json()),
         fetch('/api/v1/todoist/config', { cache: 'no-store' })
           .then((r) => r.json())
           .catch(() => ({ success: false })),
+        fetch('/api/google/status', { cache: 'no-store' })
+          .then((r) => r.json())
+          .catch(() => null),
       ]);
+      if (g?.success) setGcal({ connected: !!g.data?.connected, email: g.data?.email });
       if (c.success) {
         const rows: MyChannel[] = c.data ?? [];
         const mine = rows.filter((ch) => groupPlatforms.includes(ch.platform ?? 'YOUTUBE'));
@@ -460,32 +464,23 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
     refresh();
   };
 
-  const syncTodoist = async () => {
-    setTdBusy(true);
-    setTdMsg('동기화 중…');
-    try {
-      const r = await fetch('/api/v1/todoist/sync', { method: 'POST' });
-      const j = await r.json();
-      if (j.success) setTdMsg(`${j.data.tasks}개 태스크 · ${j.data.channels}개 ${unit} 동기화됨`);
-      else setTdMsg(`동기화 실패: ${j.error?.message ?? ''}`);
-    } catch (e) {
-      setTdMsg(`동기화 실패: ${(e as Error).message}`);
-    } finally {
-      setTdBusy(false);
-      refresh();
-    }
-  };
-
+  /** 구글 캘린더 연결 상태 — 버튼을 '연결' 로 낼지 '동기화' 로 낼지 결정 */
+  const [gcal, setGcal] = useState<{ connected: boolean; email?: string | null }>({
+    connected: false,
+  });
   const [syncingGcal, setSyncingGcal] = useState(false);
 
+  /** 예약 전체를 구글 캘린더로 밀어넣기 */
   const syncGcalAll = async () => {
     setSyncingGcal(true);
     try {
-      const r = await fetch('/api/v1/todoist/sync', { method: 'POST' });
+      const r = await fetch('/api/v1/my-schedule/sync-gcal-all', { method: 'POST' });
       const j = await r.json();
       if (!j.success) alert(j.error?.message ?? '실패');
-      else alert(`Todoist 동기화 완료 (${j.data.tasks}개 태스크 · ${j.data.channels}개 ${unit})`);
+      else alert(`캘린더 동기화 완료 (${j.data?.synced ?? 0}/${j.data?.total ?? 0}개 ${unit})`);
       refresh();
+    } catch (e) {
+      alert(`동기화 실패: ${(e as Error).message}`);
     } finally {
       setSyncingGcal(false);
     }
@@ -540,15 +535,23 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {todoist.connected && (
+          {gcal.connected ? (
             <button
-              onClick={syncTodoist}
-              disabled={tdBusy}
+              onClick={syncGcalAll}
+              disabled={syncingGcal}
               className="theme-fade h-10 rounded-xl px-4 text-[14px] font-bold text-foreground hover:opacity-90 disabled:opacity-50"
               style={{ background: 'var(--chip)' }}
             >
-              {tdBusy ? '동기화 중…' : 'Todoist 동기화'}
+              {syncingGcal ? '동기화 중…' : '캘린더 동기화'}
             </button>
+          ) : (
+            <a
+              href="/api/google/auth/start?kind=calendar"
+              className="theme-fade grid h-10 place-items-center rounded-xl px-4 text-[14px] font-bold text-foreground hover:opacity-90"
+              style={{ background: 'var(--chip)' }}
+            >
+              구글 캘린더 연결
+            </a>
           )}
           <button
             onClick={() => setShowAddChannel((v) => !v)}
@@ -720,19 +723,19 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
             >
               선택 {unit} 삭제
             </button>
-            {todoist.connected && (
+            {gcal.connected && (
               <button
                 onClick={syncGcalAll}
                 disabled={syncingGcal || bulkBusy}
                 className="ml-auto h-7 rounded-md border bg-card px-3 text-[13px] hover:border-foreground/40 disabled:opacity-40"
-                title="Todoist 전체 동기화"
+                title="예약 전체를 구글 캘린더로"
               >
-                {syncingGcal ? '동기화 중…' : 'Todoist 동기화'}
+                {syncingGcal ? '동기화 중…' : '캘린더 동기화'}
               </button>
             )}
           </div>
         )}
-        {bulkIds.size === 0 && todoist.connected && (
+        {bulkIds.size === 0 && gcal.connected && (
           <div className="flex items-center gap-3 border-b bg-secondary/30 px-6 py-3 text-sm">
             <button
               onClick={syncGcalAll}

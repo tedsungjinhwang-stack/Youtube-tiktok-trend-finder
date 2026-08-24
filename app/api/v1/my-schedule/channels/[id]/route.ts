@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { syncChannelToTodoist, unsyncChannelFromTodoist } from '@/lib/todoist';
+import { syncMyChannel, unsyncMyChannel } from '@/lib/google/calendar';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,17 +39,17 @@ export async function PATCH(req: Request, { params }: Ctx) {
     data.todoistGroup = body.todoistGroup;
   }
   const updated = await prisma.myChannel.update({ where: { id }, data });
-  // 채널명 변경 또는 활성 상태 변경 → Todoist 동기화
+  // 채널명 변경 또는 활성 상태 변경 → 캘린더 동기화
   if (data.name !== undefined || data.isActive !== undefined || data.todoistGroup !== undefined) {
     if (data.isActive === false) {
-      unsyncChannelFromTodoist(id).catch(() => {});
+      unsyncMyChannel(id).catch(() => {});
     } else if (data.todoistGroup !== undefined) {
-      // 그룹 이동: 모든 프로젝트에서 제거 후 새 그룹 프로젝트에 생성
-      unsyncChannelFromTodoist(id)
-        .then(() => syncChannelToTodoist(id))
+      // 그룹 이동: 기존 이벤트 지우고 다시 생성 (제목에 분류가 들어가므로)
+      unsyncMyChannel(id)
+        .then(() => syncMyChannel(id))
         .catch(() => {});
     } else {
-      syncChannelToTodoist(id).catch(() => {});
+      syncMyChannel(id).catch(() => {});
     }
   }
   return NextResponse.json({ success: true, data: updated });
@@ -57,9 +57,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
 export async function DELETE(_req: Request, { params }: Ctx) {
   const { id } = await params;
-  // Todoist 태스크는 best-effort 로 해제. 실패해도 DB 삭제는 진행.
-  await unsyncChannelFromTodoist(id).catch((e) => {
-    console.warn('[channel delete] todoist unsync failed', id, (e as Error).message);
+  // 캘린더 이벤트는 best-effort 로 해제. 실패해도 DB 삭제는 진행.
+  await unsyncMyChannel(id).catch((e) => {
+    console.warn('[channel delete] calendar unsync failed', id, (e as Error).message);
   });
   try {
     await prisma.myChannel.delete({ where: { id } });

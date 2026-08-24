@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { syncChannelScheduled } from '@/lib/google/youtube';
-import { syncAllToTodoist } from '@/lib/todoist';
+import { syncMyChannel } from '@/lib/google/calendar';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -43,13 +43,13 @@ export async function GET(req: Request) {
     );
   }
 
-  // Todoist 만 동기화 대상 (Google 캘린더 제거 — Todoist 가 자체 캘린더 연동으로 대체).
-  const todoist = await prisma.todoistConfig.findUnique({ where: { id: 'default' } }).catch(() => null);
-  if (!todoist) {
+  // 예약 → 구글 캘린더 직접 동기화. 연결이 없으면 할 일이 없으므로 실패로 알린다.
+  const gauth = await prisma.googleOAuth.findUnique({ where: { id: 'default' } }).catch(() => null);
+  if (!gauth) {
     return NextResponse.json({
       success: false,
-      error: 'NO_TODOIST',
-      hint: '/my-schedule 에서 Todoist 를 연결해주세요.',
+      error: 'NO_GOOGLE',
+      hint: '설정에서 구글 캘린더를 연결해주세요.',
     }, { status: 503 });
   }
 
@@ -73,8 +73,6 @@ export async function GET(req: Request) {
   }
   let ytSynced = 0;
   let ytFailed = 0;
-  let tdSynced = 0;
-  let tdFailed = 0;
   const failedDetails: Array<{ name: string; reason: string }> = [];
   // 1) YouTube 연결된 채널: 예약 업로드 먼저 가져옴 (youtubeVideoId 있는 것만 갱신 — 수동 예약은 안 건드림)
   for (const c of channels) {
@@ -89,29 +87,21 @@ export async function GET(req: Request) {
       console.error('[yt cron]', c.id, reason);
     }
   }
-  // 2) DB 예약 → Todoist: 전역 1회 동기화 (조회 1번 + 전부 삭제 + 채널당 생성).
-  //    채널마다 돌던 예전 방식은 rate limit 으로 삭제가 실패해 매일 중복이 쌓였음.
-  let tdGroups: Record<string, { tasks: number; total: number | null; project: string }> | null = null;
-  let tdError: string | null = null;
-  let orphansDeleted = 0;
-  try {
-    const r = await syncAllToTodoist();
-    tdSynced = r.tasks;
-    tdGroups = r.groups;
-    orphansDeleted = r.orphansDeleted;
-    // 그룹 단위 실패는 이제 throw 되지 않고 모여서 돌아온다. 하나라도 있으면 실패로 본다.
-    const failed = Object.entries(r.groupErrors);
-    if (failed.length > 0) {
-      tdError = failed.map(([g, m]) => `${g}: ${m}`).join(' / ');
-      tdFailed = failed.length;
-      for (const [g, m] of failed) failedDetails.push({ name: g, reason: m });
+  // 2) DB 예약 → Google Calendar: 채널마다 예약 건수만큼 이벤트를 다시 만든다.
+  //    Todoist 로 우회하던 걸 걷어냈다 — Todoist→캘린더 구간은 우리가 손댈 수 없어서
+  //    반영이 안 될 때 원인을 못 잡았다. 할 일 카드용 Todoist 연동은 그대로 남는다.
+  let calSynced = 0;
+  let calFailed = 0;
+  for (const c of channels) {
+    try {
+      await syncMyChannel(c.id);
+      calSynced++;
+    } catch (e) {
+      calFailed++;
+      const reason = `CAL: ${(e as Error).message.slice(0, 100)}`;
+      failedDetails.push({ name: c.name, reason });
+      console.error('[gcal cron]', c.id, reason);
     }
-  } catch (e) {
-    tdFailed = channels.length;
-    tdError = (e as Error).message;
-    const reason = `TD: ${tdError.slice(0, 100)}`;
-    failedDetails.push({ name: '(전체)', reason });
-    console.error('[todoist cron]', reason);
   }
 
   // 별표(관심영상) 안 한 영상 중 30일 지난 거 자동 정리 (DB 용량 절약).
@@ -131,29 +121,28 @@ export async function GET(req: Request) {
   }
 
   const finishedAt = new Date().toISOString();
-  console.log('[todoist cron] done', {
+  console.log('[gcal cron] done', {
     startedAt,
     finishedAt,
     allChannels: channels.length,
-    tdSynced,
-    tdFailed,
+    calSynced,
+    calFailed,
     cleanedVideos,
   });
 
-  // Todoist 동기화가 통째로 실패했으면 200 을 주면 안 된다.
-  // 예전엔 여기서도 200 을 돌려줘서, 실제로는 아무것도 동기화되지 않았는데
-  // cron 대시보드는 초록으로 떠 며칠씩 모르고 지나갔다.
+  // 한 채널이라도 캘린더 반영에 실패했으면 200 을 주면 안 된다.
+  // 예전엔 실패해도 200 이라 cron 대시보드가 초록으로 떠 며칠씩 모르고 지나갔다.
   const body = {
-    success: tdError === null,
-    ...(tdError ? { error: 'TODOIST_SYNC_FAILED', message: tdError } : {}),
+    success: calFailed === 0,
+    ...(calFailed > 0 ? { error: 'CALENDAR_SYNC_FAILED' } : {}),
     data: {
       allChannels: channels.length,
-      todoist: { synced: tdSynced, failed: tdFailed, groups: tdGroups, orphansDeleted },
+      calendar: { synced: calSynced, failed: calFailed },
       ytSynced,
       ytFailed,
       cleanedVideos,
       ...(failedDetails.length > 0 ? { failures: failedDetails.slice(0, 10) } : {}),
     },
   };
-  return NextResponse.json(body, { status: tdError ? 500 : 200 });
+  return NextResponse.json(body, { status: calFailed > 0 ? 500 : 200 });
 }
