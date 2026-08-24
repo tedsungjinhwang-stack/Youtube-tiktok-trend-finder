@@ -6,7 +6,7 @@ import { kstTodayDate, kstTodayLabel } from '@/lib/kst';
 import { quoteOfDay } from '@/lib/quotes';
 import { SAEROI_PHOTOS } from '@/components/saeroi-avatar';
 import { TodoCard } from './todo-card';
-import { PlansCard } from './plan-pane';
+import { PlansCard } from '@/components/plan-pane';
 import {
   DashboardSummary,
   channelDDay,
@@ -117,18 +117,8 @@ export function OverviewClient() {
   const { need: totalNeed, soon: totalSoon, relaxed: totalRelaxed } = totals;
 
   return (
-    /*
-      넓은 화면에서는 좌측에 계획 사이드를 두고 본문은 1180px 를 유지한다.
-      사이드를 여백에 띄우지 않고 실제 컬럼으로 두는 이유: 여백 오버레이는 폭이
-      모자라면 통째로 사라져서, 매일 보고 고치는 계획을 두기에 맞지 않는다.
-    */
-    <div className="mx-auto max-w-[1180px] px-5 pb-12 pt-5 xl:grid xl:max-w-[1544px] xl:grid-cols-[300px_minmax(0,1180px)] xl:items-start xl:gap-6">
-      {/* 계획 — 넓은 화면에서만 좌측 컬럼. 좁아지면 본문 위로 내려간다 */}
-      <aside className="hidden xl:sticky xl:top-[76px] xl:block xl:max-h-[calc(100vh-92px)] xl:overflow-y-auto">
-        <PlansCard vertical />
-      </aside>
-
-      <div className="min-w-0">
+    // 계획 사이드바는 레이아웃(모든 탭 공통)에 있다. 여기서는 본문만 그린다.
+    <div className="mx-auto max-w-[1180px] px-5 pb-12 pt-5 xl:px-0 xl:pt-0">
       {err && (
         <div className="surface-warn mb-4 rounded-xl border px-4 py-3 text-[13px] font-semibold">
           {err}
@@ -252,7 +242,6 @@ export function OverviewClient() {
             </section>
           );
         })}
-      </div>
       </div>
     </div>
   );
