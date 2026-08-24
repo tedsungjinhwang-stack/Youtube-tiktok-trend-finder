@@ -650,6 +650,8 @@ export type Todo = {
   content: string;
   /** YYYY-MM-DD. 마감 없으면 null */
   due: string | null;
+  /** 시각까지 정한 마감이면 ISO. 날짜만이면 null */
+  dueAt: string | null;
   /** p1(높음) ~ p4(기본). Todoist 는 4가 가장 높아서 뒤집어 담는다 */
   priority: number;
   completed: boolean;
@@ -659,7 +661,7 @@ export type Todo = {
 type TodoistTaskFull = {
   id: string;
   content?: string;
-  due?: { date?: string } | null;
+  due?: { date?: string; datetime?: string | null } | null;
   priority?: number;
   is_completed?: boolean;
   checked?: boolean;
@@ -670,7 +672,9 @@ function toTodo(t: TodoistTaskFull): Todo {
   return {
     id: t.id,
     content: t.content ?? '',
-    due: t.due?.date ?? null,
+    // due.date 는 시각이 있으면 'YYYY-MM-DDTHH:mm:ss' 로 온다. 화면은 날짜만 쓰므로 잘라 둔다.
+    due: t.due?.date ? t.due.date.slice(0, 10) : null,
+    dueAt: t.due?.datetime ?? null,
     priority: t.priority ?? 1,
     completed: t.is_completed ?? t.checked ?? false,
     url: t.url ?? null,
@@ -712,14 +716,29 @@ export async function listTodos(): Promise<Todo[]> {
   return all.map(toTodo);
 }
 
+/**
+ * 마감을 body 에 싣는다.
+ *
+ * 시각이 있으면 due_datetime 을 쓴다 — Todoist 의 구글캘린더 연동은 시각이 있는 항목을
+ * 확실히 일정으로 만들어 준다. 날짜만이면 종일 항목이라 캘린더 설정에 따라 안 넘어갈 수 있다.
+ */
+function applyDue(body: Record<string, unknown>, due?: string | null, dueAt?: string | null) {
+  if (dueAt) {
+    body.due_datetime = dueAt;
+  } else if (due) {
+    body.due_date = due;
+  }
+}
+
 export async function createTodo(input: {
   content: string;
   due?: string | null;
+  dueAt?: string | null;
   priority?: number;
 }): Promise<Todo> {
   const { token, projectId } = await todoConfig();
   const body: Record<string, unknown> = { content: input.content, project_id: projectId };
-  if (input.due) body.due_date = input.due;
+  applyDue(body, input.due, input.dueAt);
   if (input.priority) body.priority = input.priority;
   const r = await tdFetch(token, '/tasks', { method: 'POST', body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`할 일 생성 실패 (${r.status})`);
@@ -728,14 +747,18 @@ export async function createTodo(input: {
 
 export async function updateTodo(
   id: string,
-  patch: { content?: string; due?: string | null; priority?: number }
+  patch: { content?: string; due?: string | null; dueAt?: string | null; priority?: number }
 ): Promise<void> {
   const { token } = await todoConfig();
   const body: Record<string, unknown> = {};
   if (patch.content !== undefined) body.content = patch.content;
   if (patch.priority !== undefined) body.priority = patch.priority;
-  // due 를 비우려면 빈 문자열을 보내야 한다 (null 은 무시됨)
-  if (patch.due !== undefined) body.due_date = patch.due ?? '';
+  if (patch.dueAt) {
+    body.due_datetime = patch.dueAt;
+  } else if (patch.due !== undefined) {
+    // due 를 비우려면 빈 문자열을 보내야 한다 (null 은 무시됨)
+    body.due_date = patch.due ?? '';
+  }
   const r = await tdFetch(token, `/tasks/${id}`, { method: 'POST', body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`할 일 수정 실패 (${r.status})`);
 }

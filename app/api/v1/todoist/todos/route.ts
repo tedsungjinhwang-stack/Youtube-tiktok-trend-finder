@@ -32,6 +32,7 @@ export async function POST(req: Request) {
     const todo = await createTodo({
       content,
       due: typeof body.due === 'string' && body.due ? body.due : null,
+      dueAt: typeof body.dueAt === 'string' && body.dueAt ? body.dueAt : null,
       priority: typeof body.priority === 'number' ? body.priority : undefined,
     });
     return NextResponse.json({ success: true, data: todo });

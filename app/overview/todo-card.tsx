@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { kstTodayDate } from '@/lib/kst';
+import { kstTodayDate, kstLocalToISO } from '@/lib/kst';
 
 type Todo = {
   id: string;
   content: string;
   due: string | null;
+  dueAt: string | null;
   priority: number;
   completed: boolean;
   url: string | null;
@@ -16,16 +17,23 @@ type Todo = {
 const HIGH = 4;
 const NORMAL = 1;
 
-/** 마감일 표시 — 오늘/내일은 말로, 지난 건 강조 */
-function dueLabel(due: string | null): { text: string; overdue: boolean } | null {
+/** 마감 표시 — 오늘/내일은 말로, 지난 건 강조. 시각이 있으면 뒤에 붙인다. */
+function dueLabel(due: string | null, dueAt: string | null): { text: string; overdue: boolean } | null {
   if (!due) return null;
   const today = kstTodayDate();
-  if (due === today) return { text: '오늘', overdue: false };
   const t = new Date(`${today}T00:00:00Z`).getTime();
   const d = new Date(`${due}T00:00:00Z`).getTime();
   const diff = Math.round((d - t) / 86_400_000);
-  if (diff === 1) return { text: '내일', overdue: false };
-  return { text: `${due.slice(5, 7)}.${due.slice(8, 10)}`, overdue: diff < 0 };
+  const day = diff === 0 ? '오늘' : diff === 1 ? '내일' : `${due.slice(5, 7)}.${due.slice(8, 10)}`;
+  const hhmm = dueAt
+    ? new Date(dueAt).toLocaleTimeString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+    : '';
+  return { text: hhmm ? `${day} ${hhmm}` : day, overdue: diff < 0 };
 }
 
 export function TodoCard() {
@@ -36,6 +44,7 @@ export function TodoCard() {
 
   const [draft, setDraft] = useState('');
   const [draftDue, setDraftDue] = useState('');
+  const [draftTime, setDraftTime] = useState('');
   const [busy, setBusy] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -73,7 +82,12 @@ export function TodoCard() {
       const r = await fetch('/api/v1/todoist/todos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, due: draftDue || null }),
+        body: JSON.stringify({
+          content,
+          due: draftDue || null,
+          // 시각을 넣으면 due_datetime 으로 나가고, 그래야 구글캘린더에 일정으로 뜬다
+          dueAt: draftDue && draftTime ? kstLocalToISO(`${draftDue}T${draftTime}`) : null,
+        }),
       });
       const j = await r.json();
       if (!j.success) {
@@ -82,6 +96,7 @@ export function TodoCard() {
       }
       setDraft('');
       setDraftDue('');
+      setDraftTime('');
       await load();
     } finally {
       setBusy(false);
@@ -153,7 +168,15 @@ export function TodoCard() {
             value={draftDue}
             onChange={(e) => setDraftDue(e.target.value)}
             title="마감일 (선택)"
-            className="h-9 w-[132px] shrink-0 rounded-[10px] border border-input bg-[color:var(--surface-input)] px-2 text-[12.5px]"
+            className="h-9 w-[122px] shrink-0 rounded-[10px] border border-input bg-[color:var(--surface-input)] px-2 text-[12.5px]"
+          />
+          <input
+            type="time"
+            value={draftTime}
+            onChange={(e) => setDraftTime(e.target.value)}
+            disabled={!draftDue}
+            title="시각 (선택) — 넣으면 구글캘린더에 일정으로 뜹니다"
+            className="h-9 w-[92px] shrink-0 rounded-[10px] border border-input bg-[color:var(--surface-input)] px-2 text-[12.5px] disabled:opacity-40"
           />
           <button
             onClick={add}
@@ -184,7 +207,7 @@ export function TodoCard() {
         ) : (
           <ul className="divide-y divide-[color:var(--border-row)]">
             {todos.map((t) => {
-              const d = dueLabel(t.due);
+              const d = dueLabel(t.due, t.dueAt);
               return (
                 <li key={t.id} className="group flex items-center gap-2.5 py-2">
                   <button
