@@ -34,6 +34,7 @@ type Channel = {
   platform: string;
   category: string | null;
   profile?: string | null;
+  url?: string | null;
   isActive: boolean;
   todoistGroup?: string | null;
   videos: Video[];
@@ -78,6 +79,7 @@ export function OverviewClient() {
         platform: ch.platform,
         category: ch.category,
         profile: ch.profile ?? null,
+        url: ch.url ?? null,
         lastScheduledAt: future[0]?.scheduledAt ?? null,
         published: pub
           ? { title: pub.title, url: pub.publishedUrl!, scheduledAt: pub.scheduledAt }

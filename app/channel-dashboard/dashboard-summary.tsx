@@ -10,6 +10,8 @@ export type SummaryChannel = {
   category: string | null;
   /** 스레드 멀티로그인 프로필 (없을 수 있음) */
   profile?: string | null;
+  /** 채널/계정 주소. 있으면 이름을 눌러 새 창으로 연다 */
+  url?: string | null;
   /** 마지막(가장 미래) 예약 시각 ISO. 없으면 null */
   lastScheduledAt: string | null;
   /** 최근 발행된 글/영상 (publishedUrl 입력된 것 중 최신) */
@@ -193,9 +195,21 @@ export function DashboardSummary({
                         {c.profile.trim()}
                       </span>
                     )}
-                    <span className="truncate text-[13.5px] font-bold" title={channelCaption(c)}>
-                      {channelCaption(c)}
-                    </span>
+                    {c.url ? (
+                      <a
+                        href={c.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="truncate text-[13.5px] font-bold hover:text-brand hover:underline"
+                        title={c.url}
+                      >
+                        {channelCaption(c)}
+                      </a>
+                    ) : (
+                      <span className="truncate text-[13.5px] font-bold" title={channelCaption(c)}>
+                        {channelCaption(c)}
+                      </span>
+                    )}
                   </span>
                   <span className="block truncate text-[11.5px] font-semibold text-[color:var(--text-faint)]">
                     {c.lastScheduledAt
@@ -267,9 +281,21 @@ export function DashboardSummary({
                               {c.profile.trim()}
                             </span>
                           )}
-                          <span className="truncate text-[13px] font-bold" title={channelCaption(c)}>
-                            {channelCaption(c)}
-                          </span>
+                          {c.url ? (
+                            <a
+                              href={c.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="truncate text-[13px] font-bold hover:text-brand hover:underline"
+                              title={c.url}
+                            >
+                              {channelCaption(c)}
+                            </a>
+                          ) : (
+                            <span className="truncate text-[13px] font-bold" title={channelCaption(c)}>
+                              {channelCaption(c)}
+                            </span>
+                          )}
                         </span>
                         {/* 발행 시각은 행 끝이 아니라 글 바로 옆에 — 멀리 떨어지면 어느 글의 시각인지 안 읽힌다 */}
                         <span className="flex min-w-0 items-baseline gap-1.5">

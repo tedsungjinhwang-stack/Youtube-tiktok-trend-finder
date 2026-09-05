@@ -505,6 +505,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         platform: c.platform,
         category: c.category,
         profile: c.profile,
+        url: c.url,
         lastScheduledAt: future[0]?.scheduledAt ?? null,
         published: pub
           ? { title: pub.title, url: pub.publishedUrl!, scheduledAt: pub.scheduledAt }
@@ -1030,9 +1031,21 @@ function DashRow({
             </button>
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-center gap-1.5 truncate">
-                <span className="truncate text-[17px] font-bold leading-tight">
-                  {c.name}
-                </span>
+                {c.url ? (
+                  // 행 클릭은 펼치기라 여기서 전파를 끊어야 링크만 열린다
+                  <a
+                    href={c.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title={c.url}
+                    className="truncate text-[17px] font-bold leading-tight hover:text-brand hover:underline"
+                  >
+                    {c.name}
+                  </a>
+                ) : (
+                  <span className="truncate text-[17px] font-bold leading-tight">{c.name}</span>
+                )}
                 {!c.isActive && (
                   <span className="rounded bg-muted px-1 py-px text-[12px] font-medium text-muted-foreground">
                     비활성
