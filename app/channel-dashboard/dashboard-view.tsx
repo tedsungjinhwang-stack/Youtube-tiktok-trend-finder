@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { kstLocalToISO, isoToKstLocal, tomorrowKstLocal, kstShort } from '@/lib/kst';
 import { DashboardSummary } from './dashboard-summary';
 import { platformStyle } from '@/lib/platform-style';
+import { channelHref } from '@/lib/channel-url';
 import {
   GROUP_LABEL,
   GROUP_PLATFORMS,
@@ -1031,14 +1032,14 @@ function DashRow({
             </button>
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-center gap-1.5 truncate">
-                {c.url ? (
+                {channelHref(c.platform, c.url) ? (
                   // 행 클릭은 펼치기라 여기서 전파를 끊어야 링크만 열린다
                   <a
-                    href={c.url}
+                    href={channelHref(c.platform, c.url)!}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    title={c.url}
+                    title={channelHref(c.platform, c.url)!}
                     className="truncate text-[17px] font-bold leading-tight hover:text-brand hover:underline"
                   >
                     {c.name}

@@ -2,6 +2,7 @@
 
 import { kstDDay, kstShort, kstTodayLabel } from '@/lib/kst';
 import { platformStyle } from '@/lib/platform-style';
+import { channelHref } from '@/lib/channel-url';
 
 export type SummaryChannel = {
   id: string;
@@ -172,6 +173,7 @@ export function DashboardSummary({
             const d = channelDDay(c);
             const urgent = isUrgent(d);
             const ps = platformStyle(c.platform);
+            const href = channelHref(c.platform, c.url);
             return (
               <div
                 key={c.id}
@@ -195,13 +197,13 @@ export function DashboardSummary({
                         {c.profile.trim()}
                       </span>
                     )}
-                    {c.url ? (
+                    {href ? (
                       <a
-                        href={c.url}
+                        href={href}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="truncate text-[13.5px] font-bold hover:text-brand hover:underline"
-                        title={c.url}
+                        title={href}
                       >
                         {channelCaption(c)}
                       </a>
@@ -262,6 +264,7 @@ export function DashboardSummary({
                 )
                 .map((c) => {
                   const ps = platformStyle(c.platform);
+                  const href = channelHref(c.platform, c.url);
                   return (
                     <li key={c.id} className="flex items-center gap-3 px-4 py-2.5">
                       <span
@@ -281,13 +284,13 @@ export function DashboardSummary({
                               {c.profile.trim()}
                             </span>
                           )}
-                          {c.url ? (
+                          {href ? (
                             <a
-                              href={c.url}
+                              href={href}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="truncate text-[13px] font-bold hover:text-brand hover:underline"
-                              title={c.url}
+                              title={href}
                             >
                               {channelCaption(c)}
                             </a>
