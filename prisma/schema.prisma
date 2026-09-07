@@ -278,6 +278,7 @@ model MyChannel {
   youtubeOauth ChannelYouTubeOAuth?
   materials    ChannelMaterial[]
   attachments  ChannelAttachment[]
+  perfEntries  PerfEntry[]
 
   @@index([adsense])
   @@index([platform])
@@ -401,4 +402,24 @@ model PlanNote {
   id        String   @id
   content   String   @default("")
   updatedAt DateTime @updatedAt
+}
+
+/// 업로드 매니저가 직접 적는 실적 한 줄. 유튜브 API 로 가져오지 않는다.
+/// 평균 대비·판정은 저장하지 않고 화면에서 계산한다 (기준이 바뀌면 같이 바뀌어야 하므로).
+model PerfEntry {
+  id         String    @id @default(cuid())
+  channelId  String
+  channel    MyChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  title      String    @default("")
+  /// 업로드/게시 일시 (KST 입력을 ISO 로 저장)
+  uploadedAt DateTime
+  /// 'public' | 'scheduled' | 'private'
+  state      String    @default("public")
+  /// 누적 조회수. 아직 안 나왔으면 null
+  views      Int?
+  note       String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([channelId, uploadedAt])
 }
