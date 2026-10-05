@@ -266,6 +266,9 @@ model MyChannel {
   phone        String?
   /// 스레드 계정 전용 메모 — 멀티로그인 프로필 번호 등 자유 텍스트.
   profile      String?
+  /// 같이 올리는 틱톡 계정 (핸들 또는 주소). 틱톡은 유튜브와 같은 영상을 함께 올리므로
+  /// 별도 채널로 만들지 않고 짝으로 붙여 둔다 — 일정이 두 벌이 되지 않게.
+  tiktokUrl    String?
   sortOrder    Int                   @default(0)
   /// 비활성화하면 cron/캘린더 동기화에서 제외. 기존 GCal 이벤트는 건드리지 않음.
   isActive     Boolean               @default(true)

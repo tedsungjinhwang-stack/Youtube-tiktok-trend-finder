@@ -82,6 +82,8 @@ type MyChannel = {
   phone: string | null;
   /** 스레드 계정 메모 — 멀티로그인 프로필 번호 등 */
   profile: string | null;
+  /** 같이 올리는 틱톡 계정 */
+  tiktokUrl: string | null;
   sortOrder: number;
   isActive: boolean;
   todoistGroup?: string | null;
@@ -144,6 +146,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
   // 스레드 전용 — 표에 있는 칸은 추가할 때도 넣을 수 있어야 한다
   const [newEmail, setNewEmail] = useState('');
   const [newProfile, setNewProfile] = useState('');
+  const [newTiktok, setNewTiktok] = useState('');
 
   // 영상 추가 폼
   const [vTitle, setVTitle] = useState('');
@@ -212,7 +215,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         category: newCategory,
         url: newUrl,
         profile: newProfile,
-        ...(isThreads ? { email: newEmail } : {}),
+        ...(isThreads ? { email: newEmail } : { tiktokUrl: newTiktok }),
       }),
     });
     const j = await r.json();
@@ -222,6 +225,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
       setNewUrl('');
       setNewEmail('');
       setNewProfile('');
+      setNewTiktok('');
       setSelectedChannelId(j.data.id);
       refresh();
       return j.data.id as string;
@@ -571,7 +575,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
             'card-surface theme-fade mb-4 grid gap-2 rounded-[22px] p-5 ' +
             (isThreads
               ? 'sm:grid-cols-[150px_1fr_1fr_150px_1fr_130px_110px]'
-              : 'sm:grid-cols-[150px_1fr_1fr_170px_150px_110px]')
+              : 'sm:grid-cols-[150px_1fr_1fr_150px_130px_150px_110px]')
           }
         >
           <select
@@ -618,6 +622,15 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
             placeholder="프로필"
             className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
           />
+          {/* 틱톡은 같은 영상을 함께 올리는 짝이라 별도 채널이 아니라 칸으로 붙인다 */}
+          {!isThreads && (
+            <input
+              value={newTiktok}
+              onChange={(e) => setNewTiktok(e.target.value)}
+              placeholder="틱톡 (@핸들)"
+              className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
+            />
+          )}
           <button
             onClick={() => addChannel()}
             disabled={!newName.trim()}
@@ -1047,6 +1060,22 @@ function DashRow({
                 ) : (
                   <span className="truncate text-[17px] font-bold leading-tight">{c.name}</span>
                 )}
+                {channelHref('TIKTOK', c.tiktokUrl) && (
+                  <a
+                    href={channelHref('TIKTOK', c.tiktokUrl)!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title={`틱톡 ${c.tiktokUrl}`}
+                    className="shrink-0 rounded-md px-1.5 py-px text-[11px] font-black"
+                    style={{
+                      background: 'var(--plat-tiktok-bg)',
+                      color: 'var(--plat-tiktok-fg)',
+                    }}
+                  >
+                    T
+                  </a>
+                )}
                 {!c.isActive && (
                   <span className="rounded bg-muted px-1 py-px text-[12px] font-medium text-muted-foreground">
                     비활성
@@ -1240,13 +1269,22 @@ function DashRow({
                 '예약이 끝나는 순서' 타일의 프로필 칩이 늘 비어 있었다.
               */}
               {!isThreads && (
-                <input
-                  value={c.profile ?? ''}
-                  onChange={(e) => onUpdate(c.id, { profile: e.target.value } as Partial<MyChannel>)}
-                  onBlur={(e) => onUpdate(c.id, { profile: e.target.value } as Partial<MyChannel>)}
-                  placeholder="프로필 (로그인 계정 구분용)"
-                  className="col-span-4 h-8 rounded border bg-background px-2 text-sm"
-                />
+                <>
+                  <input
+                    value={c.profile ?? ''}
+                    onChange={(e) => onUpdate(c.id, { profile: e.target.value } as Partial<MyChannel>)}
+                    onBlur={(e) => onUpdate(c.id, { profile: e.target.value } as Partial<MyChannel>)}
+                    placeholder="프로필 (로그인 계정 구분용)"
+                    className="col-span-4 h-8 rounded border bg-background px-2 text-sm"
+                  />
+                  <input
+                    value={c.tiktokUrl ?? ''}
+                    onChange={(e) => onUpdate(c.id, { tiktokUrl: e.target.value } as Partial<MyChannel>)}
+                    onBlur={(e) => onUpdate(c.id, { tiktokUrl: e.target.value } as Partial<MyChannel>)}
+                    placeholder="같이 올리는 틱톡 (@핸들)"
+                    className="col-span-4 h-8 rounded border bg-background px-2 text-sm"
+                  />
+                </>
               )}
             </div>
             <div className="mb-3 flex flex-wrap gap-2">
