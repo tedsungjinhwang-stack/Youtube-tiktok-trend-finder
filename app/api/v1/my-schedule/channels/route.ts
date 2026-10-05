@@ -145,7 +145,7 @@ const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' } as const;
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { name, category, url, platform, todoistGroup, email, profile } = body as {
+  const { name, category, url, platform, todoistGroup, email, profile, tiktokUrl } = body as {
     name?: string;
     category?: string;
     url?: string;
@@ -154,6 +154,8 @@ export async function POST(req: Request) {
     /** 스레드 계정은 추가할 때부터 이메일·프로필을 같이 받는다 */
     email?: string;
     profile?: string;
+    /** 같이 올리는 틱톡 계정 */
+    tiktokUrl?: string;
   };
   const trimmedName = name?.trim() || '';
   const normalizedPlatform =
@@ -190,6 +192,7 @@ export async function POST(req: Request) {
         url: url?.trim() || null,
         email: email?.trim() || null,
         profile: profile?.trim() || null,
+        tiktokUrl: tiktokUrl?.trim() || null,
         sortOrder: (max._max.sortOrder ?? 0) + 1,
       },
     });
