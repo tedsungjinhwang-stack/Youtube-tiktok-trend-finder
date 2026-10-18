@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { defaultGroupForPlatform } from '@/lib/todoist';
+import { isMonetizationStatus, monetizationRank } from '@/lib/monetization';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,17 +18,17 @@ const ALLOWED_PLATFORMS = new Set(Object.keys(PLATFORM_ORDER));
 const ALLOWED_GROUPS = new Set(['youtube', 'shopping', 'threads']);
 
 /**
- * 표시 순서. 수익창출 전 채널은 급한 축이 아니라서 플랫폼보다 먼저 보는 기준으로 두고
- * 무조건 목록 맨 아래로 내린다. 그 안에서 플랫폼 순서 → DB 정렬(연락처/sortOrder) 유지.
- * (컬럼 마이그레이션 전이면 undefined 라 전부 같은 값이 되어 기존 순서 그대로 나온다)
+ * 표시 순서. 수창 전 채널은 플랫폼보다 먼저 보는 기준으로 두고 무조건 목록 맨 아래로 내린다.
+ * 그 안에서 플랫폼 순서 → DB 정렬(연락처/sortOrder) 유지.
+ * 상태값이 문자열이라 DB orderBy 로는 못 한다 (알파벳순이면 PRE_… 가 UNKNOWN 앞에 온다).
+ * (컬럼 마이그레이션 전이면 undefined → 미확인 취급이라 기존 순서 그대로 나온다)
  */
-function sortChannels<T extends { platform?: string | null; preMonetization?: boolean }>(
+function sortChannels<T extends { platform?: string | null; monetizationStatus?: string | null }>(
   rows: T[]
 ): T[] {
   return [...rows].sort((a, b) => {
-    const am = a.preMonetization ? 1 : 0;
-    const bm = b.preMonetization ? 1 : 0;
-    if (am !== bm) return am - bm;
+    const mr = monetizationRank(a) - monetizationRank(b);
+    if (mr !== 0) return mr;
     const ai = PLATFORM_ORDER[a.platform ?? 'YOUTUBE'] ?? 99;
     const bi = PLATFORM_ORDER[b.platform ?? 'YOUTUBE'] ?? 99;
     return ai - bi;
@@ -65,8 +66,6 @@ export async function GET() {
   try {
     const channels = await prisma.myChannel.findMany({
       orderBy: [
-        // 수익창출 전은 늘 아래 (sortChannels 에서도 한 번 더 보장)
-        { preMonetization: 'asc' },
         { phone: { sort: 'asc', nulls: 'last' } },
         { adsense: { sort: 'asc', nulls: 'last' } },
         { email: { sort: 'asc', nulls: 'last' } },
@@ -156,7 +155,7 @@ const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' } as const;
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { name, category, url, platform, todoistGroup, email, profile, tiktokUrl, preMonetization } =
+  const { name, category, url, platform, todoistGroup, email, profile, tiktokUrl, monetizationStatus } =
     body as {
     name?: string;
     category?: string;
@@ -168,8 +167,8 @@ export async function POST(req: Request) {
     profile?: string;
     /** 같이 올리는 틱톡 계정 */
     tiktokUrl?: string;
-    /** 수익창출 전 — 목록 아래로 내려 둘지 */
-    preMonetization?: boolean;
+    /** 수익창출 상태 — 안 주면 미확인(UNKNOWN) */
+    monetizationStatus?: string;
   };
   const trimmedName = name?.trim() || '';
   const normalizedPlatform =
@@ -207,7 +206,7 @@ export async function POST(req: Request) {
         email: email?.trim() || null,
         profile: profile?.trim() || null,
         tiktokUrl: tiktokUrl?.trim() || null,
-        preMonetization: preMonetization === true,
+        monetizationStatus: isMonetizationStatus(monetizationStatus) ? monetizationStatus : 'UNKNOWN',
         sortOrder: (max._max.sortOrder ?? 0) + 1,
       },
     });

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { syncMyChannel, unsyncMyChannel } from '@/lib/google/calendar';
+import { isMonetizationStatus } from '@/lib/monetization';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     phone?: string | null;
     profile?: string | null;
     tiktokUrl?: string | null;
-    preMonetization?: boolean;
+    monetizationStatus?: string;
     isActive?: boolean;
   } = {};
   if (typeof body.name === 'string') data.name = body.name.trim();
@@ -37,7 +38,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if ('phone' in body) data.phone = body.phone?.trim() || null;
   if ('profile' in body) data.profile = body.profile?.trim() || null;
   if ('tiktokUrl' in body) data.tiktokUrl = body.tiktokUrl?.trim() || null;
-  if (typeof body.preMonetization === 'boolean') data.preMonetization = body.preMonetization;
+  // 정해진 세 값만 받는다. 잘못된 값은 조용히 무시 (DB CHECK 제약에 걸려 500 이 나지 않게)
+  if (isMonetizationStatus(body.monetizationStatus)) data.monetizationStatus = body.monetizationStatus;
   if (typeof body.isActive === 'boolean') data.isActive = body.isActive;
   if (typeof body.todoistGroup === 'string' && ALLOWED_GROUPS.has(body.todoistGroup)) {
     data.todoistGroup = body.todoistGroup;

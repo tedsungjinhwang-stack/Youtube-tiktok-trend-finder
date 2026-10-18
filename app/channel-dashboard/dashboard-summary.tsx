@@ -3,6 +3,7 @@
 import { kstDDay, kstShort, kstTodayLabel } from '@/lib/kst';
 import { platformStyle } from '@/lib/platform-style';
 import { channelHref } from '@/lib/channel-url';
+import { isPreMonetization, monetizationRank } from '@/lib/monetization';
 
 export type SummaryChannel = {
   id: string;
@@ -13,8 +14,8 @@ export type SummaryChannel = {
   profile?: string | null;
   /** 채널/계정 주소. 있으면 이름을 눌러 새 창으로 연다 */
   url?: string | null;
-  /** 수익창출 전 — 급한 축이 아니라서 어느 목록에서든 뒤로 밀고 흐리게 */
-  preMonetization?: boolean;
+  /** 수익창출 상태 'PRE_MONETIZATION' | 'MONETIZED' | 'UNKNOWN'. 수창 전은 어느 목록에서든 따로 뒤에 */
+  monetizationStatus?: string | null;
   /** 마지막(가장 미래) 예약 시각 ISO. 없으면 null */
   lastScheduledAt: string | null;
   /** 최근 발행된 글/영상 (publishedUrl 입력된 것 중 최신) */
@@ -31,9 +32,8 @@ export function channelDDay(c: SummaryChannel): number | null {
  * (수익창출 전 채널이 '예약 없음'이라고 맨 앞을 차지하면 정작 급한 채널이 안 보인다)
  */
 export function byUrgency(a: SummaryChannel, b: SummaryChannel): number {
-  const am = a.preMonetization ? 1 : 0;
-  const bm = b.preMonetization ? 1 : 0;
-  if (am !== bm) return am - bm;
+  const mr = monetizationRank(a) - monetizationRank(b);
+  if (mr !== 0) return mr;
   const da = channelDDay(a);
   const db = channelDDay(b);
   if (da === null && db === null) return a.name.localeCompare(b.name);
@@ -132,7 +132,85 @@ export function DashboardSummary({
 
   const sorted = [...channels].sort(byUrgency);
   // 빨간 숫자 안에 '덜 급한' 수익창출 전 채널이 몇 개 섞였는지 — 숫자를 그냥 믿을 수 있게 같이 적는다
-  const needPre = [...empty, ...soon].filter((x) => x.c.preMonetization).length;
+  const needPre = [...empty, ...soon].filter((x) => isPreMonetization(x.c)).length;
+  // 「예약이 끝나는 순서」는 운영 채널과 수창 전을 따로 묶는다 (섞이면 급한 운영 채널이 묻힌다)
+  const opSorted = sorted.filter((c) => !isPreMonetization(c));
+  const preSorted = sorted.filter((c) => isPreMonetization(c));
+  const gridCls =
+    (compact
+      ? 'gap-2 p-3 [grid-template-columns:repeat(auto-fill,minmax(228px,1fr))] '
+      : 'gap-2.5 p-4 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))] ') + 'grid';
+
+  const tile = (c: SummaryChannel) => {
+    const d = channelDDay(c);
+    const urgent = isUrgent(d);
+    const ps = platformStyle(c.platform);
+    const href = channelHref(c.platform, c.url);
+    return (
+      <div
+        key={c.id}
+        className={'flex items-center gap-2.5 rounded-2xl px-3.5 ' + (compact ? 'py-2' : 'py-2.5')}
+        // 수창 전은 살짝 흐리게 — 같은 빨간 타일이어도 우선순위가 다르다는 게 보여야 한다
+        style={{
+          background: urgent ? 'var(--red-bg)' : 'var(--subtle)',
+          ...(isPreMonetization(c) ? { opacity: 0.72 } : null),
+        }}
+      >
+        <span
+          className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-lg text-[12px] font-black"
+          style={{ background: ps.chipBg, color: ps.dot }}
+        >
+          {ps.mark}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-1.5">
+            {/* 어느 로그인 프로필에 물린 채널인지 — 이름만으로는 구분이 안 된다 */}
+            {c.profile?.trim() && (
+              <span
+                className="shrink-0 rounded-md px-1.5 py-px text-[11px] font-bold text-[color:var(--text-quaternary)]"
+                style={{ background: 'var(--chip)' }}
+              >
+                {c.profile.trim()}
+              </span>
+            )}
+            {href ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="truncate text-[13.5px] font-bold hover:text-brand hover:underline"
+                title={href}
+              >
+                {channelCaption(c)}
+              </a>
+            ) : (
+              <span className="truncate text-[13.5px] font-bold" title={channelCaption(c)}>
+                {channelCaption(c)}
+              </span>
+            )}
+          </span>
+          <span className="block truncate text-[11.5px] font-semibold text-[color:var(--text-faint)]">
+            {c.lastScheduledAt
+              ? `마지막 예약 ${kstShort(c.lastScheduledAt)}`
+              : '예약된 영상 없음'}
+          </span>
+        </span>
+        <span
+          className="shrink-0 rounded-[9px] px-2 py-1 text-[12.5px] font-extrabold"
+          // 임박 타일은 배경이 이미 붉으므로 배지는 패널색을 깔아야 글자가 뜬다
+          style={
+            urgent
+              ? { background: 'var(--panel)', color: 'var(--red)' }
+              : d === 2
+                ? { background: 'var(--amber-bg)', color: 'var(--amber)' }
+                : { background: 'var(--chip)', color: 'var(--text-faint)' }
+          }
+        >
+          {ddayLabel(d)}
+        </span>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -146,7 +224,7 @@ export function DashboardSummary({
           tone={todayNeed > 0 ? 'red' : 'plain'}
           detail={
             `예약 없음 ${empty.length} · 소진 임박 ${soon.length}` +
-            (needPre > 0 ? ` · 이 중 수익창출 전 ${needPre}` : '')
+            (needPre > 0 ? ` · 이 중 수창 전 ${needPre}` : '')
           }
           compact={compact}
         />
@@ -181,80 +259,26 @@ export function DashboardSummary({
             임박한 순
           </span>
         </div>
-        <div className={(compact ? 'gap-2 p-3 [grid-template-columns:repeat(auto-fill,minmax(228px,1fr))] ' : 'gap-2.5 p-4 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))] ') + 'grid'}>
-          {sorted.map((c) => {
-            const d = channelDDay(c);
-            const urgent = isUrgent(d);
-            const ps = platformStyle(c.platform);
-            const href = channelHref(c.platform, c.url);
-            return (
-              <div
-                key={c.id}
-                className={'flex items-center gap-2.5 rounded-2xl px-3.5 ' + (compact ? 'py-2' : 'py-2.5')}
-                // 수익창출 전은 살짝 흐리게 — 같은 빨간 타일이어도 우선순위가 다르다는 게 보여야 한다
-                style={{
-                  background: urgent ? 'var(--red-bg)' : 'var(--subtle)',
-                  ...(c.preMonetization ? { opacity: 0.72 } : null),
-                }}
-                title={c.preMonetization ? '수익창출 전' : undefined}
+        {opSorted.length > 0 && <div className={gridCls}>{opSorted.map(tile)}</div>}
+        {preSorted.length > 0 && (
+          <>
+            <div
+              className={
+                'flex items-center gap-2 px-[22px] text-[12.5px] font-extrabold text-[color:var(--text-quaternary)] ' +
+                (opSorted.length > 0 ? 'border-t border-[color:var(--border-row)] pt-3' : 'pt-1')
+              }
+            >
+              수창 전
+              <span
+                className="num rounded-full px-2 py-px text-[11.5px] font-bold"
+                style={{ background: 'var(--chip)' }}
               >
-                <span
-                  className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-lg text-[12px] font-black"
-                  style={{ background: ps.chipBg, color: ps.dot }}
-                >
-                  {ps.mark}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    {/* 어느 로그인 프로필에 물린 채널인지 — 이름만으로는 구분이 안 된다 */}
-                    {c.profile?.trim() && (
-                      <span
-                        className="shrink-0 rounded-md px-1.5 py-px text-[11px] font-bold text-[color:var(--text-quaternary)]"
-                        style={{ background: 'var(--chip)' }}
-                      >
-                        {c.profile.trim()}
-                      </span>
-                    )}
-                    {href ? (
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="truncate text-[13.5px] font-bold hover:text-brand hover:underline"
-                        title={href}
-                      >
-                        {channelCaption(c)}
-                      </a>
-                    ) : (
-                      <span className="truncate text-[13.5px] font-bold" title={channelCaption(c)}>
-                        {channelCaption(c)}
-                      </span>
-                    )}
-                  </span>
-                  <span className="block truncate text-[11.5px] font-semibold text-[color:var(--text-faint)]">
-                    {c.lastScheduledAt
-                      ? `마지막 예약 ${kstShort(c.lastScheduledAt)}`
-                      : '예약된 영상 없음'}
-                    {c.preMonetization && ' · 수익창출 전'}
-                  </span>
-                </span>
-                <span
-                  className="shrink-0 rounded-[9px] px-2 py-1 text-[12.5px] font-extrabold"
-                  // 임박 타일은 배경이 이미 붉으므로 배지는 패널색을 깔아야 글자가 뜬다
-                  style={
-                    urgent
-                      ? { background: 'var(--panel)', color: 'var(--red)' }
-                      : d === 2
-                        ? { background: 'var(--amber-bg)', color: 'var(--amber)' }
-                        : { background: 'var(--chip)', color: 'var(--text-faint)' }
-                  }
-                >
-                  {ddayLabel(d)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+                {preSorted.length}
+              </span>
+            </div>
+            <div className={gridCls}>{preSorted.map(tile)}</div>
+          </>
+        )}
       </section>
       </>
       )}
