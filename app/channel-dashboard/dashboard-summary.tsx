@@ -13,6 +13,8 @@ export type SummaryChannel = {
   profile?: string | null;
   /** 채널/계정 주소. 있으면 이름을 눌러 새 창으로 연다 */
   url?: string | null;
+  /** 수익창출 전 — 급한 축이 아니라서 어느 목록에서든 뒤로 밀고 흐리게 */
+  preMonetization?: boolean;
   /** 마지막(가장 미래) 예약 시각 ISO. 없으면 null */
   lastScheduledAt: string | null;
   /** 최근 발행된 글/영상 (publishedUrl 입력된 것 중 최신) */
@@ -24,8 +26,14 @@ export function channelDDay(c: SummaryChannel): number | null {
   return c.lastScheduledAt ? kstDDay(c.lastScheduledAt) : null;
 }
 
-/** 예약 없음 먼저, 그다음 D-day 오름차순 */
+/**
+ * 수익창출 전은 늘 뒤. 그 안에서 예약 없음 먼저, 그다음 D-day 오름차순.
+ * (수익창출 전 채널이 '예약 없음'이라고 맨 앞을 차지하면 정작 급한 채널이 안 보인다)
+ */
 export function byUrgency(a: SummaryChannel, b: SummaryChannel): number {
+  const am = a.preMonetization ? 1 : 0;
+  const bm = b.preMonetization ? 1 : 0;
+  if (am !== bm) return am - bm;
   const da = channelDDay(a);
   const db = channelDDay(b);
   if (da === null && db === null) return a.name.localeCompare(b.name);
@@ -123,6 +131,8 @@ export function DashboardSummary({
   const todayNeed = empty.length + soon.length;
 
   const sorted = [...channels].sort(byUrgency);
+  // 빨간 숫자 안에 '덜 급한' 수익창출 전 채널이 몇 개 섞였는지 — 숫자를 그냥 믿을 수 있게 같이 적는다
+  const needPre = [...empty, ...soon].filter((x) => x.c.preMonetization).length;
 
   return (
     <>
@@ -134,7 +144,10 @@ export function DashboardSummary({
           title="오늘 업로드 필요"
           value={todayNeed}
           tone={todayNeed > 0 ? 'red' : 'plain'}
-          detail={`예약 없음 ${empty.length} · 소진 임박 ${soon.length}`}
+          detail={
+            `예약 없음 ${empty.length} · 소진 임박 ${soon.length}` +
+            (needPre > 0 ? ` · 이 중 수익창출 전 ${needPre}` : '')
+          }
           compact={compact}
         />
         <KpiCard
@@ -178,7 +191,12 @@ export function DashboardSummary({
               <div
                 key={c.id}
                 className={'flex items-center gap-2.5 rounded-2xl px-3.5 ' + (compact ? 'py-2' : 'py-2.5')}
-                style={{ background: urgent ? 'var(--red-bg)' : 'var(--subtle)' }}
+                // 수익창출 전은 살짝 흐리게 — 같은 빨간 타일이어도 우선순위가 다르다는 게 보여야 한다
+                style={{
+                  background: urgent ? 'var(--red-bg)' : 'var(--subtle)',
+                  ...(c.preMonetization ? { opacity: 0.72 } : null),
+                }}
+                title={c.preMonetization ? '수익창출 전' : undefined}
               >
                 <span
                   className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-lg text-[12px] font-black"
@@ -217,6 +235,7 @@ export function DashboardSummary({
                     {c.lastScheduledAt
                       ? `마지막 예약 ${kstShort(c.lastScheduledAt)}`
                       : '예약된 영상 없음'}
+                    {c.preMonetization && ' · 수익창출 전'}
                   </span>
                 </span>
                 <span

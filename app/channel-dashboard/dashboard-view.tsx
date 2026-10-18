@@ -61,8 +61,18 @@ const PLATFORM_LABEL: Record<Platform, string> = {
 };
 const PLATFORM_ORDER: Platform[] = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK', 'THREADS', 'NAVER_CLIP'];
 
-/** 프로필 미입력은 항상 뒤로. 같은 프로필끼리는 이름순. */
-function byProfile(a: { profile: string | null; name: string }, b: { profile: string | null; name: string }): number {
+/** 수익창출 전은 항상 맨 아래 (급한 축이 아니라서) */
+function byMonetization(a: { preMonetization?: boolean }, b: { preMonetization?: boolean }): number {
+  return (a.preMonetization ? 1 : 0) - (b.preMonetization ? 1 : 0);
+}
+
+/** 수익창출 전 → 뒤로. 프로필 미입력도 뒤로. 같은 프로필끼리는 이름순. */
+function byProfile(
+  a: { profile: string | null; name: string; preMonetization?: boolean },
+  b: { profile: string | null; name: string; preMonetization?: boolean }
+): number {
+  const mon = byMonetization(a, b);
+  if (mon !== 0) return mon;
   const pa = a.profile?.trim() ?? '';
   const pb = b.profile?.trim() ?? '';
   if (!pa !== !pb) return pa ? -1 : 1;
@@ -84,6 +94,8 @@ type MyChannel = {
   profile: string | null;
   /** 같이 올리는 틱톡 계정 */
   tiktokUrl: string | null;
+  /** 수익창출 전 — 목록에서 맨 아래로 내리고 흐리게 */
+  preMonetization: boolean;
   sortOrder: number;
   isActive: boolean;
   todoistGroup?: string | null;
@@ -147,6 +159,8 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
   const [newEmail, setNewEmail] = useState('');
   const [newProfile, setNewProfile] = useState('');
   const [newTiktok, setNewTiktok] = useState('');
+  // 아직 수익창출 승인 전인 채널 — 추가할 때부터 아래로 내려 둘 수 있게
+  const [newPreMon, setNewPreMon] = useState(false);
 
   // 영상 추가 폼
   const [vTitle, setVTitle] = useState('');
@@ -184,7 +198,10 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         const mine = rows.filter((ch) => groupPlatforms.includes(ch.platform ?? 'YOUTUBE'));
         // 스레드는 전부 같은 플랫폼이라 플랫폼 순서가 의미 없다.
         // 멀티로그인 프로필끼리 붙여 보는 게 실제로 쓰는 순서라 프로필로 정렬한다.
-        setChannels(group === 'threads' ? [...mine].sort(byProfile) : mine);
+        // 수익창출 전은 어느 그룹에서든 맨 아래. (sort 는 안정적이라 그 안의 순서는 API 순서 그대로)
+        setChannels(
+          group === 'threads' ? [...mine].sort(byProfile) : [...mine].sort(byMonetization)
+        );
         setSetupWarning(c.warning ?? null);
       } else {
         setSetupWarning(c.error?.message ?? `${unit} 목록 로드 실패`);
@@ -215,6 +232,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         category: newCategory,
         url: newUrl,
         profile: newProfile,
+        preMonetization: newPreMon,
         ...(isThreads ? { email: newEmail } : { tiktokUrl: newTiktok }),
       }),
     });
@@ -226,6 +244,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
       setNewEmail('');
       setNewProfile('');
       setNewTiktok('');
+      setNewPreMon(false);
       setSelectedChannelId(j.data.id);
       refresh();
       return j.data.id as string;
@@ -405,6 +424,35 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
     }
   };
 
+  /**
+   * 선택한 채널을 한 번에 수익창출 전/후로 표시.
+   * 처음 세팅할 때 수십 개를 하나씩 펼쳐 체크하는 건 현실적이지 않아서 일괄로 둔다.
+   */
+  const bulkSetMonetization = async (pre: boolean) => {
+    const ids = [...bulkIds];
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`/api/v1/my-schedule/channels/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ preMonetization: pre }),
+          }).then((r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          })
+        )
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed > 0) alert(`${failed}개 변경 실패. 새로고침 후 다시 시도해주세요.`);
+      clearBulk();
+      refresh();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   /** 선택한 채널/계정 자체를 삭제 (예약·소재·완성본 모두 함께 삭제됨) */
   const bulkDelete = async () => {
     const ids = [...bulkIds];
@@ -511,6 +559,7 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
         category: c.category,
         profile: c.profile,
         url: c.url,
+        preMonetization: c.preMonetization,
         lastScheduledAt: future[0]?.scheduledAt ?? null,
         published: pub
           ? { title: pub.title, url: pub.publishedUrl!, scheduledAt: pub.scheduledAt }
@@ -631,6 +680,19 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
               className="h-9 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px]"
             />
           )}
+          {/* 새로 만든 채널은 보통 아직 승인 전이라 추가할 때 바로 표시할 수 있게 둔다 */}
+          <label
+            className="flex h-9 cursor-pointer select-none items-center gap-1.5 rounded-lg border border-input bg-[color:var(--surface-input)] px-2.5 text-[13px] font-semibold"
+            title="체크하면 목록 맨 아래로 내려갑니다"
+          >
+            <input
+              type="checkbox"
+              checked={newPreMon}
+              onChange={(e) => setNewPreMon(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            수익창출 전
+          </label>
           <button
             onClick={() => addChannel()}
             disabled={!newName.trim()}
@@ -722,6 +784,23 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
               className="h-7 rounded-md bg-primary px-3 text-[13px] font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
             >
               + 일괄 예약 추가
+            </button>
+            <span className="text-muted-foreground">|</span>
+            <button
+              onClick={() => bulkSetMonetization(true)}
+              disabled={bulkBusy}
+              title="선택한 항목을 목록 맨 아래로 내립니다"
+              className="h-7 rounded-md border bg-card px-3 text-[13px] font-bold text-muted-foreground hover:border-foreground/40 disabled:opacity-40"
+            >
+              수익창출 전으로
+            </button>
+            <button
+              onClick={() => bulkSetMonetization(false)}
+              disabled={bulkBusy}
+              title="선택한 항목을 원래 자리로 올립니다"
+              className="h-7 rounded-md border bg-card px-3 text-[13px] font-bold text-muted-foreground hover:border-foreground/40 disabled:opacity-40"
+            >
+              수익화됨으로
             </button>
             <span className="text-muted-foreground">|</span>
             <button
@@ -821,9 +900,11 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                   const last = sorted[0];
                   const isExpanded = selectedChannelId === c.id;
                   const prev = channels[idx - 1];
-                  // 스레드는 플랫폼이 하나뿐이라 프로필로 묶는다
+                  // 스레드는 플랫폼이 하나뿐이라 프로필로 묶는다.
+                  // 수익창출 전은 같은 플랫폼/프로필이라도 따로 묶어서 맨 아래 덩어리로 떨어지게 한다.
                   const bandOf = (x: MyChannel) =>
-                    isThreads ? (x.profile?.trim() || '') : (x.platform ?? 'YOUTUBE');
+                    (x.preMonetization ? '수창전|' : '') +
+                    (isThreads ? (x.profile?.trim() || '') : (x.platform ?? 'YOUTUBE'));
                   const band = bandOf(c);
                   const showHeader = !prev || bandOf(prev) !== band;
                   const countInGroup = channels.filter((x) => bandOf(x) === band).length;
@@ -843,10 +924,18 @@ export function DashboardView({ group }: { group: DashboardGroup }) {
                                 }}
                               />
                               {isThreads
-                                ? band || '프로필 미지정'
+                                ? c.profile?.trim() || '프로필 미지정'
                                 : PLATFORM_LABEL[(c.platform ?? 'YOUTUBE') as Platform]}{' '}
                               · {countInGroup}
                               {unit}
+                              {c.preMonetization && (
+                                <span
+                                  className="rounded-md px-1.5 py-px text-[11px] font-bold normal-case tracking-normal"
+                                  style={{ background: 'var(--chip)', color: 'var(--text-faint)' }}
+                                >
+                                  수익창출 전
+                                </span>
+                              )}
                             </span>
                           </td>
                         </tr>
@@ -1022,6 +1111,8 @@ function DashRow({
         className={cn(
           'group row-hover theme-fade align-top',
           !c.isActive && 'opacity-50',
+          // 수익창출 전은 '덜 중요'가 눈으로 바로 읽히게 살짝만 흐리게 (글자는 읽혀야 함)
+          c.isActive && c.preMonetization && 'opacity-[0.72]',
           isExpanded && 'subtle-surface',
           checked && 'subtle-surface'
         )}
@@ -1075,6 +1166,15 @@ function DashRow({
                   >
                     T
                   </a>
+                )}
+                {c.preMonetization && (
+                  <span
+                    title="수익창출 전 — 목록 아래로 내려 둡니다"
+                    className="shrink-0 rounded-md px-1.5 py-px text-[11px] font-bold"
+                    style={{ background: 'var(--chip)', color: 'var(--text-faint)' }}
+                  >
+                    수익창출 전
+                  </span>
                 )}
                 {!c.isActive && (
                   <span className="rounded bg-muted px-1 py-px text-[12px] font-medium text-muted-foreground">
@@ -1191,6 +1291,22 @@ function DashRow({
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                onUpdate(c.id, {
+                  preMonetization: !c.preMonetization,
+                } as Partial<MyChannel>);
+              }}
+              title={
+                c.preMonetization
+                  ? '수익창출 승인됨으로 표시 (목록 위로 올라옴)'
+                  : '수익창출 전으로 표시 (목록 맨 아래로 내려감)'
+              }
+              className="hover-action shrink-0 rounded-md border border-input px-2 py-1 text-[11.5px] font-bold text-muted-foreground hover:border-[color:var(--border-hover)] hover:text-foreground"
+            >
+              {c.preMonetization ? '수익화됨' : '수창전'}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
                 onUpdate(c.id, { isActive: !c.isActive } as Partial<MyChannel>);
               }}
               title={c.isActive ? '비활성화 (항소 중 등 — 대시보드/동기화에서 제외)' : '다시 활성화'}
@@ -1287,7 +1403,24 @@ function DashRow({
                 </>
               )}
             </div>
-            <div className="mb-3 flex flex-wrap gap-2">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              {/* 수익창출 전 — 승인 안 된 채널을 목록 맨 아래로 내려 두는 스위치 */}
+              <label
+                className="flex cursor-pointer select-none items-center gap-1.5 rounded-md border bg-card px-2.5 py-1 text-[13px]"
+                title="체크하면 이 채널이 목록 맨 아래로 내려가고 흐리게 표시됩니다"
+              >
+                <input
+                  type="checkbox"
+                  checked={c.preMonetization}
+                  onChange={(e) =>
+                    onUpdate(c.id, {
+                      preMonetization: e.target.checked,
+                    } as Partial<MyChannel>)
+                  }
+                  className="h-3.5 w-3.5"
+                />
+                수익창출 전
+              </label>
               <button
                 onClick={() =>
                   onUpdate(c.id, { isActive: !c.isActive } as Partial<MyChannel>)

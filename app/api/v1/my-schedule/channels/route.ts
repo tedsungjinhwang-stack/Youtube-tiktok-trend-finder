@@ -16,9 +16,18 @@ const PLATFORM_ORDER: Record<string, number> = {
 const ALLOWED_PLATFORMS = new Set(Object.keys(PLATFORM_ORDER));
 const ALLOWED_GROUPS = new Set(['youtube', 'shopping', 'threads']);
 
-function sortByPlatform<T extends { platform?: string | null }>(rows: T[]): T[] {
-  // 안정적 정렬 + 알 수 없는 플랫폼은 뒤로
+/**
+ * 표시 순서. 수익창출 전 채널은 급한 축이 아니라서 플랫폼보다 먼저 보는 기준으로 두고
+ * 무조건 목록 맨 아래로 내린다. 그 안에서 플랫폼 순서 → DB 정렬(연락처/sortOrder) 유지.
+ * (컬럼 마이그레이션 전이면 undefined 라 전부 같은 값이 되어 기존 순서 그대로 나온다)
+ */
+function sortChannels<T extends { platform?: string | null; preMonetization?: boolean }>(
+  rows: T[]
+): T[] {
   return [...rows].sort((a, b) => {
+    const am = a.preMonetization ? 1 : 0;
+    const bm = b.preMonetization ? 1 : 0;
+    if (am !== bm) return am - bm;
     const ai = PLATFORM_ORDER[a.platform ?? 'YOUTUBE'] ?? 99;
     const bi = PLATFORM_ORDER[b.platform ?? 'YOUTUBE'] ?? 99;
     return ai - bi;
@@ -56,6 +65,8 @@ export async function GET() {
   try {
     const channels = await prisma.myChannel.findMany({
       orderBy: [
+        // 수익창출 전은 늘 아래 (sortChannels 에서도 한 번 더 보장)
+        { preMonetization: 'asc' },
         { phone: { sort: 'asc', nulls: 'last' } },
         { adsense: { sort: 'asc', nulls: 'last' } },
         { email: { sort: 'asc', nulls: 'last' } },
@@ -77,7 +88,7 @@ export async function GET() {
         attachments: { orderBy: { createdAt: 'asc' } },
       },
     });
-    return NextResponse.json({ success: true, data: sortByPlatform(channels) }, { headers: NO_STORE });
+    return NextResponse.json({ success: true, data: sortChannels(channels) }, { headers: NO_STORE });
   } catch (e) {
     // 신규 컬럼 마이그레이션 전 → 레거시 select 로 재시도
     if (isMissingColumn(e)) {
@@ -93,7 +104,7 @@ export async function GET() {
         return NextResponse.json(
           {
             success: true,
-            data: sortByPlatform(channels),
+            data: sortChannels(channels),
             warning: 'DB 마이그레이션 미실행 (publishedUrl 등). 일부 기능이 비활성화됩니다.',
           },
           { headers: NO_STORE }
@@ -121,7 +132,7 @@ export async function GET() {
         });
         return NextResponse.json({
           success: true,
-          data: sortByPlatform(channels).map((c) => ({ ...c, youtubeOauth: null })),
+          data: sortChannels(channels).map((c) => ({ ...c, youtubeOauth: null })),
           warning:
             'YouTube 동기화 테이블 (ChannelYouTubeOAuth) 미생성. 새 마이그레이션 SQL 을 실행해주세요.',
         }, { headers: NO_STORE });
@@ -145,7 +156,8 @@ const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' } as const;
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { name, category, url, platform, todoistGroup, email, profile, tiktokUrl } = body as {
+  const { name, category, url, platform, todoistGroup, email, profile, tiktokUrl, preMonetization } =
+    body as {
     name?: string;
     category?: string;
     url?: string;
@@ -156,6 +168,8 @@ export async function POST(req: Request) {
     profile?: string;
     /** 같이 올리는 틱톡 계정 */
     tiktokUrl?: string;
+    /** 수익창출 전 — 목록 아래로 내려 둘지 */
+    preMonetization?: boolean;
   };
   const trimmedName = name?.trim() || '';
   const normalizedPlatform =
@@ -193,6 +207,7 @@ export async function POST(req: Request) {
         email: email?.trim() || null,
         profile: profile?.trim() || null,
         tiktokUrl: tiktokUrl?.trim() || null,
+        preMonetization: preMonetization === true,
         sortOrder: (max._max.sortOrder ?? 0) + 1,
       },
     });
