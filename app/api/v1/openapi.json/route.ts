@@ -8,7 +8,7 @@ const SPEC = {
     title: 'Trend Finder API',
     version: '0.1.0',
     description:
-      'TikTok / Instagram / YouTube 에셋 채널 트렌드 영상 검색 · 관리 API. Bearer auth via OPENCLAW_API_KEY.',
+      '에셋 채널 · 폴더 관리 API. Bearer auth via OPENCLAW_API_KEY.',
   },
   servers: [{ url: '/api/v1' }],
   components: {
@@ -37,18 +37,6 @@ const SPEC = {
     '/channels/{id}': {
       patch: { summary: 'Update channel', responses: { '200': { description: 'OK' } } },
       delete: { summary: 'Delete channel', responses: { '200': { description: 'OK' } } },
-    },
-    '/videos': {
-      get: { summary: 'List videos with filters', responses: { '200': { description: 'OK' } } },
-    },
-    '/scrape/channel/{id}': {
-      post: { summary: 'Scrape one channel', responses: { '200': { description: 'OK' } } },
-    },
-    '/scrape/all': {
-      post: { summary: 'Scrape all active channels', responses: { '200': { description: 'OK' } } },
-    },
-    '/scrape/runs': {
-      get: { summary: 'Recent scrape runs', responses: { '200': { description: 'OK' } } },
     },
   },
 };

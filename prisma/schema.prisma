@@ -16,18 +16,6 @@ enum Platform {
   DOUYIN
 }
 
-enum VideoFormat {
-  AI_GENERATED
-  ORIGINAL
-  MONTAGE
-  COMPILATION
-  HIGHLIGHT
-  MEME_TEMPLATE
-  STORY
-  IMAGE_SLIDE
-  UNDEFINED
-}
-
 model Folder {
   id        String    @id @default(cuid())
   name      String    @unique
@@ -36,7 +24,6 @@ model Folder {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   channels  Channel[]
-  hashtags  Hashtag[]
   stock     StockMaterial[]
 }
 
@@ -54,19 +41,6 @@ model StockMaterial {
   @@index([folderId, createdAt])
 }
 
-model Hashtag {
-  id        String    @id @default(cuid())
-  platform  Platform
-  tag       String                                            // 저장할 때 # 떼고 소문자
-  folderId  String?
-  folder    Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
-
-  @@unique([platform, tag])
-  @@index([folderId])
-}
-
 model Channel {
   id              String    @id @default(cuid())
   platform        Platform
@@ -78,7 +52,6 @@ model Channel {
   totalViewCount  BigInt?
   folderId        String
   folder          Folder    @relation(fields: [folderId], references: [id])
-  videos          Video[]
   isActive        Boolean   @default(true)
   /// 'REFERENCE' (레퍼런스) | 'SOURCE' (원본 소스)
   kind            String    @default("REFERENCE")
@@ -92,52 +65,6 @@ model Channel {
   @@index([kind])
 }
 
-model Video {
-  id              String   @id @default(cuid())
-  channelId       String
-  channel         Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  platform        Platform
-  externalId      String
-  url             String
-  caption         String?
-  thumbnailUrl    String?
-  viewCount       BigInt   @default(0)
-  likeCount       Int?
-  commentCount    Int?
-  shareCount      Int?
-  durationSeconds Int?
-  isShorts        Boolean?
-  publishedAt     DateTime
-  fetchedAt       DateTime @default(now())
-  viralScore      Float?
-  format          VideoFormat?
-  formatLockedBy  String?         // 'auto' | 'user' — user 락이면 자동 추론이 덮어쓰지 않음
-  sourceHashtag   String?         // null이면 일반(채널) 수집, 값 있으면 그 해시태그로 발견
-  isStarred       Boolean         @default(false)
-
-  @@unique([platform, externalId])
-  @@index([sourceHashtag])
-  @@index([channelId, publishedAt])
-  @@index([viralScore])
-  @@index([publishedAt])
-  @@index([isStarred])
-}
-
-model YoutubeApiKey {
-  id              String    @id @default(cuid())
-  label           String
-  apiKey          String    @unique
-  isActive        Boolean   @default(true)
-  dailyQuotaLimit Int       @default(10000)
-  usedToday       Int       @default(0)
-  lastUsedAt      DateTime?
-  exhaustedAt     DateTime?
-  resetAt         DateTime?
-  failCount       Int       @default(0)
-  lastError       String?
-  createdAt       DateTime  @default(now())
-}
-
 model Credential {
   id          String   @id @default(cuid())
   service     String   @unique
@@ -145,97 +72,6 @@ model Credential {
   description String?
   updatedAt   DateTime @updatedAt
   createdAt   DateTime @default(now())
-}
-
-model ScrapeRun {
-  id         String    @id @default(cuid())
-  channelId  String?
-  platform   Platform
-  status     String
-  itemsCount Int       @default(0)
-  costUsd    Float?
-  quotaUsed  Int?
-  error      String?
-  startedAt  DateTime  @default(now())
-  finishedAt DateTime?
-
-  @@index([channelId])
-  @@index([startedAt])
-}
-
-/// YouTube/TikTok 트렌딩 스냅샷 (시간당 누적).
-/// 캡처 시점 별로 영상 메타·통계 저장. 같은 videoId 가 시간마다 반복 저장됨.
-/// 최근 N시간 누적해서 100+개 보장하는 용도.
-model TrendingSnapshot {
-  id              String   @id @default(cuid())
-  platform        String   @default("YOUTUBE")  // 'YOUTUBE' | 'TIKTOK'
-  region          String   // 'KR' 등
-  videoId         String   // YouTube 11자 / TikTok awemeId
-  url             String?  // TikTok 영상 풀 URL (YouTube 는 videoId 로 구성 가능해서 nullable)
-  title           String
-  channelId       String
-  channelName     String
-  thumbnailUrl    String?
-  viewCount       BigInt
-  likeCount       BigInt?
-  commentCount    BigInt?
-  durationSeconds Int
-  isShorts        Boolean
-  publishedAt     DateTime
-  capturedAt      DateTime @default(now())
-
-  @@index([platform, region, capturedAt])
-  @@index([region, capturedAt])
-  @@index([region, isShorts, capturedAt])
-  @@index([videoId])
-}
-
-/// 트렌딩 스냅샷 cron 설정 (싱글톤 행, id='default').
-model TrendingSettings {
-  id            String   @id @default("default")
-  enabled       Boolean  @default(true)
-  intervalHours Int      @default(4)
-  lastRunAt     DateTime?
-  lastError     String?
-  updatedAt     DateTime @updatedAt
-}
-
-/// 에셋 채널 스크래핑 필터 (싱글톤). 최근 N일 + 조회수 최소값 이상만 DB 저장.
-model ScrapeSettings {
-  id          String   @id @default("default")
-  recencyDays Int      @default(10)
-  minViews    Int      @default(50000)
-  updatedAt   DateTime @updatedAt
-}
-
-/// 카테고리별 자동 스크래핑/필터 프리셋.
-/// 예) '정치_보수 / YouTube / SOURCE / 최근 7일 / 5만 조회수 이상'
-model ScrapePreset {
-  id            String   @id @default(cuid())
-  name          String
-  folderId      String?
-  /// 'YOUTUBE'|'TIKTOK'|'INSTAGRAM'|'XIAOHONGSHU'|'DOUYIN' (단일)
-  platform      String
-  /// 'ALL'|'REFERENCE'|'SOURCE'
-  kind          String   @default("ALL")
-  /// '최근 N일' (publishedAt >= now-N). null = 제한 없음.
-  recencyDays   Int?
-  /// '이전 N일' (publishedAt <= now-N). null = 제한 없음. recencyDays 와 동시 사용 가능.
-  minAgeDays    Int?
-  minViews      Int      @default(0)
-  /// 'ALL'|'SHORTS'|'LONG'
-  videoType     String   @default("ALL")
-  enabled       Boolean  @default(true)
-  lastRunAt     DateTime?
-  lastMatched   Int?
-  /// 마지막 실행 때 스크랩한 채널 수 (dispatched). 0 이면 폴더+플랫폼에 채널 없음.
-  lastScraped   Int?
-  lastError     String?
-  sortOrder     Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([enabled])
 }
 
 /// 내 채널 스케줄 관리 — 채널 메타.
@@ -328,7 +164,6 @@ model ScheduledVideo {
   @@index([scheduledAt])
 }
 
-
 /// Todoist 연동 설정. 싱글톤 (id='default'). 개인 API 토큰은 만료 없음.
 model TodoistConfig {
   id          String   @id @default("default")
@@ -388,7 +223,6 @@ model PlanNote {
   content   String   @default("")
   updatedAt DateTime @updatedAt
 }
-
 
 /// 트렌드 탭 원본 응답 캐시. 외부 소스(구글·네이버)를 화면 열 때마다 부르면
 /// 막히기 쉬워서, 소스+조건을 key 로 잠깐 저장해 두고 재사용한다.
