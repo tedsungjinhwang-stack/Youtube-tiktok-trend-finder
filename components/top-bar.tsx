@@ -20,7 +20,6 @@ const tabs = [
   { href: '/channels', label: '에셋 채널' },
   { href: '/stock', label: '소재창고' },
   { href: '/folders', label: '폴더' },
-  { href: '/comment-generator', label: '댓글생성기' },
 ];
 
 export function TopBar() {

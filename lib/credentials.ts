@@ -50,7 +50,7 @@ export const CRED_META: Record<
   },
   OPENAI_API_KEY: {
     label: 'OpenAI',
-    description: '댓글 생성기 AI 기능 (댓글 자동 생성·초월번역·아바타 이미지)',
+    description: '오디오 받아쓰기 · 인스타 영상 생성 AI 기능',
     editable: true,
   },
   NAVER_SEARCHAD_CUSTOMER_ID: {
