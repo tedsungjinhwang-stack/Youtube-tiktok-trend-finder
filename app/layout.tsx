@@ -45,8 +45,8 @@ export default function RootLayout({
         />
 
         {/*
-          픽시·댓글생성기·인스타영상·오디오쇼츠의 폰트 선택용.
-          12개 탭 전부에서 렌더를 막고 있었는데, 정작 쓰는 화면은 4개뿐이라
+          픽시·인스타영상·오디오쇼츠의 폰트 선택용.
+          모든 탭에서 렌더를 막고 있었는데, 정작 쓰는 화면은 3개뿐이라
           media="print" 로 받아 렌더를 막지 않게 하고 다 받아지면 all 로 바꾼다.
         */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
