@@ -274,7 +274,6 @@ model MyChannel {
   youtubeOauth ChannelYouTubeOAuth?
   materials    ChannelMaterial[]
   attachments  ChannelAttachment[]
-  perfEntries  PerfEntry[]
 
   @@index([adsense])
   @@index([platform])
@@ -329,16 +328,6 @@ model ScheduledVideo {
   @@index([scheduledAt])
 }
 
-/// 픽시에디터(인스타 템플릿) — 프로필/제목/자막 스타일 프리셋을 통째로 JSON 저장.
-model PixiTemplate {
-  id        String   @id @default(cuid())
-  name      String
-  /// 전체 스타일 객체 (배경/색/폰트/텍스트 등). 클라이언트가 형태 정의.
-  style     Json
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
 
 /// Todoist 연동 설정. 싱글톤 (id='default'). 개인 API 토큰은 만료 없음.
 model TodoistConfig {
@@ -400,25 +389,6 @@ model PlanNote {
   updatedAt DateTime @updatedAt
 }
 
-/// 업로드 매니저가 직접 적는 실적 한 줄. 유튜브 API 로 가져오지 않는다.
-/// 평균 대비·판정은 저장하지 않고 화면에서 계산한다 (기준이 바뀌면 같이 바뀌어야 하므로).
-model PerfEntry {
-  id         String    @id @default(cuid())
-  channelId  String
-  channel    MyChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  title      String    @default("")
-  /// 업로드/게시 일시 (KST 입력을 ISO 로 저장)
-  uploadedAt DateTime
-  /// 'public' | 'scheduled' | 'private'
-  state      String    @default("public")
-  /// 누적 조회수. 아직 안 나왔으면 null
-  views      Int?
-  note       String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  @@index([channelId, uploadedAt])
-}
 
 /// 트렌드 탭 원본 응답 캐시. 외부 소스(구글·네이버)를 화면 열 때마다 부르면
 /// 막히기 쉬워서, 소스+조건을 key 로 잠깐 저장해 두고 재사용한다.
