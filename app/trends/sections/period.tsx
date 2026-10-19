@@ -18,7 +18,7 @@ type Related = { query: string; value: number; label: string; naver: Naver };
 export function ProxyNotice({ what = '구글 1달·3달 조회' }: { what?: string }) {
   return (
     <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-      {what}는 프록시가 필요합니다. 구글이 서버 IP 에서 오는 요청을 막아서(429), 인베스트 시그널에서 쓰는 ISP 프록시를 거쳐야 합니다.
+      {what}를 시도했는데 구글이 대시보드 서버의 요청을 막았습니다(429). 이럴 땐 인베스트 시그널에서 쓰는 ISP 프록시를 거치면 받을 수 있습니다.
       <br />
       <Link href="/settings/api-keys" className="font-bold text-brand hover:underline">
         설정 → API 키
@@ -139,7 +139,7 @@ export function PeriodSection({ onAnalyze }: { onAnalyze: (q: string) => void })
 
       {noProxy ? (
         <div className="card-surface theme-fade rounded-[22px] px-[22px] py-6">
-          <h3 className="mb-2 text-[15px] font-extrabold">프록시를 넣으면 켜집니다</h3>
+          <h3 className="mb-2 text-[15px] font-extrabold">구글이 막았습니다 — 프록시를 넣으면 켜집니다</h3>
           <ProxyNotice />
         </div>
       ) : (

@@ -123,14 +123,16 @@ export type GoogleProperty = (typeof GOOGLE_PROPERTIES)[number];
 
 type Widget = { id: string; token: string; request: unknown };
 
+/** 구글이 이 서버를 막았다는 표시 (429) — 프록시로 다시 시도할지 가르는 데 쓴다 */
+class BlockedError extends Error {}
+
+type Session = { explore: (req: object) => Promise<Widget[]>; widget: (kind: string, w: Widget) => Promise<unknown> };
+
 /**
- * 프록시를 거치는 explore 세션. 쿠키(NID)를 먼저 받고 explore → 위젯별 데이터를 받는다.
- * 실패 메시지에서는 프록시 자격증명을 지운다.
+ * explore 세션 한 번. 쿠키(NID)를 먼저 받고 explore → 위젯별 데이터를 받는다.
+ * dispatcher 가 없으면 직접 연결.
  */
-async function exploreSession<T>(run: (s: { explore: (req: object) => Promise<Widget[]>; widget: (kind: string, w: Widget) => Promise<unknown> }) => Promise<T>): Promise<T> {
-  const proxy = await readSecret('GOOGLE_TRENDS_PROXY');
-  if (!proxy) throw new NoProxyError('구글 1달·3달·키워드 조회는 프록시가 필요합니다');
-  const dispatcher = dispatcherFor(proxy);
+async function runSession<T>(dispatcher: Dispatcher | undefined, run: (s: Session) => Promise<T>): Promise<T> {
   let cookie = '';
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   // 구글은 연달아 부르면 429 를 준다 (실측) → 요청 사이에 간격을 두고, 429 면 한 번 쉬었다 다시
@@ -138,7 +140,7 @@ async function exploreSession<T>(run: (s: { explore: (req: object) => Promise<Wi
     for (let attempt = 0; ; attempt++) {
       await sleep(attempt === 0 ? 700 : 2500);
       const res = await ufetch(url, {
-        dispatcher,
+        ...(dispatcher ? { dispatcher } : {}),
         headers: { 'User-Agent': UA, 'Accept-Language': 'ko-KR,ko;q=0.9', ...(cookie ? { Cookie: cookie } : {}) },
       });
       const set = res.headers.getSetCookie?.() ?? [];
@@ -150,27 +152,51 @@ async function exploreSession<T>(run: (s: { explore: (req: object) => Promise<Wi
   };
   // 응답 앞에 )]}' 같은 가드가 붙어 있다
   const json = (text: string) => JSON.parse(text.slice(text.indexOf('{')));
+  await get('https://trends.google.com/?geo=KR');
+  return run({
+    explore: async (req) => {
+      const ex = await get(`https://trends.google.com/trends/api/explore?hl=ko&tz=-540&req=${encodeURIComponent(JSON.stringify(req))}`);
+      // explore 부터 막히면 이 연결로는 아무것도 못 받는다 → 프록시로 넘어갈 신호
+      if (ex.status === 429) throw new BlockedError('구글 explore HTTP 429');
+      if (ex.status !== 200) throw new Error(`구글 explore HTTP ${ex.status}`);
+      return (json(ex.text) as { widgets: Widget[] }).widgets;
+    },
+    widget: async (kind, w) => {
+      const r = await get(
+        `https://trends.google.com/trends/api/widgetdata/${kind}?hl=ko&tz=-540&req=${encodeURIComponent(
+          JSON.stringify(w.request)
+        )}&token=${encodeURIComponent(w.token)}`
+      );
+      if (r.status !== 200) throw new Error(`구글 ${kind} HTTP ${r.status}`);
+      return json(r.text);
+    },
+  });
+}
+
+/**
+ * 먼저 프록시 없이 직접 시도하고, 구글이 막으면(429) 그때 GOOGLE_TRENDS_PROXY 로 다시 시도한다.
+ * 이 작업 서버(클라우드)에선 직접 연결이 막혔지만 Vercel 에서도 막히는지는 모른다 —
+ * 막히지 않으면 프록시는 필요 없다.
+ * 실패 메시지에서는 프록시 자격증명을 지운다.
+ */
+async function exploreSession<T>(run: (s: Session) => Promise<T>): Promise<T> {
+  let direct: unknown;
   try {
-    await get('https://trends.google.com/?geo=KR');
-    return await run({
-      explore: async (req) => {
-        const ex = await get(`https://trends.google.com/trends/api/explore?hl=ko&tz=-540&req=${encodeURIComponent(JSON.stringify(req))}`);
-        if (ex.status !== 200) throw new Error(`구글 explore HTTP ${ex.status}${ex.status === 429 ? ' (프록시도 막힘)' : ''}`);
-        return (json(ex.text) as { widgets: Widget[] }).widgets;
-      },
-      widget: async (kind, w) => {
-        const r = await get(
-          `https://trends.google.com/trends/api/widgetdata/${kind}?hl=ko&tz=-540&req=${encodeURIComponent(
-            JSON.stringify(w.request)
-          )}&token=${encodeURIComponent(w.token)}`
-        );
-        if (r.status !== 200) throw new Error(`구글 ${kind} HTTP ${r.status}`);
-        return json(r.text);
-      },
-    });
+    return await runSession(undefined, run);
   } catch (e) {
-    if (e instanceof NoProxyError) throw e;
-    throw new Error(scrubSecrets((e as Error).message));
+    direct = e;
+  }
+  // 직접 연결이 어떤 이유로든 실패했고 프록시가 있으면 그쪽으로 한 번 더
+  const proxy = await readSecret('GOOGLE_TRENDS_PROXY');
+  if (!proxy) {
+    if (direct instanceof BlockedError) throw new NoProxyError('구글이 이 서버의 요청을 막았습니다(429). 프록시를 넣으면 켜집니다');
+    throw new Error(scrubSecrets((direct as Error).message));
+  }
+  try {
+    return await runSession(dispatcherFor(proxy), run);
+  } catch (e) {
+    const msg = e instanceof BlockedError ? '구글이 프록시도 막았습니다(429). 잠시 뒤 다시 시도해 주세요' : (e as Error).message;
+    throw new Error(scrubSecrets(msg));
   }
 }
 
