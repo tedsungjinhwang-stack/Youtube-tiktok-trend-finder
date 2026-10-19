@@ -12,7 +12,7 @@ import { fetch as ufetch, ProxyAgent, type Dispatcher } from 'undici';
 import { socksDispatcher } from 'fetch-socks';
 import { cached, readSecret, scrubSecrets } from './cache';
 
-export { TRENDING_CATEGORIES, EXPLORE_CATEGORIES } from './categories';
+export { TRENDING_CATEGORIES, TRENDING_TO_EXPLORE } from './categories';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
