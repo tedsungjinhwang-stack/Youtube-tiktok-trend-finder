@@ -148,10 +148,8 @@ export function PresetsClient({
             : '이 폴더+플랫폼에 채널이 없습니다. 카테고리/플랫폼을 확인하세요.'
           : `재수집 ${d.scraped.ok}/${d.scraped.dispatched} 채널`;
       setResultMsg(
-        `${p.name} — ${scrapeNote}, 조건 만족 ${d.matched}개 영상.` +
-          (d.matched > 0 ? ' "결과 보기" 로 영상 확인.' : '')
+        `${p.name} — ${scrapeNote}, 조건 만족 ${d.matched}개 영상.`
       );
-      // 자동 이동 제거 — 사용자가 결과 보기 버튼으로 직접 이동 (카드 업데이트를 볼 수 있게)
       refresh();
     } catch (e) {
       setResultMsg(`실패: ${p.name}: ${(e as Error).message}`);
@@ -160,25 +158,6 @@ export function PresetsClient({
     }
   }
 
-  function openResults(p: Preset) {
-    const params = new URLSearchParams();
-    if (p.folderId) params.set('folderId', p.folderId);
-    params.set('platforms', p.platform);
-    if (p.kind === 'REFERENCE' || p.kind === 'SOURCE') params.set('kind', p.kind);
-    if (p.recencyDays != null) {
-      const d = p.recencyDays;
-      params.set(
-        'period',
-        d <= 1 ? '24h' : d <= 2 ? '48h' : d <= 7 ? '7d' : d <= 30 ? '30d' : 'all'
-      );
-    }
-    if (p.minAgeDays != null) params.set('minAgeDays', String(p.minAgeDays));
-    if (p.minViews > 0) params.set('minViews', String(p.minViews));
-    if (p.videoType === 'SHORTS') params.set('isShorts', 'true');
-    else if (p.videoType === 'LONG') params.set('isShorts', 'false');
-    params.set('sortBy', 'views');
-    router.push(`/all?${params.toString()}`);
-  }
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
@@ -232,7 +211,6 @@ export function PresetsClient({
             onPatch={(patch) => patch && patchOne(p.id, patch)}
             onRemove={() => remove(p.id)}
             onRun={() => runOne(p)}
-            onOpenResults={() => openResults(p)}
           />
         ))}
       </ul>
@@ -281,7 +259,6 @@ function PresetRow({
   onPatch,
   onRemove,
   onRun,
-  onOpenResults,
 }: {
   p: Preset;
   folders: Folder[];
@@ -289,7 +266,6 @@ function PresetRow({
   onPatch: (patch: Partial<Preset>) => void;
   onRemove: () => void;
   onRun: () => void;
-  onOpenResults: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const folderName = folders.find((f) => f.id === p.folderId)?.name ?? '(전체)';
@@ -382,12 +358,6 @@ function PresetRow({
             className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[13px] font-semibold text-emerald-400 disabled:opacity-50"
           >
             {running ? '실행 중…' : '▶ 실행'}
-          </button>
-          <button
-            onClick={onOpenResults}
-            className="rounded-md border px-2.5 py-1 text-[13px]"
-          >
-            결과 보기
           </button>
           <button
             onClick={() => setEditing(true)}

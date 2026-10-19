@@ -107,8 +107,7 @@ export async function queryVideos(filters: VideoFilters): Promise<VideoQueryResu
     ...(filters.channelId ? { channelId: filters.channelId } : {}),
     ...(publishedAtRange ? { publishedAt: publishedAtRange } : {}),
     viewCount: { gte: BigInt(minViews) },
-    // 통합/YT/Social 등 일반 페이지에서는 해시태그 발견 영상 제외 (sourceHashtag null만).
-    // /popular-feed는 queryVideos를 안 쓰고 prisma 직접 호출하므로 영향 없음.
+    // 해시태그로 발견한 영상은 제외 (채널 수집 영상만 — sourceHashtag null).
     sourceHashtag: null,
     // 시스템 폴더(__hashtag_discovery__) 채널 영상 제외.
     // Prisma startsWith는 LIKE '__%'가 모든 행 매치되는 문제로 못 씀 → 정확 이름 매칭.
