@@ -43,25 +43,6 @@ export default function RootLayout({
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
         />
-
-        {/*
-          픽시에디터의 글꼴 선택용.
-          모든 탭에서 렌더를 막고 있었는데, 정작 쓰는 화면은 픽시뿐이라
-          media="print" 로 받아 렌더를 막지 않게 하고 다 받아지면 all 로 바꾼다.
-        */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          id="editor-fonts"
-          rel="stylesheet"
-          media="print"
-          href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Roboto:wght@400;500;700&family=Gowun+Dodum&family=Nanum+Pen+Script&family=Oswald:wght@400;500;700&display=swap"
-        />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){var l=document.getElementById('editor-fonts');if(!l)return;var f=function(){l.media='all'};if(l.sheet)f();else l.addEventListener('load',f)})()`,
-          }}
-        />
       </head>
       <body className="min-h-screen antialiased">
         <TopBar />
