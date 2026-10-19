@@ -8,7 +8,7 @@ import { PlansCard } from './plan-pane';
  * 여기서는 계획을 띄우지 않는다. 남에게 보내는 화면이고, 로그인 전에는
  * 어차피 API 도 못 부른다.
  */
-const HIDDEN = ['/login', '/share', '/channels/share', '/my-schedule/share', '/v/'];
+const HIDDEN = ['/login', '/share', '/channels/share', '/my-schedule/share'];
 
 /**
  * 모든 탭 좌측에 붙는 계획 사이드바.
