@@ -104,21 +104,6 @@ export async function GET(req: Request) {
     }
   }
 
-  // 별표(관심영상) 안 한 영상 중 30일 지난 거 자동 정리 (DB 용량 절약).
-  // 사용자가 관심영상 체크했으면 30일 지나도 유지.
-  const cleanupCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  let cleanedVideos = 0;
-  try {
-    const r = await prisma.video.deleteMany({
-      where: {
-        isStarred: false,
-        fetchedAt: { lt: cleanupCutoff },
-      },
-    });
-    cleanedVideos = r.count;
-  } catch (e) {
-    console.error('[video cleanup] failed', (e as Error).message);
-  }
 
   const finishedAt = new Date().toISOString();
   console.log('[gcal cron] done', {
@@ -127,7 +112,6 @@ export async function GET(req: Request) {
     allChannels: channels.length,
     calSynced,
     calFailed,
-    cleanedVideos,
   });
 
   // 한 채널이라도 캘린더 반영에 실패했으면 200 을 주면 안 된다.
@@ -140,7 +124,6 @@ export async function GET(req: Request) {
       calendar: { synced: calSynced, failed: calFailed },
       ytSynced,
       ytFailed,
-      cleanedVideos,
       ...(failedDetails.length > 0 ? { failures: failedDetails.slice(0, 10) } : {}),
     },
   };

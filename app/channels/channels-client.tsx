@@ -6,8 +6,6 @@ import { cn } from '@/lib/utils';
 import {
   addChannelAction,
   deleteChannelAction,
-  scrapeChannelAction,
-  updateScrapeSettingsAction,
   updateChannelKindAction,
 } from './actions';
 
@@ -23,7 +21,6 @@ export type ChannelRow = {
   folder: string;
   folderId: string;
   subscriberCount: number | null;
-  lastScrapedAt: Date | null;
   kind: Kind;
 };
 
@@ -45,11 +42,9 @@ const PLATFORMS: { v: Platform | 'ALL'; label: string }[] = [
 export function ChannelsClient({
   channels,
   folders,
-  settings,
 }: {
   channels: ChannelRow[];
   folders: { id: string; name: string }[];
-  settings: { recencyDays: number; minViews: number };
 }) {
   const [tab, setTab] = useState<Platform | 'ALL'>('ALL');
   const [kindTab, setKindTab] = useState<Kind | 'ALL'>('ALL');
@@ -62,8 +57,6 @@ export function ChannelsClient({
 
   return (
     <>
-      <ScrapeFilterBar initial={settings} />
-
       <div className="mb-3 flex flex-wrap items-center gap-2 text-[13.5px]">
         <span className="text-[12px] font-semibold text-muted-foreground">
           분류:
@@ -268,15 +261,6 @@ function ChannelItem({ c }: { c: ChannelRow }) {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const onScrape = () => {
-    setError(null);
-    startTransition(async () => {
-      const r = await scrapeChannelAction(c.id);
-      if (!r.ok) setError(r.error);
-      else router.refresh();
-    });
-  };
-
   const onDelete = () => {
     if (!confirm(`"${c.handle ?? c.externalId}" 채널을 삭제할까요?`)) return;
     setError(null);
@@ -351,14 +335,6 @@ function ChannelItem({ c }: { c: ChannelRow }) {
         )}
       >
         {c.kind === 'SOURCE' ? '원본' : '레퍼'}
-      </button>
-      <button
-        onClick={onScrape}
-        disabled={isPending}
-        title="수동 스크래핑"
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border/60 text-[15px] text-muted-foreground hover:border-foreground/40 hover:bg-accent hover:text-foreground disabled:opacity-40"
-      >
-        {isPending ? '…' : '↻'}
       </button>
       <button
         onClick={onDelete}
@@ -560,94 +536,5 @@ function PlatformBadge({ p }: { p: Platform }) {
     >
       {m.letter}
     </span>
-  );
-}
-
-function ScrapeFilterBar({
-  initial,
-}: {
-  initial: { recencyDays: number; minViews: number };
-}) {
-  const [recencyDays, setRecencyDays] = useState(String(initial.recencyDays));
-  const [minViews, setMinViews] = useState(String(initial.minViews));
-  const [pending, start] = useTransition();
-  const [msg, setMsg] = useState<string | null>(null);
-  const router = useRouter();
-
-  const dirty =
-    String(initial.recencyDays) !== recencyDays ||
-    String(initial.minViews) !== minViews;
-
-  const save = () => {
-    const r = parseInt(recencyDays, 10);
-    const v = parseInt(minViews, 10);
-    if (!Number.isFinite(r) || r < 1) {
-      setMsg('최근 N일은 1 이상 정수');
-      return;
-    }
-    if (!Number.isFinite(v) || v < 0) {
-      setMsg('조회수는 0 이상 정수');
-      return;
-    }
-    setMsg(null);
-    start(async () => {
-      const res = await updateScrapeSettingsAction(r, v);
-      if (res.ok) {
-        setMsg('저장됨');
-        router.refresh();
-        setTimeout(() => setMsg(null), 1500);
-      } else {
-        setMsg(res.error);
-      }
-    });
-  };
-
-  return (
-    <div className="mb-4 rounded-xl border bg-card/40 px-3 py-2.5">
-      <div className="mb-1.5 flex items-center justify-between">
-        <div className="text-[13px] font-semibold">스크래핑 필터</div>
-        <div className="text-[13px] text-muted-foreground">
-          모든 플랫폼 공통 — 채널 스크랩 시 이 조건만 통과한 영상이 DB에 저장됩니다.
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2 text-[13px]">
-        <label className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">최근</span>
-          <input
-            type="number"
-            min={1}
-            max={365}
-            value={recencyDays}
-            onChange={(e) => setRecencyDays(e.target.value)}
-            className="num w-16 rounded border bg-background px-2 py-1 text-right"
-          />
-          <span className="text-muted-foreground">일 이내</span>
-        </label>
-        <span className="text-muted-foreground">+</span>
-        <label className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">조회수</span>
-          <input
-            type="number"
-            min={0}
-            step={1000}
-            value={minViews}
-            onChange={(e) => setMinViews(e.target.value)}
-            className="num w-24 rounded border bg-background px-2 py-1 text-right"
-          />
-          <span className="text-muted-foreground">이상</span>
-        </label>
-        <button
-          type="button"
-          onClick={save}
-          disabled={pending || !dirty}
-          className="ml-1 rounded-lg border bg-card px-3 py-1.5 text-[12.5px] hover:border-foreground/40 disabled:opacity-40"
-        >
-          {pending ? '저장 중…' : '저장'}
-        </button>
-        {msg && (
-          <span className="text-[12px] text-muted-foreground">{msg}</span>
-        )}
-      </div>
-    </div>
   );
 }

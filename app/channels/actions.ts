@@ -3,8 +3,6 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { parseChannelInput } from '@/lib/url-parser';
-import { scrapeChannel } from '@/lib/scraper';
-import { setScrapeSettings } from '@/lib/scrape-settings';
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -66,30 +64,5 @@ export async function deleteChannelAction(id: string): Promise<ActionResult> {
     return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e?.message ?? '삭제 실패' };
-  }
-}
-
-export async function updateScrapeSettingsAction(
-  recencyDays: number,
-  minViews: number
-): Promise<ActionResult> {
-  try {
-    await setScrapeSettings({ recencyDays, minViews });
-    revalidatePath('/channels');
-    return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e?.message ?? '설정 저장 실패' };
-  }
-}
-
-export async function scrapeChannelAction(id: string): Promise<ActionResult> {
-  try {
-    const channel = await prisma.channel.findUnique({ where: { id } });
-    if (!channel) return { ok: false, error: '채널 없음' };
-    await scrapeChannel(channel);
-    revalidatePath('/channels');
-    return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e?.message ?? '스크래핑 실패' };
   }
 }
