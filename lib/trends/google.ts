@@ -80,8 +80,11 @@ async function fetchTrending(hours: number): Promise<TrendingItem[]> {
   return parseTrending(await res.text());
 }
 
-/** 최근 24시간(24) 또는 7일(168). 30분 캐시. */
-export async function googleTrending(hours: 24 | 168) {
+export const TRENDING_HOURS = [4, 24, 48, 168] as const;
+export type TrendingHours = (typeof TRENDING_HOURS)[number];
+
+/** 최근 4시간·24시간·48시간·7일(168). 구글이 주는 최대가 7일. 30분 캐시. */
+export async function googleTrending(hours: TrendingHours) {
   return cached(`google-trending:KR:${hours}`, 30 * 60_000, () => fetchTrending(hours));
 }
 
@@ -114,55 +117,143 @@ function dispatcherFor(proxy: string): Dispatcher {
   return new ProxyAgent(proxy);
 }
 
-async function fetchPeriod(time: string, category: number, keyword: string): Promise<{ top: RelatedQuery[]; rising: RelatedQuery[] }> {
+/** 구글 트렌드 '검색 기준' — 웹 검색 / 유튜브 검색 / 구글 쇼핑 / 구글 뉴스 */
+export const GOOGLE_PROPERTIES = ['', 'youtube', 'froogle', 'news'] as const;
+export type GoogleProperty = (typeof GOOGLE_PROPERTIES)[number];
+
+type Widget = { id: string; token: string; request: unknown };
+
+/**
+ * 프록시를 거치는 explore 세션. 쿠키(NID)를 먼저 받고 explore → 위젯별 데이터를 받는다.
+ * 실패 메시지에서는 프록시 자격증명을 지운다.
+ */
+async function exploreSession<T>(run: (s: { explore: (req: object) => Promise<Widget[]>; widget: (kind: string, w: Widget) => Promise<unknown> }) => Promise<T>): Promise<T> {
   const proxy = await readSecret('GOOGLE_TRENDS_PROXY');
-  if (!proxy) throw new NoProxyError('구글 1달·3달 조회는 프록시가 필요합니다');
+  if (!proxy) throw new NoProxyError('구글 1달·3달·키워드 조회는 프록시가 필요합니다');
   const dispatcher = dispatcherFor(proxy);
   let cookie = '';
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  // 구글은 연달아 부르면 429 를 준다 (실측) → 요청 사이에 간격을 두고, 429 면 한 번 쉬었다 다시
   const get = async (url: string) => {
-    const res = await ufetch(url, {
-      dispatcher,
-      headers: { 'User-Agent': UA, 'Accept-Language': 'ko-KR,ko;q=0.9', ...(cookie ? { Cookie: cookie } : {}) },
-    });
-    const set = res.headers.getSetCookie?.() ?? [];
-    if (set.length) cookie = set.map((c) => c.split(';')[0]).join('; ');
-    return { status: res.status, text: await res.text() };
+    for (let attempt = 0; ; attempt++) {
+      await sleep(attempt === 0 ? 700 : 2500);
+      const res = await ufetch(url, {
+        dispatcher,
+        headers: { 'User-Agent': UA, 'Accept-Language': 'ko-KR,ko;q=0.9', ...(cookie ? { Cookie: cookie } : {}) },
+      });
+      const set = res.headers.getSetCookie?.() ?? [];
+      if (set.length) cookie = set.map((c) => c.split(';')[0]).join('; ');
+      const text = await res.text();
+      if (res.status === 429 && attempt < 1) continue;
+      return { status: res.status, text };
+    }
   };
+  // 응답 앞에 )]}' 같은 가드가 붙어 있다
+  const json = (text: string) => JSON.parse(text.slice(text.indexOf('{')));
   try {
-    // 쿠키(NID)를 먼저 받아야 explore 가 덜 막힌다
     await get('https://trends.google.com/?geo=KR');
-    const item: Record<string, string> = { geo: 'KR', time };
-    if (keyword) item.keyword = keyword;
-    const req = { comparisonItem: [item], category, property: '' };
-    const ex = await get(
-      `https://trends.google.com/trends/api/explore?hl=ko&tz=-540&req=${encodeURIComponent(JSON.stringify(req))}`
-    );
-    if (ex.status !== 200) throw new Error(`구글 explore HTTP ${ex.status}${ex.status === 429 ? ' (프록시도 막힘)' : ''}`);
-    const widgets = (JSON.parse(ex.text.slice(ex.text.indexOf('{'))) as { widgets: { id: string; token: string; request: unknown }[] }).widgets;
-    const w = widgets.find((x) => x.id === 'RELATED_QUERIES');
-    if (!w) return { top: [], rising: [] };
-    const rs = await get(
-      `https://trends.google.com/trends/api/widgetdata/relatedsearches?hl=ko&tz=-540&req=${encodeURIComponent(
-        JSON.stringify(w.request)
-      )}&token=${encodeURIComponent(w.token)}`
-    );
-    if (rs.status !== 200) throw new Error(`구글 relatedsearches HTTP ${rs.status}`);
-    type Ranked = { query: string; value: number; formattedValue: string };
-    const lists = (JSON.parse(rs.text.slice(rs.text.indexOf('{'))) as {
-      default: { rankedList: { rankedKeyword: Ranked[] }[] };
-    }).default.rankedList;
-    const conv = (l?: { rankedKeyword: Ranked[] }) =>
-      (l?.rankedKeyword ?? []).map((r) => ({ query: r.query, value: r.value, label: r.formattedValue }));
-    return { top: conv(lists[0]), rising: conv(lists[1]) };
+    return await run({
+      explore: async (req) => {
+        const ex = await get(`https://trends.google.com/trends/api/explore?hl=ko&tz=-540&req=${encodeURIComponent(JSON.stringify(req))}`);
+        if (ex.status !== 200) throw new Error(`구글 explore HTTP ${ex.status}${ex.status === 429 ? ' (프록시도 막힘)' : ''}`);
+        return (json(ex.text) as { widgets: Widget[] }).widgets;
+      },
+      widget: async (kind, w) => {
+        const r = await get(
+          `https://trends.google.com/trends/api/widgetdata/${kind}?hl=ko&tz=-540&req=${encodeURIComponent(
+            JSON.stringify(w.request)
+          )}&token=${encodeURIComponent(w.token)}`
+        );
+        if (r.status !== 200) throw new Error(`구글 ${kind} HTTP ${r.status}`);
+        return json(r.text);
+      },
+    });
   } catch (e) {
     if (e instanceof NoProxyError) throw e;
     throw new Error(scrubSecrets((e as Error).message));
   }
 }
 
-/** 1달('1m') / 3달('3m'). 12시간 캐시 — 프록시를 아끼고 차단도 피한다. */
-export async function googlePeriod(period: '1m' | '3m', category: number, keyword: string) {
-  const time = period === '1m' ? 'today 1-m' : 'today 3-m';
+type Ranked = { query?: string; topic?: { title: string; type: string }; value: number; formattedValue: string };
+function rankedLists(j: unknown): { rankedKeyword: Ranked[] }[] {
+  return (j as { default: { rankedList: { rankedKeyword: Ranked[] }[] } }).default.rankedList ?? [];
+}
+const convQueries = (l?: { rankedKeyword: Ranked[] }) =>
+  (l?.rankedKeyword ?? []).map((r) => ({ query: r.query ?? '', value: r.value, label: r.formattedValue }));
+
+function timeOf(period: '7d' | '1m' | '3m' | '12m'): string {
+  return { '7d': 'now 7-d', '1m': 'today 1-m', '3m': 'today 3-m', '12m': 'today 12-m' }[period];
+}
+
+/** 1달·3달 인기/급상승 검색어. 12시간 캐시 — 프록시를 아끼고 차단도 피한다. */
+export async function googlePeriod(period: '1m' | '3m', category: number, keyword: string, property: GoogleProperty = '') {
   const kw = keyword.trim();
-  return cached(`google-period:KR:${period}:${category}:${kw}`, 12 * 3600_000, () => fetchPeriod(time, category, kw));
+  return cached(`google-period:KR:${period}:${category}:${property}:${kw}`, 12 * 3600_000, () =>
+    exploreSession(async ({ explore, widget }) => {
+      const item: Record<string, string> = { geo: 'KR', time: timeOf(period) };
+      if (kw) item.keyword = kw;
+      const widgets = await explore({ comparisonItem: [item], category, property });
+      const w = widgets.find((x) => x.id === 'RELATED_QUERIES');
+      if (!w) return { top: [] as RelatedQuery[], rising: [] as RelatedQuery[] };
+      const lists = rankedLists(await widget('relatedsearches', w));
+      return { top: convQueries(lists[0]), rising: convQueries(lists[1]) };
+    })
+  );
+}
+
+export type GoogleKeyword = {
+  /** 관심도 추이 (기간 내 최댓값 = 100) */
+  timeline: { date: string; value: number }[];
+  /** 시·도별 관심도 (가장 높은 곳 = 100) */
+  regions: { name: string; value: number }[];
+  topics: { top: RelatedQuery[]; rising: RelatedQuery[] };
+  queries: { top: RelatedQuery[]; rising: RelatedQuery[] };
+};
+
+/** 키워드 하나 — 관심도 추이·지역·관련 주제·관련 검색어. 12시간 캐시 */
+export async function googleKeyword(keyword: string, period: '7d' | '1m' | '3m' | '12m', property: GoogleProperty = '') {
+  const kw = keyword.trim();
+  return cached(`google-kw:KR:${period}:${property}:${kw}`, 12 * 3600_000, () =>
+    exploreSession<GoogleKeyword>(async ({ explore, widget }) => {
+      const widgets = await explore({ comparisonItem: [{ keyword: kw, geo: 'KR', time: timeOf(period) }], category: 0, property });
+      const byId = (id: string) => widgets.find((w) => w.id === id || w.id.startsWith(id));
+      const out: GoogleKeyword = { timeline: [], regions: [], topics: { top: [], rising: [] }, queries: { top: [], rising: [] } };
+      // 위젯 하나가 막혀도 나머지는 보여 준다. 전부 실패했을 때만 에러
+      const errors: string[] = [];
+      let okCount = 0;
+      const tryWidget = async (id: string, fill: (w: Widget) => Promise<void>) => {
+        const w = byId(id);
+        if (!w) return;
+        try {
+          await fill(w);
+          okCount++;
+        } catch (e) {
+          errors.push((e as Error).message);
+        }
+      };
+      await tryWidget('TIMESERIES', async (w) => {
+        const j = (await widget('multiline', w)) as { default: { timelineData: { time: string; value: number[] }[] } };
+        out.timeline = j.default.timelineData.map((d) => ({ date: new Date(Number(d.time) * 1000).toISOString(), value: d.value[0] ?? 0 }));
+      });
+      await tryWidget('GEO_MAP', async (w) => {
+        const j = (await widget('comparedgeo', w)) as { default: { geoMapData: { geoName: string; value: number[]; hasData?: boolean[] }[] } };
+        out.regions = j.default.geoMapData
+          .filter((g) => g.hasData?.[0] !== false)
+          .map((g) => ({ name: g.geoName, value: g.value[0] ?? 0 }))
+          .sort((a, b) => b.value - a.value);
+      });
+      await tryWidget('RELATED_TOPICS', async (w) => {
+        const lists = rankedLists(await widget('relatedsearches', w));
+        const conv = (l?: { rankedKeyword: Ranked[] }) =>
+          (l?.rankedKeyword ?? []).map((r) => ({ query: r.topic?.title ?? '', value: r.value, label: r.formattedValue }));
+        out.topics = { top: conv(lists[0]), rising: conv(lists[1]) };
+      });
+      await tryWidget('RELATED_QUERIES', async (w) => {
+        const lists = rankedLists(await widget('relatedsearches', w));
+        out.queries = { top: convQueries(lists[0]), rising: convQueries(lists[1]) };
+      });
+      if (okCount === 0 && errors.length) throw new Error(errors[0]);
+      return out;
+    })
+  );
 }

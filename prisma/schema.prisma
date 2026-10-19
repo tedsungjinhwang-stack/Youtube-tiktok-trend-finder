@@ -436,5 +436,11 @@ model KeywordVolume {
   mobile    Int?
   /// '높음' | '중간' | '낮음'
   comp      String?
+  /// 월평균 클릭수·클릭률(%)·노출 광고 수
+  pcClk     Float?
+  mobileClk Float?
+  pcCtr     Float?
+  mobileCtr Float?
+  adDepth   Int?
   fetchedAt DateTime @default(now())
 }
