@@ -18,6 +18,8 @@ export type CredService =
   | 'NAVER_SEARCHAD_ACCESS_LICENSE'
   | 'NAVER_SEARCHAD_SECRET_KEY'
   | 'GOOGLE_TRENDS_PROXY'
+  | 'NAVER_DEV_CLIENT_ID'
+  | 'NAVER_DEV_CLIENT_SECRET'
   | 'NEXT_PUBLIC_SUPABASE_URL'
   | 'NEXT_PUBLIC_SUPABASE_ANON_KEY'
   | 'SUPABASE_SERVICE_ROLE_KEY'
@@ -60,6 +62,16 @@ export const CRED_META: Record<
   NAVER_SEARCHAD_SECRET_KEY: {
     label: '네이버 검색광고 · 비밀키',
     description: '같은 화면의 비밀키',
+    editable: true,
+  },
+  NAVER_DEV_CLIENT_ID: {
+    label: '네이버 개발자센터 · Client ID',
+    description: '트렌드 탭 키워드 분석(검색 추이·연령대·뉴스 수) — developers.naver.com 애플리케이션의 Client ID',
+    editable: true,
+  },
+  NAVER_DEV_CLIENT_SECRET: {
+    label: '네이버 개발자센터 · Client Secret',
+    description: '같은 애플리케이션의 Client Secret',
     editable: true,
   },
   GOOGLE_TRENDS_PROXY: {
