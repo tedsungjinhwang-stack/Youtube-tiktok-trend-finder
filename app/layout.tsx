@@ -45,8 +45,8 @@ export default function RootLayout({
         />
 
         {/*
-          픽시·인스타영상·오디오쇼츠의 폰트 선택용.
-          모든 탭에서 렌더를 막고 있었는데, 정작 쓰는 화면은 3개뿐이라
+          픽시에디터의 글꼴 선택용.
+          모든 탭에서 렌더를 막고 있었는데, 정작 쓰는 화면은 픽시뿐이라
           media="print" 로 받아 렌더를 막지 않게 하고 다 받아지면 all 로 바꾼다.
         */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -55,7 +55,7 @@ export default function RootLayout({
           id="editor-fonts"
           rel="stylesheet"
           media="print"
-          href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Roboto:wght@400;500;700&family=Gowun+Dodum&family=Nanum+Pen+Script&family=Oswald:wght@400;500;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Roboto:wght@400;500;700&family=Gowun+Dodum&family=Nanum+Pen+Script&family=Oswald:wght@400;500;700&display=swap"
         />
         <script
           dangerouslySetInnerHTML={{

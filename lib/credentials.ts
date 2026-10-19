@@ -14,7 +14,6 @@ export type CredService =
   | 'APIFY_API_TOKEN'
   | 'OPENCLAW_API_KEY'
   | 'CRON_SECRET'
-  | 'OPENAI_API_KEY'
   | 'NAVER_SEARCHAD_CUSTOMER_ID'
   | 'NAVER_SEARCHAD_ACCESS_LICENSE'
   | 'NAVER_SEARCHAD_SECRET_KEY'
@@ -46,11 +45,6 @@ export const CRED_META: Record<
   CRON_SECRET: {
     label: 'Vercel Cron',
     description: '/api/cron/* 호출 인증',
-    editable: true,
-  },
-  OPENAI_API_KEY: {
-    label: 'OpenAI',
-    description: '오디오 받아쓰기 · 인스타 영상 생성 AI 기능',
     editable: true,
   },
   NAVER_SEARCHAD_CUSTOMER_ID: {
