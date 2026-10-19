@@ -15,6 +15,10 @@ export type CredService =
   | 'OPENCLAW_API_KEY'
   | 'CRON_SECRET'
   | 'OPENAI_API_KEY'
+  | 'NAVER_SEARCHAD_CUSTOMER_ID'
+  | 'NAVER_SEARCHAD_ACCESS_LICENSE'
+  | 'NAVER_SEARCHAD_SECRET_KEY'
+  | 'GOOGLE_TRENDS_PROXY'
   | 'NEXT_PUBLIC_SUPABASE_URL'
   | 'NEXT_PUBLIC_SUPABASE_ANON_KEY'
   | 'SUPABASE_SERVICE_ROLE_KEY'
@@ -47,6 +51,27 @@ export const CRED_META: Record<
   OPENAI_API_KEY: {
     label: 'OpenAI',
     description: '댓글 생성기 AI 기능 (댓글 자동 생성·초월번역·아바타 이미지)',
+    editable: true,
+  },
+  NAVER_SEARCHAD_CUSTOMER_ID: {
+    label: '네이버 검색광고 · 고객 ID',
+    description: '트렌드 탭 월간 검색수 — searchad.naver.com → 도구 → API 사용 관리의 CUSTOMER_ID',
+    editable: true,
+  },
+  NAVER_SEARCHAD_ACCESS_LICENSE: {
+    label: '네이버 검색광고 · 액세스라이선스',
+    description: '같은 화면의 액세스라이선스',
+    editable: true,
+  },
+  NAVER_SEARCHAD_SECRET_KEY: {
+    label: '네이버 검색광고 · 비밀키',
+    description: '같은 화면의 비밀키',
+    editable: true,
+  },
+  GOOGLE_TRENDS_PROXY: {
+    label: '구글 트렌드 프록시',
+    description:
+      '트렌드 탭 구글 1달·3달 조회용. 서버 IP 는 구글이 막아서 ISP 프록시를 거친다 — http://아이디:비번@IP:포트 또는 socks5h://…',
     editable: true,
   },
   NEXT_PUBLIC_SUPABASE_URL: {

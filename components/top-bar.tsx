@@ -13,6 +13,7 @@ const tabs = [
   { href: '/shopping-dashboard', label: '쇼핑쇼츠' },
   { href: '/threads-dashboard', label: '스레드' },
   { href: '/performance', label: '실적' },
+  { href: '/trends', label: '트렌드' },
   { href: '/pixi', label: '픽시에디터' },
   { href: '/popular-feed', label: '해시태그검색' },
   { href: '/all?platforms=YOUTUBE', label: '영상 조회', match: ['/all'] },

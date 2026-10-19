@@ -431,3 +431,22 @@ model PerfEntry {
 
   @@index([channelId, uploadedAt])
 }
+
+/// 트렌드 탭 원본 응답 캐시. 외부 소스(구글·네이버)를 화면 열 때마다 부르면
+/// 막히기 쉬워서, 소스+조건을 key 로 잠깐 저장해 두고 재사용한다.
+model TrendCache {
+  key       String   @id
+  payload   Json
+  fetchedAt DateTime @default(now())
+}
+
+/// 네이버 검색광고 키워드도구의 월간 검색수 (최근 30일 합계). 키워드는 공백 제거·소문자로 저장.
+/// "< 10" 은 5 로, 네이버에 데이터가 없는 키워드는 pc/mobile 을 null 로 둔다 (다시 묻지 않으려고).
+model KeywordVolume {
+  keyword   String   @id
+  pc        Int?
+  mobile    Int?
+  /// '높음' | '중간' | '낮음'
+  comp      String?
+  fetchedAt DateTime @default(now())
+}
