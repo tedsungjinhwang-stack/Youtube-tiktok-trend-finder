@@ -77,7 +77,7 @@ export const CRED_META: Record<
   GOOGLE_TRENDS_PROXY: {
     label: '구글 트렌드 프록시',
     description:
-      '트렌드 탭 구글 1달·3달 조회용. 서버 IP 는 구글이 막아서 ISP 프록시를 거친다 — http://아이디:비번@IP:포트 또는 socks5h://…',
+      '선택 — 트렌드 탭 구글 1달·3달·키워드 조회가 구글에 막힐 때(429)만 거친다. http://아이디:비번@IP:포트 또는 socks5h://…',
     editable: true,
   },
   NEXT_PUBLIC_SUPABASE_URL: {
