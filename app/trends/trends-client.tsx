@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { NowSection } from './sections/now';
 import { ShoppingSection } from './sections/shopping';
-import { PeriodSection } from './sections/period';
 import { KeywordSection } from './sections/keyword';
 import { LookupSection } from './sections/lookup';
 
@@ -16,11 +15,10 @@ import { LookupSection } from './sections/lookup';
  * 어느 칸에서든 키워드 옆 「분석」을 누르면 키워드 분석 칸으로 넘어간다.
  */
 
-type Section = 'now' | 'shopping' | 'period' | 'keyword' | 'lookup';
+type Section = 'now' | 'shopping' | 'keyword' | 'lookup';
 const SECTIONS: { key: Section; label: string; hint: string }[] = [
-  { key: 'now', label: '지금 뜨는 것', hint: '구글 급상승 · 4시간~7일' },
+  { key: 'now', label: '구글 트렌드', hint: '4시간 ~ 3달 · 유튜브 검색 포함' },
   { key: 'shopping', label: '연령대별 쇼핑', hint: '네이버 쇼핑인사이트' },
-  { key: 'period', label: '1달 · 3달', hint: '구글 · 유튜브 검색 (프록시)' },
   { key: 'keyword', label: '키워드 분석', hint: '추이 · 연령대 · 화제성' },
   { key: 'lookup', label: '검색수 비교', hint: '네이버 월간 검색수' },
 ];
@@ -98,7 +96,6 @@ export function TrendsClient() {
 
       {section === 'now' && <NowSection onAnalyze={analyze} />}
       {section === 'shopping' && <ShoppingSection onAnalyze={analyze} />}
-      {section === 'period' && <PeriodSection onAnalyze={analyze} />}
       {section === 'keyword' && <KeywordSection initial={analyzeQ} initialCid={analyzeCid} onAnalyze={analyze} />}
       {section === 'lookup' && <LookupSection onAnalyze={analyze} />}
     </div>
