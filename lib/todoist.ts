@@ -114,16 +114,19 @@ type TodoistConfigRow = {
   projectName: string;
   shoppingProjectId: string | null;
   shoppingProjectName: string;
+  naverclipProjectId: string | null;
+  naverclipProjectName: string;
   threadsProjectId: string | null;
   threadsProjectName: string;
 };
 
 /** 그룹 → config 의 프로젝트 id/name 필드 매핑 */
 function groupProjectFields(group: DashboardGroup): {
-  idField: 'projectId' | 'shoppingProjectId' | 'threadsProjectId';
-  nameField: 'projectName' | 'shoppingProjectName' | 'threadsProjectName';
+  idField: 'projectId' | 'shoppingProjectId' | 'naverclipProjectId' | 'threadsProjectId';
+  nameField: 'projectName' | 'shoppingProjectName' | 'naverclipProjectName' | 'threadsProjectName';
 } {
   if (group === 'shopping') return { idField: 'shoppingProjectId', nameField: 'shoppingProjectName' };
+  if (group === 'naverclip') return { idField: 'naverclipProjectId', nameField: 'naverclipProjectName' };
   if (group === 'threads') return { idField: 'threadsProjectId', nameField: 'threadsProjectName' };
   return { idField: 'projectId', nameField: 'projectName' };
 }
@@ -540,7 +543,7 @@ export async function unsyncChannelFromTodoist(channelId: string): Promise<void>
   if (!ch) return;
   const label = ch.name.replace(/\s+/g, '_').slice(0, 60);
   // 그룹이 바뀐 뒤일 수 있어 모든 그룹 프로젝트에서 제거
-  const projectIds = [config.projectId, config.shoppingProjectId, config.threadsProjectId].filter(
+  const projectIds = [config.projectId, config.shoppingProjectId, config.naverclipProjectId, config.threadsProjectId].filter(
     (x): x is string => !!x
   );
   for (const pid of projectIds) {

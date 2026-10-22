@@ -15,7 +15,7 @@ const PLATFORM_ORDER: Record<string, number> = {
   NAVER_CLIP: 5,
 };
 const ALLOWED_PLATFORMS = new Set(Object.keys(PLATFORM_ORDER));
-const ALLOWED_GROUPS = new Set(['youtube', 'shopping', 'threads']);
+const ALLOWED_GROUPS = new Set(['youtube', 'shopping', 'naverclip', 'threads']);
 
 /**
  * 표시 순서. 수창 전 채널은 플랫폼보다 먼저 보는 기준으로 두고 무조건 목록 맨 아래로 내린다.

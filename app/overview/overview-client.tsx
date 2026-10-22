@@ -47,6 +47,7 @@ type Channel = {
 const GROUP_MARK: Record<DashboardGroup, { mark: string; bg: string; fg: string }> = {
   youtube: { mark: 'Y', bg: 'var(--plat-youtube-bg)', fg: 'var(--plat-youtube-fg)' },
   shopping: { mark: 'I', bg: 'var(--plat-instagram-bg)', fg: 'var(--plat-instagram-fg)' },
+  naverclip: { mark: 'N', bg: 'var(--plat-naver-bg)', fg: 'var(--plat-naver-fg)' },
   threads: { mark: '@', bg: 'var(--plat-threads-bg)', fg: 'var(--plat-threads-fg)' },
 };
 
