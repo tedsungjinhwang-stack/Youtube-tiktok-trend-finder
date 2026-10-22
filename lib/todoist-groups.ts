@@ -3,7 +3,11 @@
  * lib/todoist.ts 는 이 파일을 재-export 한다.
  */
 
-/** 대시보드 / Todoist 프로젝트 그룹. MyChannel.todoistGroup 값과 동일. */
+/**
+ * 대시보드 / Todoist 프로젝트 그룹. MyChannel.todoistGroup 값과 동일.
+ * 'shopping' 은 예전 '쇼핑쇼츠' 시절 이름이고 지금은 인스타 그룹이다 — DB 값·Todoist 설정 칼럼이
+ * 이 키를 쓰고 있어서 키는 그대로 두고 표시명·경로·플랫폼만 바꿨다.
+ */
 export type DashboardGroup = 'youtube' | 'shopping' | 'threads';
 
 export const DASHBOARD_GROUPS: DashboardGroup[] = ['youtube', 'shopping', 'threads'];
@@ -11,22 +15,22 @@ export const DASHBOARD_GROUPS: DashboardGroup[] = ['youtube', 'shopping', 'threa
 /** 그룹별 화면 표시명 */
 export const GROUP_LABEL: Record<DashboardGroup, string> = {
   youtube: '유튜브',
-  shopping: '쇼핑쇼츠',
+  shopping: '인스타',
   threads: '스레드',
 };
 
 /**
  * 그룹별로 대시보드에 **보이는** 플랫폼.
- * TikTok 은 유튜브·쇼핑쇼츠 양쪽에 보이지만, Todoist 귀속은 채널의 todoistGroup 이 정한다.
+ * TikTok 은 유튜브 채널에 짝으로 붙여 쓰므로 유튜브 쪽에만 둔다.
  */
 export const GROUP_PLATFORMS: Record<DashboardGroup, string[]> = {
   youtube: ['YOUTUBE', 'TIKTOK'],
-  shopping: ['NAVER_CLIP', 'INSTAGRAM', 'FACEBOOK', 'TIKTOK'],
+  shopping: ['INSTAGRAM'],
   threads: ['THREADS'],
 };
 
 /**
- * 그룹별 단위 명칭. 유튜브는 '채널', 쇼핑쇼츠·스레드는 '계정'.
+ * 그룹별 단위 명칭. 유튜브는 '채널', 인스타·스레드는 '계정'.
  * 화면 문구("+ OO 추가", "총 N개 OO" 등)에 사용.
  */
 export const GROUP_UNIT: Record<DashboardGroup, string> = {
@@ -38,7 +42,7 @@ export const GROUP_UNIT: Record<DashboardGroup, string> = {
 /** 그룹별 페이지 경로 */
 export const GROUP_PATH: Record<DashboardGroup, string> = {
   youtube: '/channel-dashboard',
-  shopping: '/shopping-dashboard',
+  shopping: '/instagram-dashboard',
   threads: '/threads-dashboard',
 };
 

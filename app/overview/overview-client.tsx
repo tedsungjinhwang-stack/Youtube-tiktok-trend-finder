@@ -46,7 +46,7 @@ type Channel = {
 /** 그룹 아이콘 — 대표 플랫폼의 마크와 색을 그대로 쓴다 (테마 따라 바뀌게 CSS 변수) */
 const GROUP_MARK: Record<DashboardGroup, { mark: string; bg: string; fg: string }> = {
   youtube: { mark: 'Y', bg: 'var(--plat-youtube-bg)', fg: 'var(--plat-youtube-fg)' },
-  shopping: { mark: 'N', bg: 'var(--plat-naver-bg)', fg: 'var(--plat-naver-fg)' },
+  shopping: { mark: 'I', bg: 'var(--plat-instagram-bg)', fg: 'var(--plat-instagram-fg)' },
   threads: { mark: '@', bg: 'var(--plat-threads-bg)', fg: 'var(--plat-threads-fg)' },
 };
 
