@@ -10,7 +10,7 @@ export const THEME_KEY = 'saeroi-toss-theme';
 const tabs = [
   { href: '/', label: '전체 현황', match: ['/'] },
   { href: '/channel-dashboard', label: '유튜브', match: ['/channel-dashboard', '/my-schedule'] },
-  { href: '/shopping-dashboard', label: '쇼핑쇼츠' },
+  { href: '/instagram-dashboard', label: '인스타', match: ['/instagram-dashboard', '/shopping-dashboard'] },
   { href: '/threads-dashboard', label: '스레드' },
   { href: '/trends', label: '트렌드' },
   { href: '/channels', label: '에셋 채널' },

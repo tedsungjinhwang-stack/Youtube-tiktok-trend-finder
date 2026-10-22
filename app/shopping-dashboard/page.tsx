@@ -1,6 +1,6 @@
-import { DashboardView } from '../channel-dashboard/dashboard-view';
+import { redirect } from 'next/navigation';
 
-/** 쇼핑쇼츠 대시보드 — 네이버클립 · 인스타그램 · 페이스북 + TikTok */
-export default function ShoppingDashboardPage() {
-  return <DashboardView group="shopping" />;
+/** 예전 주소(쇼핑쇼츠) — 즐겨찾기가 깨지지 않게 인스타 대시보드로 넘긴다 */
+export default function ShoppingDashboardRedirect() {
+  redirect('/instagram-dashboard');
 }

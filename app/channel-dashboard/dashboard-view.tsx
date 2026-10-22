@@ -1434,7 +1434,7 @@ function DashRow({
                   className="col-span-2 h-8 rounded border bg-background px-2 text-sm"
                 >
                   <option value="youtube">Todoist: 유튜브</option>
-                  <option value="shopping">Todoist: 쇼핑쇼츠</option>
+                  <option value="shopping">Todoist: 인스타</option>
                 </select>
               )}
               <input

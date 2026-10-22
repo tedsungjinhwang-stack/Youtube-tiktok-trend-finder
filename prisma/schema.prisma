@@ -171,9 +171,9 @@ model TodoistConfig {
   /// 유튜브 대시보드용 프로젝트 (레거시 컬럼명 유지)
   projectId   String?
   projectName String   @default("유튜브")
-  /// 쇼핑쇼츠 대시보드용
+  /// 인스타 대시보드용 (칼럼 이름의 shopping 은 예전 '쇼핑쇼츠' 시절 이름)
   shoppingProjectId   String?
-  shoppingProjectName String  @default("쇼핑쇼츠")
+  shoppingProjectName String  @default("인스타")
   /// 스레드 대시보드용
   threadsProjectId    String?
   threadsProjectName  String  @default("스레드")
