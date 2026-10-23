@@ -2,13 +2,13 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { syncMyChannel, unsyncMyChannel } from '@/lib/google/calendar';
 import { isMonetizationStatus } from '@/lib/monetization';
+import { normalizeGroupInput } from '@/lib/todoist-groups';
 
 export const dynamic = 'force-dynamic';
 
 type Ctx = { params: Promise<{ id: string }> };
 
 const ALLOWED_PLATFORMS = new Set(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK', 'THREADS', 'NAVER_CLIP']);
-const ALLOWED_GROUPS = new Set(['youtube', 'shopping', 'naverclip', 'threads']);
 
 export async function PATCH(req: Request, { params }: Ctx) {
   const { id } = await params;
@@ -41,9 +41,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
   // 정해진 세 값만 받는다. 잘못된 값은 조용히 무시 (DB CHECK 제약에 걸려 500 이 나지 않게)
   if (isMonetizationStatus(body.monetizationStatus)) data.monetizationStatus = body.monetizationStatus;
   if (typeof body.isActive === 'boolean') data.isActive = body.isActive;
-  if (typeof body.todoistGroup === 'string' && ALLOWED_GROUPS.has(body.todoistGroup)) {
-    data.todoistGroup = body.todoistGroup;
-  }
+  const group = normalizeGroupInput(body.todoistGroup);
+  if (group) data.todoistGroup = group;
   const updated = await prisma.myChannel.update({ where: { id }, data });
   // 채널명 변경 또는 활성 상태 변경 → 캘린더 동기화
   if (data.name !== undefined || data.isActive !== undefined || data.todoistGroup !== undefined) {

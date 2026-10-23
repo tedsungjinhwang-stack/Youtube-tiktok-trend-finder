@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db';
 import {
   DASHBOARD_GROUPS,
-  defaultGroupForPlatform,
+  resolveGroup,
   type DashboardGroup,
 } from './todoist-groups';
 
@@ -105,6 +105,7 @@ export {
   GROUP_PLATFORMS,
   GROUP_PATH,
   defaultGroupForPlatform,
+  resolveGroup,
 } from './todoist-groups';
 export type { DashboardGroup } from './todoist-groups';
 
@@ -518,7 +519,7 @@ export async function syncChannelToTodoist(channelId: string): Promise<number> {
 
   // 「영상업로드 필요」는 그룹 전체를 한 태스크로 모으므로, 이 채널만 봐서는
   // 그 태스크를 올바르게 다시 쓸 수 없다. 그래서 속한 그룹 전체를 맞춘다.
-  const group = (ch.todoistGroup as DashboardGroup) ?? defaultGroupForPlatform(ch.platform);
+  const group = resolveGroup(ch.todoistGroup, ch.platform);
   const all = await prisma.myChannel.findMany({
     where: { isActive: true },
     include: {
@@ -527,7 +528,7 @@ export async function syncChannelToTodoist(channelId: string): Promise<number> {
     },
   });
   const channels = all.filter(
-    (c) => ((c.todoistGroup as DashboardGroup) ?? defaultGroupForPlatform(c.platform)) === group
+    (c) => resolveGroup(c.todoistGroup, c.platform) === group
   );
   if (channels.length === 0) return 0;
 
@@ -603,7 +604,7 @@ export async function syncAllToTodoist(): Promise<{
   // 그룹(=Todoist 프로젝트)별로 독립 동기화. 한 그룹이 실패해도 나머지는 진행.
   for (const group of DASHBOARD_GROUPS) {
     const channels = all.filter(
-      (c) => ((c.todoistGroup as DashboardGroup) ?? defaultGroupForPlatform(c.platform)) === group
+      (c) => resolveGroup(c.todoistGroup, c.platform) === group
     );
     const { nameField } = groupProjectFields(group);
     const projectName = config[nameField];

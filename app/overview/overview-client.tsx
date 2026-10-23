@@ -18,7 +18,7 @@ import {
   GROUP_LABEL,
   GROUP_PATH,
   GROUP_UNIT,
-  defaultGroupForPlatform,
+  resolveGroup,
   type DashboardGroup,
 } from '@/lib/todoist-groups';
 
@@ -72,7 +72,8 @@ export function OverviewClient() {
     const map = new Map<DashboardGroup, SummaryChannel[]>();
     for (const g of DASHBOARD_GROUPS) map.set(g, []);
     for (const ch of channels) {
-      const g = (ch.todoistGroup as DashboardGroup) ?? defaultGroupForPlatform(ch.platform);
+      // 외부 도구가 'instagram' 처럼 다른 이름으로 넣어도 빠지지 않게 해석해서 묶는다
+      const g = resolveGroup(ch.todoistGroup, ch.platform);
       const future = [...ch.videos].sort(
         (a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()
       );

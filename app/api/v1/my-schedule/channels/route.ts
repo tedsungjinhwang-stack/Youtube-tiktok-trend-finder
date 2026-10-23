@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { defaultGroupForPlatform } from '@/lib/todoist';
+import { normalizeGroupInput } from '@/lib/todoist-groups';
 import { isMonetizationStatus, monetizationRank } from '@/lib/monetization';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,6 @@ const PLATFORM_ORDER: Record<string, number> = {
   NAVER_CLIP: 5,
 };
 const ALLOWED_PLATFORMS = new Set(Object.keys(PLATFORM_ORDER));
-const ALLOWED_GROUPS = new Set(['youtube', 'shopping', 'naverclip', 'threads']);
 
 /**
  * 표시 순서. 수창 전 채널은 플랫폼보다 먼저 보는 기준으로 두고 무조건 목록 맨 아래로 내린다.
@@ -173,9 +173,8 @@ export async function POST(req: Request) {
   const trimmedName = name?.trim() || '';
   const normalizedPlatform =
     platform && ALLOWED_PLATFORMS.has(platform) ? platform : 'YOUTUBE';
-  const normalizedGroup = ALLOWED_GROUPS.has(todoistGroup ?? '')
-    ? (todoistGroup as string)
-    : defaultGroupForPlatform(normalizedPlatform);
+  // 'instagram' 같은 별칭도 받는다. 모르는 값이면 플랫폼으로 정한다
+  const normalizedGroup = normalizeGroupInput(todoistGroup) ?? defaultGroupForPlatform(normalizedPlatform);
   try {
     // 이름 중복 체크 (대소문자 무시). 비어있으면 패스 (YouTube 가 자동 채움)
     if (trimmedName) {
