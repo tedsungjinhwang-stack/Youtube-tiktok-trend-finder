@@ -58,3 +58,34 @@ export function defaultGroupForPlatform(platform: string): DashboardGroup {
   if (p === 'INSTAGRAM' || p === 'FACEBOOK') return 'shopping';
   return 'youtube';
 }
+
+/**
+ * 외부 도구(업로드 매니저 등)가 DB 에 직접 넣는 그룹 이름 → 대시보드 그룹 키.
+ * 실제로 인스타 계정 7개가 'instagram' 으로 들어와 전체 현황·Todoist 에서 통째로 빠졌다
+ * (화면 이름은 '인스타'로 바꿨지만 내부 키는 예전 'shopping' 이라서).
+ */
+const GROUP_ALIASES: Record<string, DashboardGroup> = {
+  instagram: 'shopping',
+  insta: 'shopping',
+  naver_clip: 'naverclip',
+  naver: 'naverclip',
+};
+
+/**
+ * 채널이 실제로 속하는 그룹. 아는 키면 그대로, 별칭이면 바꿔서, 모르는 값이면 플랫폼으로 정한다.
+ * 그룹 값만 믿고 묶으면 모르는 값이 들어왔을 때 채널이 어느 목록에도 안 나온다.
+ */
+export function resolveGroup(todoistGroup: string | null | undefined, platform: string): DashboardGroup {
+  const g = (todoistGroup ?? '').trim().toLowerCase();
+  if ((DASHBOARD_GROUPS as string[]).includes(g)) return g as DashboardGroup;
+  if (g in GROUP_ALIASES) return GROUP_ALIASES[g];
+  return defaultGroupForPlatform(platform);
+}
+
+/** API 로 들어온 그룹 값 정리 — 별칭은 대시보드 키로, 모르는 값은 null(무시) */
+export function normalizeGroupInput(v: unknown): DashboardGroup | null {
+  if (typeof v !== 'string') return null;
+  const g = v.trim().toLowerCase();
+  if ((DASHBOARD_GROUPS as string[]).includes(g)) return g as DashboardGroup;
+  return GROUP_ALIASES[g] ?? null;
+}
