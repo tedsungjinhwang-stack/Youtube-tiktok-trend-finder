@@ -16,11 +16,19 @@ export default async function SettingsPage() {
 
 /** 연동 상태를 DB 에서 실제로 계산 (하드코딩 금지) */
 async function loadIntegrations(): Promise<Integration[]> {
-  const [todoist, google] = await Promise.all([
+  const [ytKeys, todoist, google] = await Promise.all([
+    prisma.youtubeApiKey.count({ where: { isActive: true } }).catch(() => 0),
     prisma.todoistConfig.findUnique({ where: { id: 'default' } }).catch(() => null),
     prisma.googleOAuth.findUnique({ where: { id: 'default' } }).catch(() => null),
   ]);
   return [
+    {
+      title: 'YouTube API 키',
+      connected: ytKeys > 0,
+      statusLabel: ytKeys > 0 ? `${ytKeys}개 활성` : '미등록',
+      description: '유튜브 영상·채널 데이터 조회에 사용. 여러 개 등록하면 할당량 소진 시 자동 순환합니다.',
+      href: '/settings/api-keys',
+    },
     {
       title: 'Todoist',
       connected: !!todoist,

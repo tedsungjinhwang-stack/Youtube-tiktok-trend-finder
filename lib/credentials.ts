@@ -10,6 +10,7 @@
 import { prisma } from '@/lib/db';
 
 export type CredService =
+  | 'YOUTUBE_API_KEY'
   | 'OPENCLAW_API_KEY'
   | 'CRON_SECRET'
   | 'NAVER_SEARCHAD_CUSTOMER_ID'
@@ -27,6 +28,11 @@ export const CRED_META: Record<
   CredService,
   { label: string; description: string; editable: boolean; bootOnly?: boolean }
 > = {
+  YOUTUBE_API_KEY: {
+    label: 'YouTube Data API (단일 키)',
+    description: '위 YouTube API 키 목록이 비었을 때만 쓰는 예비 키',
+    editable: true,
+  },
   OPENCLAW_API_KEY: {
     label: 'OpenClaw',
     description: '외부 에이전트가 /api/v1/* 호출 시 Bearer 인증',
@@ -183,6 +189,7 @@ export type CredStatus = {
 export async function listCredStatus(): Promise<CredStatus[]> {
   await hydrateOnce();
   const dbServices = new Set<string>();
+  let ytDbKeyCount = 0;
   if (await checkDb()) {
     try {
       const rows = await prisma.credential.findMany({ select: { service: true } });
@@ -190,9 +197,17 @@ export async function listCredStatus(): Promise<CredStatus[]> {
     } catch {
       /* table not migrated */
     }
+    try {
+      ytDbKeyCount = await prisma.youtubeApiKey.count({ where: { isActive: true } });
+    } catch {
+      /* table not migrated */
+    }
   }
 
-  const services = Object.keys(CRED_META) as CredService[];
+  // 단일 키 폴백은 DB 에 키가 1개 이상 있으면 숨긴다 (위 YouTube 키 목록과 중복)
+  const services = (Object.keys(CRED_META) as CredService[]).filter(
+    (s) => !(s === 'YOUTUBE_API_KEY' && ytDbKeyCount > 0)
+  );
   return services.map((s) => {
     const meta = CRED_META[s];
     const memVal = memoryStore.get(s);
