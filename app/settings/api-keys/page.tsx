@@ -1,4 +1,5 @@
 import { CredentialList } from '@/components/credential-list';
+import { YoutubeKeyList } from '@/components/youtube-key-list';
 
 export default function ApiKeysPage() {
   return (
@@ -15,6 +16,8 @@ export default function ApiKeysPage() {
         </p>
       </div>
 
+      <YoutubeKeyList />
+
       <Section
         title="외부 서비스"
         desc="여기서 바로 입력해서 저장. 빨간 × 표시는 미설정 상태입니다."
@@ -24,6 +27,11 @@ export default function ApiKeysPage() {
 
       <Section title="가입·발급 가이드">
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <GuideRow
+            name="YouTube Data API v3"
+            steps="Google Cloud Console → 프로젝트 생성 → API 사용 설정 → 사용자 인증 정보 → API 키"
+            href="https://console.cloud.google.com/apis/library/youtube.googleapis.com"
+          />
           <GuideRow
             name="Supabase"
             steps="supabase.com 가입 → 새 프로젝트(서울 리전) → Project Settings → API"

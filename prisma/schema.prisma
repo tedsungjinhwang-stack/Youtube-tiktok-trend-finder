@@ -65,6 +65,22 @@ model Channel {
   @@index([kind])
 }
 
+/// 유튜브 Data API 키 (여러 개 등록 시 가장 덜 쓴 키부터 순환). 할당량은 PT 자정에 초기화.
+model YoutubeApiKey {
+  id              String    @id @default(cuid())
+  label           String
+  apiKey          String    @unique
+  isActive        Boolean   @default(true)
+  dailyQuotaLimit Int       @default(10000)
+  usedToday       Int       @default(0)
+  lastUsedAt      DateTime?
+  exhaustedAt     DateTime?
+  resetAt         DateTime?
+  failCount       Int       @default(0)
+  lastError       String?
+  createdAt       DateTime  @default(now())
+}
+
 model Credential {
   id          String   @id @default(cuid())
   service     String   @unique
