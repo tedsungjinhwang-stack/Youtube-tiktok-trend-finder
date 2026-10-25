@@ -14,6 +14,7 @@ const tabs = [
   { href: '/naverclip-dashboard', label: '네이버클립' },
   { href: '/threads-dashboard', label: '스레드' },
   { href: '/trends', label: '트렌드' },
+  { href: '/radar', label: '꿀통레이더' },
   { href: '/channels', label: '에셋 채널' },
   { href: '/stock', label: '소재창고' },
   { href: '/folders', label: '폴더' },
