@@ -378,17 +378,18 @@ const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: '드라마·영화',
     items: [
-      { key: 'c-kdrama', label: '한드짜', category: ['kr_drama'] },
-      { key: 'c-kmovie', label: '영드짜', category: ['kr_movie'] },
-      { key: 'c-intl', label: '해외', category: ['intl_movie', 'intl_drama'] },
+      // 한드짜 = 한국 드라마·영화 짜깁기 (한국 영화 전용 메뉴가 따로 없어서 같이 둔다)
+      { key: 'c-kdrama', label: '한드짜', category: ['kr_drama', 'kr_movie'] },
+      // 예드짜 = 예능 짜깁기
+      { key: 'c-variety', label: '예드짜', category: ['kr_variety', 'intl_variety'] },
       { key: 'awards', label: '시상식', plan: { what: '시상식·축하무대 클립이 뜨는 시기와 작품', source: '감시 채널 쇼츠 · 시상식 일정' } },
+      { key: 'c-intl', label: '해외', category: ['intl_movie', 'intl_drama', 'intl_variety'] },
       { key: 'longform', label: '영화롱폼', plan: { what: '롱폼(10분+) 영화 리뷰 채널에서 뜨는 작품 — 쇼츠로 옮기기', source: '감시 채널 롱폼 영상' } },
     ],
   },
   {
     group: '인물·예능',
     items: [
-      { key: 'c-variety', label: '예드짜', category: ['kr_variety', 'intl_variety'] },
       { key: 'person', label: '인물선점', plan: { what: '쇼츠·검색이 막 늘기 시작한 배우·인물 — 출연작 묶음으로 선점', source: 'TMDB 출연 기록 · 감시 채널 쇼츠 · 검색수' } },
       { key: 'fan', label: '팬튜브', plan: { what: '배우·아이돌 팬 채널에서 뜨는 인물과 출연작', source: '팬 채널 감시 그룹' } },
       { key: 'speed', label: '속도전', plan: { what: '방영 직후 몇 시간 안에 올려야 하는 회차형 예능·드라마', source: '편성표 × 감시 채널 첫 업로드 시각' } },
