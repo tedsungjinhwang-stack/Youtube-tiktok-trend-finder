@@ -96,10 +96,10 @@ export function HotView({ preset = HOT_DEFAULT, onWatchlist }: { preset?: HotPre
       {data && data.unwatched.length > 0 && (
         <div className="surface-warn mb-3 flex flex-wrap items-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] font-semibold">
           <span>
-            {data.unwatched.join(' · ')} 채널팩이 관심 목록에 없어서 영상을 모으지 않고 있습니다.
+            {data.unwatched.join(' · ')} 채널팩은 3시간마다 잽니다. 관심 목록에 넣으면 매시간 (1시간 급상승까지).
           </span>
           <button onClick={watchAll} className="h-8 rounded-[10px] bg-brand px-3 text-[12.5px] font-bold text-brand-foreground">
-            관심 목록에 넣기
+            관심 목록에 넣기 (매시간)
           </button>
         </div>
       )}
@@ -148,20 +148,16 @@ export function HotView({ preset = HOT_DEFAULT, onWatchlist }: { preset?: HotPre
         <Empty>불러오지 못했습니다 — {err}</Empty>
       ) : !data ? (
         <Empty>불러오는 중…</Empty>
-      ) : !preset.folders && data.status.watchedChannels === 0 ? (
+      ) : items.length === 0 ? (
         <Empty>
-          관심 목록이 비어 있습니다. 채널팩을 관심 목록에 넣으면 10분마다 그 채널들의 새 영상과 조회수를 모읍니다.
+          아직 보여줄 영상이 없습니다.
+          <br />
+          감시를 시작한 뒤 올라온 영상부터 모으고, 시간당 증가는 같은 영상을 두 번 이상 재야 나옵니다 (관심 목록은 1~2시간, 나머지는 3~6시간 뒤).
           <div className="mt-3">
             <button onClick={onWatchlist} className="h-9 rounded-xl bg-brand px-4 text-[13px] font-bold text-brand-foreground">
               관심 목록 열기
             </button>
           </div>
-        </Empty>
-      ) : items.length === 0 ? (
-        <Empty>
-          아직 보여줄 영상이 없습니다.
-          <br />
-          시간당 증가는 같은 영상을 두 번 이상 재야 나와서, 관심 목록에 넣고 1~2시간 뒤부터 채워집니다.
         </Empty>
       ) : (
         <>

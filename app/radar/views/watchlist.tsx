@@ -7,7 +7,7 @@ import { Empty, StatusLine, short } from './parts';
 
 /**
  * 관심 목록 — 채널팩(에셋 채널 폴더)을 모아 두는 곳.
- * 넣은 팩의 채널은 꿀통레이더가 영상까지 시간 단위로 추적한다 (터진 영상·채널 순위의 터진/최신 영상).
+ * 살아있는 채널은 전부 감시하고(3~6시간마다), 관심 목록에 넣은 팩은 매시간 정밀하게 (1시간 급상승까지).
  * 팩이 많을수록 유튜브 할당량을 많이 써서, 하루 예상 사용량을 같이 보여 준다.
  */
 export function WatchlistView({ onRanking }: { onRanking: (folderId: string) => void }) {
@@ -44,7 +44,8 @@ export function WatchlistView({ onRanking }: { onRanking: (folderId: string) => 
   const match = (f: WatchFolder) => !s || f.name.includes(s) || (f.description ?? '').includes(s);
   const watched = data.folders.filter((f) => f.watched && match(f));
   const others = data.folders.filter((f) => !f.watched && match(f));
-  const over = data.quotaLimit > 0 && data.estimatedUnits > data.quotaLimit * 0.8;
+  const total = data.estimatedUnits + data.estimatedOtherUnits;
+  const over = data.quotaLimit > 0 && total > data.quotaLimit * 0.9;
 
   return (
     <>
@@ -52,22 +53,24 @@ export function WatchlistView({ onRanking }: { onRanking: (folderId: string) => 
         <div>
           <h1 className="text-[26px] font-extrabold tracking-[-0.04em]">관심 목록</h1>
           <p className="mt-1 text-[13px] font-semibold text-muted-foreground">
-            채널팩을 모아 두는 곳 — 넣은 팩의 채널은 새 영상과 시간별 조회수까지 추적합니다
+            살아있는 채널은 전부 3~6시간마다 감시합니다 — 관심 목록에 넣은 팩은 매시간 정밀하게 (1시간 급상승까지)
           </p>
         </div>
         <StatusLine s={data.status} />
       </div>
 
       <div className={'mb-3 rounded-xl border px-4 py-2.5 text-[13px] font-semibold ' + (over ? 'surface-warn' : 'card-surface')}>
-        관심 목록 채널 <span className="num">{data.watchedChannels.toLocaleString('ko-KR')}</span>곳 → 하루 예상 유튜브 사용량 약{' '}
-        <span className="num">{data.estimatedUnits.toLocaleString('ko-KR')}</span>
+        하루 예상 유튜브 사용량 — 관심 목록 <span className="num">{data.watchedChannels.toLocaleString('ko-KR')}</span>곳 매시간 약{' '}
+        <span className="num">{data.estimatedUnits.toLocaleString('ko-KR')}</span> + 나머지{' '}
+        <span className="num">{data.otherChannels.toLocaleString('ko-KR')}</span>곳 3~6시간마다 약{' '}
+        <span className="num">{data.estimatedOtherUnits.toLocaleString('ko-KR')}</span>
         {data.quotaLimit > 0 && (
           <>
             {' '}
             / 키 한도 <span className="num">{data.quotaLimit.toLocaleString('ko-KR')}</span>
           </>
         )}
-        {over && ' — 한도에 가까워요. 팩을 줄이거나 설정 → API 키에서 유튜브 키를 더 넣으세요'}
+        {over && ' — 한도보다 많아서 관심 목록 밖 채널은 남는 만큼만 돕니다. 설정 → API 키에서 키(다른 구글 클라우드 프로젝트)를 더 넣으면 촘촘해집니다'}
       </div>
 
       <input

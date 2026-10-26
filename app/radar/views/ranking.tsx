@@ -9,7 +9,7 @@ import { Chip, Empty, FORMAT_LABEL, Spark, Toggle, VideoThumb, ago, channelAge, 
 /**
  * 채널 순위 — pint 홈처럼 하루 조회수로 채널을 줄 세운다.
  * 하루 조회수는 유튜브 채널 총 조회수의 하루 증가분 (수집기가 하루 한 번 적는다).
- * 터진 영상·최신 영상은 관심 목록 채널만 나온다 (영상까지 추적하는 채널).
+ * 터진 영상·최신 영상은 감시를 시작한 뒤 올라온 영상부터 (관심 목록은 매시간, 나머지는 3~6시간마다 잰다).
  */
 
 const FORMATS: { key: RankFormat; label: string }[] = [
@@ -167,7 +167,7 @@ export function RankingView({
             <span className="text-right">{metricLabel}</span>
             <span>7일 추세</span>
             <span className="text-right">빈도</span>
-            <span>터진 영상 / 최신 (관심 목록 채널)</span>
+            <span>터진 영상 / 최신</span>
           </div>
           {rows.map((r) => (
             <RankRow key={r.id} r={r} period={period} />
@@ -279,7 +279,7 @@ function MiniVideo({ label, v, watched }: { label: string; v: VideoBrief | null;
   if (!v) {
     return (
       <span className="flex items-center rounded-lg px-2 py-1.5 text-[11.5px] font-semibold text-[color:var(--text-faint)]" style={{ background: 'var(--chip)' }}>
-        {label} · {watched ? '수집 중' : '관심 목록에 넣으면 보여요'}
+        {label} · {watched ? '수집 중' : '새 영상이 올라오면 보여요'}
       </span>
     );
   }
