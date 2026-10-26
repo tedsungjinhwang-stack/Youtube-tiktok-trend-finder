@@ -14,7 +14,8 @@ import {
   type WorkRef,
 } from '@/lib/radar/types';
 import { Pill, ago, short } from '../trends/ui';
-import { HotView } from './views/hot';
+import { HOT_DEFAULT, HotView, type HotPreset } from './views/hot';
+import { AwardsView, EntryView, GoldenView, HomeView, PersonView, ScheduleView, SeasonView, SpeedView, ToneView } from './views/tabs';
 import { PastView } from './views/past';
 import { RankingView } from './views/ranking';
 import { WatchlistView } from './views/watchlist';
@@ -366,26 +367,25 @@ const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: '',
     items: [
-      // 실제 데이터 화면 (pint 홈·터진 영상·관심 목록과 같은 흐름)
+      { key: 'home', label: '홈' },
       { key: 'ranking', label: '채널 순위' },
       { key: 'hot', label: '터진 영상' },
       { key: 'watchlist', label: '관심 목록' },
       { key: 'past', label: '과거 트래픽' },
-      { key: 'home', label: '홈', plan: { what: '오늘 뭐 만들까 — 뜨는 작품·꿀통 연관작·피해야 할 픽을 한 화면에 요약', source: '아래 화면들의 요약' } },
-      { key: 'schedule', label: '편성표', plan: { what: '오늘·이번 주 방영·공개되는 드라마·예능·영화 (첫 방송 직후를 선점)', source: 'TMDB 방영 일정 · 넷플릭스 등 OTT 공개일' } },
+      { key: 'schedule', label: '편성표' },
     ],
   },
   {
     group: '오늘',
     items: [
       { key: 'rising', label: '막 뜨는 작품·연관 꿀통' },
-      { key: 'tone', label: '결 지도', plan: { what: '결(장르·톤)별로 작품을 묶은 지도 — 한 작품을 했으면 같은 결로 트래픽 이어가기', source: 'TMDB 장르·키워드 + 결 분류(직접 수정 가능)' } },
-      { key: 'season', label: '시즌·오픈', plan: { what: '새 시즌·신작이 막 공개된 작품 — 첫 주 선점용', source: 'TMDB 신규 시즌·공개일' } },
-      { key: 'feed', label: '소재 피드', plan: { what: '감시 채널이 올린 새 쇼츠 전체 흐름 (최신순, 작품별 묶음)', source: '감시 채널 쇼츠' } },
-      { key: 'entry', label: '진입 성적표', plan: { what: '최근 새로 다뤄지기 시작한 작품의 첫 쇼츠 성적 — 지금 들어가도 되는지', source: '감시 채널 쇼츠 · 작품별 첫 등장' } },
+      { key: 'tone', label: '결 지도' },
+      { key: 'season', label: '시즌·오픈' },
+      { key: 'feed', label: '소재 피드' },
+      { key: 'entry', label: '진입 성적표' },
       // 터진 영상을 24시간 기준으로 연다
       { key: 'daily', label: '데일리 떡상쇼츠' },
-      { key: 'golden', label: '황금키워드', plan: { what: '검색은 많은데 쇼츠는 적은 작품·배우 키워드', source: '네이버 월간 검색수(트렌드 탭) × 감시 채널 쇼츠 수' } },
+      { key: 'golden', label: '황금키워드' },
     ],
   },
   {
@@ -399,44 +399,61 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { key: 'c-kdrama', label: '한드짜', category: ['kr_drama', 'kr_movie'] },
       // 예드짜 = 예능 짜깁기
       { key: 'c-variety', label: '예드짜', category: ['kr_variety', 'intl_variety'] },
-      { key: 'awards', label: '시상식', plan: { what: '시상식·축하무대 클립이 뜨는 시기와 작품', source: '감시 채널 쇼츠 · 시상식 일정' } },
+      { key: 'awards', label: '시상식' },
       { key: 'c-intl', label: '해외', category: ['intl_movie', 'intl_drama', 'intl_variety'] },
-      { key: 'longform', label: '영화롱폼', plan: { what: '롱폼(10분+) 영화 리뷰 채널에서 뜨는 작품 — 쇼츠로 옮기기', source: '감시 채널 롱폼 영상' } },
+      { key: 'longform', label: '영화롱폼' },
     ],
   },
   {
     group: '인물·예능',
     items: [
-      { key: 'person', label: '인물선점', plan: { what: '쇼츠·검색이 막 늘기 시작한 배우·인물 — 출연작 묶음으로 선점', source: 'TMDB 출연 기록 · 감시 채널 쇼츠 · 검색수' } },
-      { key: 'fan', label: '팬튜브', plan: { what: '배우·아이돌 팬 채널에서 뜨는 인물과 출연작', source: '팬 채널 감시 그룹' } },
-      { key: 'speed', label: '속도전', plan: { what: '방영 직후 몇 시간 안에 올려야 하는 회차형 예능·드라마', source: '편성표 × 감시 채널 첫 업로드 시각' } },
-      { key: 'comedy', label: '코미디', plan: { what: '코미디·스케치 채널에서 뜨는 소재', source: '코미디 감시 그룹' } },
-      { key: 'sketch', label: '스케치', plan: { what: '스케치 코미디 쇼츠 흐름', source: '스케치 감시 그룹' } },
+      { key: 'person', label: '인물선점' },
+      { key: 'fan', label: '팬튜브' },
+      { key: 'speed', label: '속도전' },
+      { key: 'comedy', label: '코미디' },
+      { key: 'sketch', label: '스케치' },
     ],
   },
   {
-    // 작품(TMDB) 대신 여행지·상품을 단위로 같은 흐름: 떡상 릴스 → 뜨는 것 → 꿀통(검색↑·릴스↓) → 과밀
-    group: '인스타 릴스',
+    // 인스타 릴스는 Meta 연결 전이라 같은 주제의 유튜브 쇼츠 채널팩으로 먼저
+    group: '여행·쇼핑',
     items: [
-      {
-        key: 'ig-travel',
-        label: '여행릴스',
-        plan: {
-          what: '뜨는 숙소가 중심 — 여행 릴스의 캡션·@숙소 계정·해시태그로 숙소를 묶어 릴스 수·최고 조회·다루는 계정 수·숙소명 검색수를 보고, 꿀통 숙소(조회↑·계정↓)와 몰린 숙소를 나눈다. 숙소마다 그 숙소를 다룬 릴스(조회순)를 썸네일로 보여 주고 누르면 바로 재생. 같은 지역·같은 종류(풀빌라·오션뷰·온천·애견동반 등)의 이어서 볼 숙소, 숙소를 지역으로 모은 뜨는 여행지도 함께',
-          source: '인스타 여행 계정 감시 그룹 (Meta 공식 API) · 네이버 검색수(숙소명·여행지) · 구글 트렌드 여행 분야',
-        },
-      },
-      {
-        key: 'ig-shopping',
-        label: '쇼핑릴스',
-        plan: {
-          what: '쇼핑·공구 릴스 계정에서 뜨는 상품 — 상품마다 그 상품 릴스(조회순, 누르면 재생), 상품별 릴스 수·최고 조회·다루는 계정 수, 검색·쇼핑 클릭은 많은데 릴스는 적은 꿀통 상품, 연관 상품(검색광고 연관 키워드)',
-          source: '인스타 쇼핑 계정 감시 그룹 (Meta 공식 API) · 네이버 쇼핑인사이트·검색수(트렌드 탭)',
-        },
-      },
+      { key: 'ig-travel', label: '여행 쇼츠' },
+      { key: 'ig-shopping', label: '쇼핑 쇼츠' },
     ],
   },
 ];
+
+/** 터진 영상 화면을 채널팩·형식·정렬만 바꿔 쓰는 메뉴 */
+const HOT_PRESETS: Record<string, HotPreset> = {
+  hot: HOT_DEFAULT,
+  daily: { title: '데일리 떡상쇼츠', subtitle: '최근 24시간 동안 조회가 가장 많이 늘어난 쇼츠', window: 24 },
+  feed: { title: '소재 피드', subtitle: '관심 목록 채널이 올린 새 영상 흐름 (최신순) — 작품 인식이 붙은 건 작품 이름이 같이 나온다', sort: 'latest', window: 24 },
+  longform: { title: '영화롱폼', subtitle: '관심 목록 채널의 롱폼(10분+ 포함) 영상 중 지금 뜨는 것 — 쇼츠로 옮길 거리', format: 'long', window: 24 },
+  fan: { title: '팬튜브', subtitle: '아이돌·셀럽 팬 채널에서 지금 뜨는 쇼츠', folders: ['아이돌 팬튜브', '셀럽 팬튜브'], window: 6 },
+  comedy: {
+    title: '코미디',
+    subtitle: '웃긴 영상·커뮤·짤 채널에서 지금 뜨는 쇼츠',
+    folders: ['커뮤형', '썰 | 짤형', '인스타 틱톡 짜집기', '해짜 | 웃긴영상, 밈'],
+    window: 6,
+  },
+  sketch: { title: '스케치', subtitle: '스케치 코미디 채널에서 지금 뜨는 쇼츠', folders: ['스케치코미디', '스케치코미디(원본)'], window: 24 },
+  'ig-travel': {
+    title: '여행 쇼츠',
+    subtitle: '여행 채널에서 지금 뜨는 쇼츠 — 뜨는 숙소·여행지',
+    folders: ['여행'],
+    window: 24,
+    note: '인스타 여행 릴스는 Meta 공식 API 연결 후에 붙입니다. 지금은 같은 주제의 유튜브 쇼츠 채널팩(pint 여행)으로 보여 줍니다.',
+  },
+  'ig-shopping': {
+    title: '쇼핑 쇼츠',
+    subtitle: '쇼핑·셀럽 쇼핑 채널에서 지금 뜨는 쇼츠 — 뜨는 상품',
+    folders: ['쇼핑 쇼츠', '셀럽 쇼핑'],
+    window: 24,
+    note: '인스타 쇼핑 릴스는 Meta 공식 API 연결 후에 붙입니다. 지금은 유튜브 쇼핑 쇼츠 채널팩으로 보여 줍니다.',
+  },
+};
+
 const NAV_ITEMS = NAV.flatMap((g) => g.items);
 
 function RadarNav({ view, onPick }: { view: ViewKey; onPick: (it: NavItem) => void }) {
@@ -494,11 +511,14 @@ function SummaryTile({ label, value, detail }: { label: string; value: string; d
 }
 
 /** 실제 데이터로 도는 화면 — 시안(아래 꿀통 화면)의 머리말·요약을 쓰지 않는다 */
-const REAL_VIEWS = new Set(['ranking', 'hot', 'daily', 'watchlist', 'past']);
+const REAL_VIEWS = new Set([
+  'home', 'ranking', 'watchlist', 'past', 'schedule', 'tone', 'season', 'entry', 'golden', 'awards', 'person', 'speed',
+  ...Object.keys(HOT_PRESETS),
+]);
 
 export function RadarClient({ data: initial, folders }: { data: RadarData; folders: { id: string; name: string }[] }) {
   const [cat, setCat] = useState<WorkCategory | 'all'>('all');
-  const [view, setView] = useState<ViewKey>('ranking');
+  const [view, setView] = useState<ViewKey>('home');
   const [rankFolder, setRankFolder] = useState<string | null>(null);
   const [navCats, setNavCats] = useState<WorkCategory[] | null>(null);
   const [period, setPeriod] = useState<'24h' | '3d' | '7d'>('3d');
@@ -561,8 +581,26 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
               setView('ranking');
             }}
           />
+        ) : view === 'home' ? (
+          <HomeView onOpen={(k) => pick(NAV_ITEMS.find((it) => it.key === k) ?? { key: k, label: k })} />
+        ) : view === 'schedule' ? (
+          <ScheduleView />
+        ) : view === 'tone' ? (
+          <ToneView />
+        ) : view === 'season' ? (
+          <SeasonView />
+        ) : view === 'entry' ? (
+          <EntryView />
+        ) : view === 'golden' ? (
+          <GoldenView />
+        ) : view === 'awards' ? (
+          <AwardsView />
+        ) : view === 'person' ? (
+          <PersonView />
+        ) : view === 'speed' ? (
+          <SpeedView />
         ) : (
-          <HotView initialWindow={view === 'daily' ? 24 : 1} onWatchlist={() => setView('watchlist')} />
+          <HotView preset={HOT_PRESETS[view] ?? HOT_DEFAULT} onWatchlist={() => setView('watchlist')} />
         )
       ) : (
       <>

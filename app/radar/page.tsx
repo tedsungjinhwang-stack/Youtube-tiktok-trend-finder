@@ -4,6 +4,8 @@ import { getRadarData } from '@/lib/radar/works';
 import { RadarClient } from './radar-client';
 
 export const dynamic = 'force-dynamic';
+// 화면의 서버 액션(편성표·황금키워드 등 외부 조회)도 이 시간 안에서 돈다
+export const maxDuration = 60;
 
 const EMPTY: RadarData = {
   collectedAt: new Date(0).toISOString(),

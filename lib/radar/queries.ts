@@ -231,7 +231,14 @@ export async function getRanking(q: RankingQuery): Promise<RankingResult> {
 export type HotWindow = 1 | 3 | 6 | 12 | 24;
 export type HotSort = 'rising' | 'views' | 'latest';
 
-export type HotQuery = { format: 'shorts' | 'long'; window: HotWindow; sort: HotSort; excludeWhale: boolean };
+export type HotQuery = {
+  format: 'shorts' | 'long';
+  window: HotWindow;
+  sort: HotSort;
+  excludeWhale: boolean;
+  /** 이 채널팩들만 (팬튜브·코미디 같은 묶음 화면). 없으면 관심 목록 전체 */
+  folders?: string[];
+};
 
 export type HotVideo = {
   id: string;
@@ -255,15 +262,23 @@ export type HotVideo = {
   channelThumb: string | null;
   folder: string;
   folderId: string;
+  /** 작품 인식이 붙은 작품 이름 */
+  work: string | null;
   badges: string[];
 };
 
-export type HotResult = { items: HotVideo[]; folders: { id: string; name: string; count: number }[]; status: CollectStatus };
+export type HotResult = {
+  items: HotVideo[];
+  folders: { id: string; name: string; count: number }[];
+  status: CollectStatus;
+  /** 묶음 화면의 채널팩 중 관심 목록에 아직 없는 것 (영상을 안 모으는 중) */
+  unwatched: string[];
+};
 
 export async function getHotVideos(q: HotQuery): Promise<HotResult> {
   const gainCol = Prisma.raw(`"gain${q.window}h"`);
   const conds: Prisma.Sql[] = [
-    Prisma.sql`f.watched`,
+    q.folders?.length ? Prisma.sql`f.name = ANY(${q.folders}::text[])` : Prisma.sql`f.watched`,
     Prisma.sql`c."isActive"`,
     Prisma.sql`v."isShorts" = ${q.format === 'shorts'}`,
   ];
@@ -298,14 +313,16 @@ export async function getHotVideos(q: HotQuery): Promise<HotResult> {
       channelThumb: string | null;
       folder: string;
       folderId: string;
+      work: string | null;
     }[]
   >`
     SELECT v.id, v.title, v."thumbnailUrl", v."publishedAt", v.views, v.${gainCol} AS gain, v."gain1h",
       c."baselineMedian", c.id AS "channelId", c."externalId", c."displayName", c."thumbnailUrl" AS "channelThumb",
-      f.name AS folder, f.id AS "folderId"
+      f.name AS folder, f.id AS "folderId", w.title AS work
     FROM "RadarVideo" v
     JOIN "Channel" c ON c.id = v."channelId"
     JOIN "Folder" f ON f.id = c."folderId"
+    LEFT JOIN "RadarWork" w ON w.id = v."workId"
     WHERE ${Prisma.join(conds, ' AND ')}
     ORDER BY ${order}
     LIMIT 200`;
@@ -340,6 +357,7 @@ export async function getHotVideos(q: HotQuery): Promise<HotResult> {
       channelThumb: r.channelThumb,
       folder: r.folder,
       folderId: r.folderId,
+      work: r.work,
       badges,
     };
   });
@@ -350,10 +368,14 @@ export async function getHotVideos(q: HotQuery): Promise<HotResult> {
     c.count++;
     counts.set(it.folderId, c);
   }
+  const unwatched = q.folders?.length
+    ? (await prisma.folder.findMany({ where: { name: { in: q.folders }, watched: false }, select: { name: true } })).map((f) => f.name)
+    : [];
   return {
     items,
     folders: [...counts.values()].sort((a, b) => b.count - a.count),
     status: await getCollectStatus(),
+    unwatched,
   };
 }
 
