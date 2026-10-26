@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /**
- * 꿀통레이더 수집 — Supabase pg_cron 이 10분마다 부른다 (lib/radar/collect 참고).
+ * 꿀통레이더 수집 — Supabase pg_cron 이 매시 정각·3분·6분에 부른다 (lib/radar/collect 참고).
  *
  * 인증: `Authorization: Bearer <키>` 또는 `?secret=<키>`.
  * 키는 RADAR_CRON_SECRET (Credential 테이블, pg_cron 이 같은 값을 읽어 보낸다) 또는 CRON_SECRET.
