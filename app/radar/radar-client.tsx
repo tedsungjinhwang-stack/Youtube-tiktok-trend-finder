@@ -415,11 +415,33 @@ const NAV: { group: string; items: NavItem[] }[] = [
     ],
   },
   {
-    // 인스타 릴스는 Meta 연결 전이라 같은 주제의 유튜브 쇼츠 채널팩으로 먼저
-    group: '여행·쇼핑',
+    // 유튜브 쇼츠 채널팩(pint 쇼핑 쇼츠·셀럽 쇼핑·여행)으로 지금 도는 화면
+    group: '쇼핑·여행 (유튜브)',
     items: [
-      { key: 'ig-travel', label: '여행 쇼츠' },
-      { key: 'ig-shopping', label: '쇼핑 쇼츠' },
+      { key: 'yt-shopping', label: '쇼핑쇼츠(유튜브)' },
+      { key: 'yt-travel', label: '여행쇼츠(유튜브)' },
+    ],
+  },
+  {
+    // 인스타 릴스 — Meta 공식 API 연결 후. 유튜브 쇼츠와 섞지 않고 따로 둔다
+    group: '쇼핑·여행 (인스타)',
+    items: [
+      {
+        key: 'ig-shopping',
+        label: '쇼핑쇼츠(인스타)',
+        plan: {
+          what: '쇼핑·공구 릴스 계정에서 뜨는 상품 — 상품마다 그 상품 릴스(조회순, 누르면 재생), 상품별 릴스 수·최고 조회·다루는 계정 수, 검색·쇼핑 클릭은 많은데 릴스는 적은 꿀통 상품, 연관 상품(검색광고 연관 키워드)',
+          source: '인스타 쇼핑 계정 감시 그룹 (Meta 공식 API) · 네이버 쇼핑인사이트·검색수(트렌드 탭)',
+        },
+      },
+      {
+        key: 'ig-travel',
+        label: '여행릴스(인스타)',
+        plan: {
+          what: '뜨는 숙소가 중심 — 여행 릴스의 캡션·@숙소 계정·해시태그로 숙소를 묶어 릴스 수·최고 조회·다루는 계정 수·숙소명 검색수를 보고, 꿀통 숙소(조회↑·계정↓)와 몰린 숙소를 나눈다. 숙소마다 그 숙소를 다룬 릴스(조회순)를 썸네일로 보여 주고 누르면 바로 재생. 같은 지역·같은 종류(풀빌라·오션뷰·온천·애견동반 등)의 이어서 볼 숙소, 숙소를 지역으로 모은 뜨는 여행지도 함께',
+          source: '인스타 여행 계정 감시 그룹 (Meta 공식 API) · 네이버 검색수(숙소명·여행지) · 구글 트렌드 여행 분야',
+        },
+      },
     ],
   },
 ];
@@ -438,19 +460,17 @@ const HOT_PRESETS: Record<string, HotPreset> = {
     window: 6,
   },
   sketch: { title: '스케치', subtitle: '스케치 코미디 채널에서 지금 뜨는 쇼츠', folders: ['스케치코미디', '스케치코미디(원본)'], window: 24 },
-  'ig-travel': {
-    title: '여행 쇼츠',
-    subtitle: '여행 채널에서 지금 뜨는 쇼츠 — 뜨는 숙소·여행지',
-    folders: ['여행'],
-    window: 24,
-    note: '인스타 여행 릴스는 Meta 공식 API 연결 후에 붙입니다. 지금은 같은 주제의 유튜브 쇼츠 채널팩(pint 여행)으로 보여 줍니다.',
-  },
-  'ig-shopping': {
-    title: '쇼핑 쇼츠',
-    subtitle: '쇼핑·셀럽 쇼핑 채널에서 지금 뜨는 쇼츠 — 뜨는 상품',
+  'yt-shopping': {
+    title: '쇼핑쇼츠(유튜브)',
+    subtitle: '유튜브 쇼핑 쇼츠·셀럽 쇼핑 채널에서 지금 뜨는 쇼츠 — 뜨는 상품 (인스타 쇼핑 릴스는 따로)',
     folders: ['쇼핑 쇼츠', '셀럽 쇼핑'],
     window: 24,
-    note: '인스타 쇼핑 릴스는 Meta 공식 API 연결 후에 붙입니다. 지금은 유튜브 쇼핑 쇼츠 채널팩으로 보여 줍니다.',
+  },
+  'yt-travel': {
+    title: '여행쇼츠(유튜브)',
+    subtitle: '유튜브 여행 채널에서 지금 뜨는 쇼츠 — 뜨는 숙소·여행지 (인스타 여행 릴스는 따로)',
+    folders: ['여행'],
+    window: 24,
   },
 };
 
@@ -569,7 +589,9 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
           </Pill>
         ))}
       </div>
-      {REAL_VIEWS.has(view) ? (
+      {current?.plan ? (
+        <PlannedView it={current} />
+      ) : REAL_VIEWS.has(view) ? (
         view === 'ranking' ? (
           <RankingView folders={folders} folderId={rankFolder} onFolder={setRankFolder} />
         ) : view === 'past' ? (
