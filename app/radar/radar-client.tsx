@@ -479,7 +479,7 @@ export function RadarClient({ data }: { data: RadarData }) {
   const showRising = view === 'rising' || !!current?.category;
 
   return (
-    <div className="mx-auto grid max-w-[1180px] gap-3 px-5 pb-12 pt-5 lg:grid-cols-[172px_minmax(0,1fr)] xl:px-0 xl:pt-0">
+    <div className="mx-auto grid max-w-[1440px] gap-3 px-5 pb-12 pt-5 lg:grid-cols-[180px_minmax(0,1fr)] xl:px-0 xl:pt-0">
       <aside className="hidden lg:block">
         <RadarNav view={view} onPick={pick} />
       </aside>
