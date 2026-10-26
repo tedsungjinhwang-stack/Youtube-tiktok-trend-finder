@@ -9,7 +9,8 @@
  *  3. 영상 조회수 — 관심 목록 채널의 최근 영상 (videos.list, 50개 = 1 unit)
  *                 72시간 안 = 매시간, 7일 안 = 6시간마다, 30일 안 = 하루 한 번
  *  4. 하루 정리  — 채널 평소 조회(중앙값)·쇼츠/롱폼 구분 계산, 35일 넘은 영상 삭제
- *  5. 과거 트래픽 — 업로드가 60일 넘게 끊긴 채널의 100만+ 영상(인기 쇼츠·인기 영상 재생목록)을 남기고 채널을 지운다.
+ *  5. 작품 인식 — 제목·해시태그·태그로 TMDB 작품을 붙이고, 작품 상세·출연자 출연작을 받아 둔다 (lib/radar/match)
+ *  6. 과거 트래픽 — 업로드가 60일 넘게 끊긴 채널의 100만+ 영상(인기 쇼츠·인기 영상 재생목록)을 남기고 채널을 지운다.
  *                 하루에 쓸 몫을 정해 두고(관심 목록 추적 몫을 빼고) 남는 할당량으로 조금씩.
  */
 
@@ -24,6 +25,7 @@ import {
   type YtVideo,
 } from '@/lib/youtube/api';
 import { resetStaleQuotas } from '@/lib/youtube/keyManager';
+import { fetchPersons, fetchWorkDetails, matchVideos } from './match';
 
 /** 다른 기능(키워드 검색 등)이 쓸 몫으로 남겨 두는 할당량 */
 const RESERVE_UNITS = 1500;
@@ -43,6 +45,8 @@ export type CollectReport = {
   maintenance: boolean;
   archivedChannels: number;
   pastHits: number;
+  videosMatched: number;
+  worksDetailed: number;
   stoppedBy: string | null;
 };
 
@@ -88,33 +92,51 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
     maintenance: false,
     archivedChannels: 0,
     pastHits: 0,
+    videosMatched: 0,
+    worksDetailed: 0,
     stoppedBy: null,
   };
   // 날짜가 바뀌었으면 키 사용량부터 0 으로 (남은 할당량 계산이 그 뒤에 와야 한다)
   await resetStaleQuotas();
   let left = (await remainingQuota()) ?? 0;
-  /** 이번에 units 만큼 더 써도 되나 — 시간·할당량 둘 다 본다 */
-  const canSpend = (units: number) => {
-    if (Date.now() > deadline) {
-      report.stoppedBy ??= 'time';
-      return false;
-    }
-    if (left - units < RESERVE_UNITS) {
-      report.stoppedBy ??= 'quota';
-      return false;
-    }
-    return true;
+  /**
+   * 단계마다 끝낼 시각(시작부터 ms) — 앞 단계가 일찍 끝나면 뒤 단계가 그만큼 더 쓴다.
+   * 작품 인식(TMDB)과 과거 트래픽도 매번 조금씩은 돌게 앞 단계를 먼저 끊는다.
+   */
+  const phase = (untilMs: number) => {
+    const until = Math.min(t0 + untilMs, deadline);
+    return {
+      until,
+      /** 이번에 units 만큼 더 써도 되나 — 시간·할당량 둘 다 본다 */
+      canSpend: (units: number) => {
+        if (Date.now() > until) {
+          report.stoppedBy ??= 'time';
+          return false;
+        }
+        if (left - units < RESERVE_UNITS) {
+          report.stoppedBy ??= 'quota';
+          return false;
+        }
+        return true;
+      },
+    };
   };
   const spend = (units: number) => {
     left -= units;
   };
 
   try {
-    await stepChannelStats(report, canSpend, spend);
-    await stepUploadScan(report, canSpend, spend);
-    await stepRefreshVideos(report, canSpend, spend);
+    await stepChannelStats(report, phase(12_000).canSpend, spend);
+    await stepUploadScan(report, phase(22_000).canSpend, spend);
+    await stepRefreshVideos(report, phase(30_000).canSpend, spend);
     report.maintenance = await stepDailyMaintenance();
-    await stepArchive(report, canSpend, spend);
+    // 작품 인식 — TMDB (유튜브 할당량 안 씀)
+    const m = phase(39_000).until;
+    const r = await matchVideos(m);
+    report.videosMatched = r.matched;
+    report.worksDetailed = await fetchWorkDetails(m);
+    await fetchPersons(m);
+    await stepArchive(report, phase(46_000).canSpend, spend);
   } catch (e) {
     if (e instanceof QuotaGoneError) report.stoppedBy = 'quota';
     else throw e;
@@ -478,7 +500,7 @@ async function stepDailyMaintenance(): Promise<boolean> {
   return true;
 }
 
-/* ───────────── 5. 과거 트래픽 ───────────── */
+/* ───────────── 6. 과거 트래픽 ───────────── */
 
 /** 마지막 업로드가 이만큼 지나면 끊긴 채널 */
 export const DEAD_DAYS = 60;

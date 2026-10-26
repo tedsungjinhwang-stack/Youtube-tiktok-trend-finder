@@ -15,6 +15,12 @@ import {
   type RankingResult,
   type WatchlistResult,
 } from '@/lib/radar/queries';
+import type { RadarData } from '@/lib/radar/types';
+import { getRadarData, type WorksPeriod } from '@/lib/radar/works';
+
+export async function radarDataAction(period: WorksPeriod): Promise<RadarData> {
+  return getRadarData(period);
+}
 
 export async function rankingAction(q: RankingQuery): Promise<RankingResult> {
   return getRanking(q);
