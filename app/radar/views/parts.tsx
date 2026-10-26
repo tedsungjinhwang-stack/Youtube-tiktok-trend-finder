@@ -124,7 +124,8 @@ export function Spark({ values }: { values: number[] }) {
 export function StatusLine({ s }: { s: CollectStatus }) {
   return (
     <p className="text-[12px] font-semibold text-[color:var(--text-faint)]">
-      관심 목록 채널 <span className="num">{s.watchedChannels.toLocaleString('ko-KR')}</span>곳 · 최근 7일 영상{' '}
+      감시 채널 <span className="num">{s.monitoredChannels.toLocaleString('ko-KR')}</span>곳 (관심 목록{' '}
+      <span className="num">{s.watchedChannels.toLocaleString('ko-KR')}</span>곳은 매시간) · 최근 7일 영상{' '}
       <span className="num">{s.trackedVideos.toLocaleString('ko-KR')}</span>개 추적 ·{' '}
       {s.lastRunAt ? `마지막 수집 ${ago(s.lastRunAt)}` : '아직 수집 전'}
       {s.quotaLeft != null && (
@@ -134,6 +135,7 @@ export function StatusLine({ s }: { s: CollectStatus }) {
         </>
       )}
       {s.stoppedBy === 'quota' && ' · 할당량이 모자라 일부만 수집'}
+      {s.stoppedBy === 'quota-other' && ' · 할당량이 모자라 관심 목록 밖 채널은 일부만 (키를 더 넣으면 촘촘해짐)'}
     </p>
   );
 }

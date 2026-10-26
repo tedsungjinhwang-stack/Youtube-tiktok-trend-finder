@@ -635,7 +635,7 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
           </p>
         </div>
         <span className="text-right text-[12px] font-semibold text-[color:var(--text-faint)]">
-          감시 채널 <span className="num">{data.monitoredChannels.toLocaleString('ko-KR')}</span>곳 (관심 목록)
+          감시 채널 <span className="num">{data.monitoredChannels.toLocaleString('ko-KR')}</span>곳
           <br />
           마지막 수집 {ago(data.collectedAt)} · 매시간
         </span>

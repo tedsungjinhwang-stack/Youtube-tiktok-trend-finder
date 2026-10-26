@@ -215,7 +215,7 @@ export async function getRadarData(period: WorksPeriod): Promise<RadarData> {
       SELECT COUNT(*)::int AS total, COUNT("workId")::int AS matched, COUNT(*) FILTER (WHERE views >= 100000)::int AS surging
       FROM "RadarVideo" WHERE "publishedAt" > ${start} AND "matchedAt" IS NOT NULL AND COALESCE("isShorts", true)`,
     prisma.folder.findMany({ where: { watched: true }, select: { name: true }, orderBy: { sortOrder: 'asc' } }),
-    prisma.channel.count({ where: { isActive: true, platform: 'YOUTUBE', folder: { watched: true } } }),
+    prisma.channel.count({ where: { isActive: true, platform: 'YOUTUBE' } }),
     prisma.trendCache.findUnique({ where: { key: 'radar:last-collect' } }).catch(() => null),
   ]);
   const t = totals[0] ?? { total: 0, matched: 0, surging: 0 };

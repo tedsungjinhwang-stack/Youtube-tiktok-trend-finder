@@ -4,6 +4,7 @@
 
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
+import { UNITS_PER_OTHER_CHANNEL, UNITS_PER_WATCHED_CHANNEL } from './budget';
 
 const H = 3_600_000;
 const n = (v: bigint | number | null | undefined) => (v == null ? null : Number(v));
@@ -23,13 +24,17 @@ export type CollectStatus = {
   lastRunAt: string | null;
   quotaLeft: number | null;
   stoppedBy: string | null;
+  /** 감시 중인 살아있는 채널 전체 */
+  monitoredChannels: number;
+  /** 그중 관심 목록(매시간) */
   watchedChannels: number;
   trackedVideos: number;
 };
 
 export async function getCollectStatus(): Promise<CollectStatus> {
-  const [last, watchedChannels, trackedVideos] = await Promise.all([
+  const [last, monitoredChannels, watchedChannels, trackedVideos] = await Promise.all([
     prisma.trendCache.findUnique({ where: { key: 'radar:last-collect' } }).catch(() => null),
+    prisma.channel.count({ where: { isActive: true, platform: 'YOUTUBE' } }).catch(() => 0),
     prisma.channel.count({ where: { isActive: true, platform: 'YOUTUBE', folder: { watched: true } } }).catch(() => 0),
     prisma.radarVideo.count({ where: { publishedAt: { gt: new Date(Date.now() - 7 * 24 * H) } } }).catch(() => 0),
   ]);
@@ -38,6 +43,7 @@ export async function getCollectStatus(): Promise<CollectStatus> {
     lastRunAt: last?.fetchedAt.toISOString() ?? null,
     quotaLeft: p?.quotaLeft ?? null,
     stoppedBy: p?.stoppedBy ?? null,
+    monitoredChannels,
     watchedChannels,
     trackedVideos,
   };
@@ -278,14 +284,15 @@ export type HotResult = {
 export async function getHotVideos(q: HotQuery): Promise<HotResult> {
   const gainCol = Prisma.raw(`"gain${q.window}h"`);
   const conds: Prisma.Sql[] = [
-    q.folders?.length ? Prisma.sql`f.name = ANY(${q.folders}::text[])` : Prisma.sql`f.watched`,
+    // 전체 감시 채널 (관심 목록이 아닌 채널도 3시간마다 잰다). 묶음 화면이면 그 채널팩만
+    q.folders?.length ? Prisma.sql`f.name = ANY(${q.folders}::text[])` : Prisma.sql`TRUE`,
     Prisma.sql`c."isActive"`,
     Prisma.sql`v."isShorts" = ${q.format === 'shorts'}`,
   ];
   if (q.excludeWhale) conds.push(Prisma.sql`COALESCE(c."subscriberCount", 0) < 1000000`);
   if (q.sort === 'rising') {
-    // 오래된 조회수로 순위를 매기지 않게 — 최근 3시간 안에 잰 것만
-    conds.push(Prisma.sql`v."checkedAt" > NOW() - INTERVAL '3 hours'`);
+    // 오래된 조회수로 순위를 매기지 않게 — 최근 4시간 안에 잰 것만 (관심 목록 밖 채널은 3시간마다 잰다)
+    conds.push(Prisma.sql`v."checkedAt" > NOW() - INTERVAL '4 hours'`);
     conds.push(Prisma.sql`v."publishedAt" > NOW() - INTERVAL '30 days'`);
   } else {
     conds.push(Prisma.sql`v."publishedAt" > NOW() - INTERVAL '7 days'`);
@@ -396,15 +403,17 @@ export type WatchFolder = {
 export type WatchlistResult = {
   folders: WatchFolder[];
   watchedChannels: number;
-  /** 관심 목록 채널을 추적하는 데 드는 하루 예상 할당량 */
+  /** 관심 목록이 아닌 감시 채널 (3~6시간마다) */
+  otherChannels: number;
+  /** 관심 목록 채널을 매시간 추적하는 데 드는 하루 예상 할당량 */
   estimatedUnits: number;
+  /** 나머지 전체를 3~6시간마다 감시하는 데 드는 하루 예상 할당량 */
+  estimatedOtherUnits: number;
   /** 등록된 유튜브 키의 하루 한도 합 */
   quotaLimit: number;
   status: CollectStatus;
 };
 
-/** 채널 하나를 관심 목록에서 추적하는 데 드는 하루 할당량 어림 (시간별 통계 0.5 + 새 영상 1~2 + 조회수 3~4) */
-const UNITS_PER_WATCHED_CHANNEL = 5.5;
 
 export async function getWatchlist(): Promise<WatchlistResult> {
   const [folders, agg, tops, keys, status] = await Promise.all([
@@ -450,10 +459,13 @@ export async function getWatchlist(): Promise<WatchlistResult> {
     })
     .filter((f) => f.total > 0 || f.watched);
   const watchedChannels = out.filter((f) => f.watched).reduce((s, f) => s + f.active, 0);
+  const otherChannels = out.filter((f) => !f.watched).reduce((s, f) => s + f.active, 0);
   return {
     folders: out,
     watchedChannels,
+    otherChannels,
     estimatedUnits: Math.round(watchedChannels * UNITS_PER_WATCHED_CHANNEL + 600),
+    estimatedOtherUnits: Math.round(otherChannels * UNITS_PER_OTHER_CHANNEL),
     quotaLimit: keys.reduce((s, k) => s + k.dailyQuotaLimit, 0),
     status,
   };
