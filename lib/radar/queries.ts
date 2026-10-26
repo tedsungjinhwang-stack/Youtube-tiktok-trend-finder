@@ -281,6 +281,15 @@ export type HotResult = {
   unwatched: string[];
 };
 
+/**
+ * 급상승 목록에 올릴 최소 증가 (고른 시간 동안). 쇼츠 기준 시간당 약 3천(1시간)~8백(24시간),
+ * 롱폼은 그 1/5. 이보다 적게 늘어난 영상은 '터진' 게 아니라 그냥 올라온 것.
+ */
+export function minGain(format: 'shorts' | 'long', window: HotWindow): number {
+  const perHour: Record<HotWindow, number> = { 1: 3000, 3: 2000, 6: 1500, 12: 1000, 24: 800 };
+  return Math.round(perHour[window] * window * (format === 'shorts' ? 1 : 0.2));
+}
+
 export async function getHotVideos(q: HotQuery): Promise<HotResult> {
   const gainCol = Prisma.raw(`"gain${q.window}h"`);
   const conds: Prisma.Sql[] = [
@@ -294,6 +303,11 @@ export async function getHotVideos(q: HotQuery): Promise<HotResult> {
     // 오래된 조회수로 순위를 매기지 않게 — 최근 4시간 안에 잰 것만 (관심 목록 밖 채널은 3시간마다 잰다)
     conds.push(Prisma.sql`v."checkedAt" > NOW() - INTERVAL '4 hours'`);
     conds.push(Prisma.sql`v."publishedAt" > NOW() - INTERVAL '30 days'`);
+    // '터졌다'고 할 만큼 늘어난 것만 — 없으면 막 올라온 몇천 회짜리가 1등이 된다
+    conds.push(Prisma.sql`v.${gainCol} >= ${minGain(q.format, q.window)}`);
+  } else if (q.sort === 'views') {
+    conds.push(Prisma.sql`v."publishedAt" > NOW() - INTERVAL '7 days'`);
+    conds.push(Prisma.sql`v.views >= ${q.format === 'shorts' ? 10_000 : 2_000}`);
   } else {
     conds.push(Prisma.sql`v."publishedAt" > NOW() - INTERVAL '7 days'`);
   }
