@@ -8,17 +8,33 @@ export class NoActiveKeyError extends Error {
   }
 }
 
+/** 유튜브 할당량 날짜 (미국 서부 시간 기준 YYYY-MM-DD) — 이 날짜가 바뀌면 할당량이 새로 찬다 */
+function ptDay(d = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(d);
+}
+
 /**
- * 날짜가 바뀐(PT 자정 = KST 17시 지난) 키의 사용량을 0 으로, 소진 표시가 풀릴 시간이 지난 키는 다시 쓸 수 있게.
- * 예전엔 매일 외부 크론(reset-youtube-quotas)이 했는데, 크론이 빠져도 돌아가도록 쓸 때마다 확인한다.
+ * 날짜가 바뀌면(미국 서부 자정 = KST 16~17시) 모든 키의 사용량을 0 으로, 소진 표시가 풀릴 시간이 지난 키는 다시 쓸 수 있게.
+ * 마지막 사용 시각으로 판단하면, 같은 키를 다른 프로그램이 계속 쓰는 동안엔 날이 바뀌어도 0 이 안 돼서
+ * 사용량이 며칠씩 쌓였다 — 그래서 날짜 표시(TrendCache)로 하루 한 번 초기화한다.
  */
+let lastResetCheck = 0;
+
 export async function resetStaleQuotas() {
-  const lastReset = new Date(nextPTMidnight().getTime() - 86_400_000);
+  // 키를 쓸 때마다 부르니 1분에 한 번만 확인
+  if (Date.now() - lastResetCheck < 60_000) return;
+  lastResetCheck = Date.now();
+  const day = ptDay();
   try {
-    await prisma.youtubeApiKey.updateMany({
-      where: { usedToday: { gt: 0 }, OR: [{ lastUsedAt: null }, { lastUsedAt: { lt: lastReset } }] },
-      data: { usedToday: 0 },
-    });
+    const mark = await prisma.trendCache.findUnique({ where: { key: 'yt:quota-day' } });
+    if ((mark?.payload as { day?: string } | null)?.day !== day) {
+      await prisma.youtubeApiKey.updateMany({ data: { usedToday: 0 } });
+      await prisma.trendCache.upsert({
+        where: { key: 'yt:quota-day' },
+        create: { key: 'yt:quota-day', payload: { day } },
+        update: { payload: { day }, fetchedAt: new Date() },
+      });
+    }
     await prisma.youtubeApiKey.updateMany({
       where: { resetAt: { lt: new Date() } },
       data: { exhaustedAt: null, resetAt: null },
@@ -126,11 +142,14 @@ export async function resetAllQuotas() {
 }
 
 function nextPTMidnight(): Date {
-  // PT midnight = UTC 08:00 (PDT) or 07:00 (PST). Use 08:00 as conservative.
+  // 미국 서부 날짜가 바뀌는 첫 정시 (서머타임이면 UTC 07시, 아니면 08시)
   const now = new Date();
-  const next = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 0, 0)
-  );
-  if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
-  return next;
+  const today = ptDay(now);
+  const t = new Date(now);
+  t.setUTCMinutes(0, 0, 0);
+  for (let i = 0; i < 26; i++) {
+    t.setUTCHours(t.getUTCHours() + 1);
+    if (ptDay(t) !== today) return t;
+  }
+  return new Date(now.getTime() + 24 * 3_600_000);
 }

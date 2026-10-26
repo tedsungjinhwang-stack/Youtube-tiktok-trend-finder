@@ -23,6 +23,7 @@ import {
   remainingQuota,
   type YtVideo,
 } from '@/lib/youtube/api';
+import { resetStaleQuotas } from '@/lib/youtube/keyManager';
 
 /** 다른 기능(키워드 검색 등)이 쓸 몫으로 남겨 두는 할당량 */
 const RESERVE_UNITS = 1500;
@@ -89,6 +90,8 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
     pastHits: 0,
     stoppedBy: null,
   };
+  // 날짜가 바뀌었으면 키 사용량부터 0 으로 (남은 할당량 계산이 그 뒤에 와야 한다)
+  await resetStaleQuotas();
   let left = (await remainingQuota()) ?? 0;
   /** 이번에 units 만큼 더 써도 되나 — 시간·할당량 둘 다 본다 */
   const canSpend = (units: number) => {
