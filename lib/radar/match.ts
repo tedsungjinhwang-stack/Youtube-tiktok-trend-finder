@@ -181,7 +181,7 @@ export async function resolveAliases(raws: string[], deadline: number): Promise<
   }
   const todo = norms.filter((n) => !out.has(n));
 
-  await pool(todo, 8, async (norm) => {
+  await pool(todo, 10, async (norm) => {
     if (Date.now() > deadline) return;
     const raw = byNorm.get(norm)!;
     let res: Awaited<ReturnType<typeof lookup>>;

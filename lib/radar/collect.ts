@@ -133,14 +133,16 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
     await stepRefreshVideos(report, phase(30_000).canSpend, spend);
     report.maintenance = await stepDailyMaintenance();
     // 작품 인식 — TMDB (유튜브 할당량 안 씀). 실패해도 다른 단계는 계속
-    const m = phase(39_000).until;
+    // 작품 찾기가 시간을 다 쓰면 상세·출연작을 못 받아서, 각자 몫을 따로 둔다
+    const m = phase(35_000).until;
+    const m2 = phase(40_000).until;
     try {
       const r = await matchVideos(m);
       report.videosMatched = r.matched;
-      report.worksDetailed = await fetchWorkDetails(m);
-      await fetchPersons(m);
+      report.worksDetailed = await fetchWorkDetails(m2);
+      await fetchPersons(m2);
       // 편성표·시즌·오픈 TMDB 조회를 미리 받아 둔다 (6시간 캐시라 대부분은 바로 끝남) — 화면이 빨리 열리게
-      if (Date.now() < m) await Promise.all([getSchedule(), getSeason()]);
+      if (Date.now() < m2) await Promise.all([getSchedule(), getSeason()]);
     } catch (e) {
       report.matchError = (e as Error).message.slice(0, 200);
     }
