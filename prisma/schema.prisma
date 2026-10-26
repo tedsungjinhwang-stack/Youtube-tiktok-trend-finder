@@ -17,14 +17,18 @@ enum Platform {
 }
 
 model Folder {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  sortOrder Int       @default(0)
-  isSeeded  Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  channels  Channel[]
-  stock     StockMaterial[]
+  id          String          @id @default(cuid())
+  name        String          @unique
+  sortOrder   Int             @default(0)
+  isSeeded    Boolean         @default(false)
+  /// 관심 목록 — 꿀통레이더가 이 폴더 채널의 영상까지 시간 단위로 추적한다
+  watched     Boolean         @default(false)
+  /// 채널팩 설명 (pint 팩 설명 등)
+  description String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  channels    Channel[]
+  stock       StockMaterial[]
 }
 
 /// 소재 창고 — 폴더별로 영구 보관되는 URL/제목/설명. 자동 정리 X.
@@ -60,9 +64,107 @@ model Channel {
   /// 옛날 영상 깊이 스크랩 완료 시점. null = 아직 미실행. 채널 추가 시 백필 cron 이 처리.
   backfilledAt    DateTime?
 
+  // ── 꿀통레이더 채널 순위용 (유튜브 channels.list 를 하루 한 번, 관심 목록 채널은 매시간) ──
+  /// 'shorts' | 'long' | 'hybrid'
+  contentFormat     String?
+  lastUploadAt      DateTime?
+  channelCreatedAt  DateTime?
+  videoCount        Int?
+  /// 하루 조회수 (총 조회수의 하루 증가분). pint 값으로 시작해 수집기가 갱신
+  dailyViews        Int?
+  /// 그 전날 하루 조회수 — 순위 변화·증감 표시용
+  dailyViewsPrev    Int?
+  /// 최근 7일 / 30일 조회수 (기록이 쌓이기 전엔 null)
+  weekViews         BigInt?
+  monthViews        BigInt?
+  /// 하루 한 번 적는 총 조회수·영상 수 (오래된 → 최신, 최대 31개). 마지막 값의 날짜가 historyDate (KST)
+  viewHistory       BigInt[]  @default([])
+  videoCountHistory Int[]     @default([])
+  historyDate       DateTime?    @db.Date
+  statsCheckedAt    DateTime?
+  /// 관심 목록 채널: 업로드 목록을 마지막으로 본 시각과 그때의 영상 수
+  uploadsCheckedAt  DateTime?
+  uploadsSeenCount  Int?
+  /// 7~30일 된 영상 조회수 중앙값 — 영상이 채널 평소보다 몇 배 터졌는지
+  baselineMedian    Int?
+  /// 최근 4주 주당 업로드 수
+  weeklyUploads     Float?
+  radarVideos       RadarVideo[]
+
   @@unique([platform, externalId])
   @@index([folderId])
   @@index([kind])
+  @@index([isActive, dailyViews])
+}
+
+/// 과거 트래픽 — 업로드가 60일 넘게 끊긴 채널의 100만+ 영상. 채널은 지우고 영상 기록만 남긴다 (터졌던 게 또 터진다)
+model PastHit {
+  /// 유튜브 영상 ID
+  id                String   @id
+  channelExternalId String
+  channelName       String?
+  channelThumb      String?
+  /// 채널이 있던 폴더(채널팩) 이름
+  folder            String?
+  title             String
+  thumbnailUrl      String?
+  publishedAt       DateTime
+  durationSec       Int?
+  isShorts          Boolean
+  views             Int
+  likes             Int?
+  comments          Int?
+  tags              String[] @default([])
+  archivedAt        DateTime @default(now())
+
+  @@index([views])
+  @@index([folder])
+  @@index([channelExternalId])
+}
+
+/// 과거 트래픽으로 보낸 채널 — pint 갱신 때 다시 들어오지 않게. 업로드를 다시 시작하면 되살린다
+model ArchivedChannel {
+  externalId      String    @id
+  name            String?
+  thumbnailUrl    String?
+  folder          String?
+  subscriberCount Int?
+  totalViewCount  BigInt?
+  lastUploadAt    DateTime?
+  /// 남긴 100만+ 영상 수
+  hits            Int       @default(0)
+  archivedAt      DateTime  @default(now())
+}
+
+/// 꿀통레이더 — 관심 목록 채널의 최근 영상. 시간마다 조회수를 적어 '터진 영상'을 찾는다.
+model RadarVideo {
+  /// 유튜브 영상 ID
+  id           String    @id
+  channelId    String
+  channel      Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  title        String
+  thumbnailUrl String?
+  publishedAt  DateTime
+  durationSec  Int?
+  isShorts     Boolean?
+  views        Int       @default(0)
+  likes        Int?
+  comments     Int?
+  tags         String[]  @default([])
+  /// 조회수 기록 — trackT[i] 분(epoch 분)에 trackV[i] 회. 최근 72시간만
+  trackT       Int[]     @default([])
+  trackV       Int[]     @default([])
+  /// 최근 1·3·6·12·24시간 동안 늘어난 조회수 (기록이 모자라면 게시 이후 전체)
+  gain1h       Int?
+  gain3h       Int?
+  gain6h       Int?
+  gain12h      Int?
+  gain24h      Int?
+  checkedAt    DateTime?
+  firstSeenAt  DateTime  @default(now())
+
+  @@index([publishedAt])
+  @@index([channelId, publishedAt])
 }
 
 /// 유튜브 Data API 키 (여러 개 등록 시 가장 덜 쓴 키부터 순환). 할당량은 PT 자정에 초기화.

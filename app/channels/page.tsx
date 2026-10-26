@@ -15,7 +15,7 @@ export default async function ChannelsPage() {
       <div className="mb-4">
         <h1 className="text-lg font-bold tracking-tight">에셋 채널</h1>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          플랫폼별 탭에서 추가. 폴더(카테고리)는 같이 묶어 관리. pint 채널팩은 요청하면 한 번씩 갱신합니다 (90일 넘게 업로드 없는 채널은 꺼 둠).
+          플랫폼별 탭에서 추가. 폴더(카테고리)는 같이 묶어 관리. pint 채널팩은 요청하면 한 번씩 갱신합니다. 60일 넘게 업로드 없는 채널은 100만+ 영상만 꿀통레이더 → 과거 트래픽에 남기고 정리합니다.
         </p>
       </div>
 
