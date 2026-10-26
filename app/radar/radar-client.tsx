@@ -14,6 +14,10 @@ import {
   type WorkRef,
 } from '@/lib/radar/types';
 import { Pill, ago, short } from '../trends/ui';
+import { HotView } from './views/hot';
+import { PastView } from './views/past';
+import { RankingView } from './views/ranking';
+import { WatchlistView } from './views/watchlist';
 
 /**
  * 꿀통레이더 — 경쟁 채널 쇼츠를 감시해서
@@ -354,9 +358,13 @@ const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: '',
     items: [
+      // 실제 데이터 화면 (pint 홈·터진 영상·관심 목록과 같은 흐름)
+      { key: 'ranking', label: '채널 순위' },
+      { key: 'hot', label: '터진 영상' },
+      { key: 'watchlist', label: '관심 목록' },
+      { key: 'past', label: '과거 트래픽' },
       { key: 'home', label: '홈', plan: { what: '오늘 뭐 만들까 — 뜨는 작품·꿀통 연관작·피해야 할 픽을 한 화면에 요약', source: '아래 화면들의 요약' } },
       { key: 'schedule', label: '편성표', plan: { what: '오늘·이번 주 방영·공개되는 드라마·예능·영화 (첫 방송 직후를 선점)', source: 'TMDB 방영 일정 · 넷플릭스 등 OTT 공개일' } },
-      { key: 'surge', label: '떡상 감지', plan: { what: '감시 채널 쇼츠 중 조회가 갑자기 튄 영상을 시간 단위로', source: '감시 채널 쇼츠 · 시간별 조회수 변화' } },
     ],
   },
   {
@@ -367,7 +375,8 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { key: 'season', label: '시즌·오픈', plan: { what: '새 시즌·신작이 막 공개된 작품 — 첫 주 선점용', source: 'TMDB 신규 시즌·공개일' } },
       { key: 'feed', label: '소재 피드', plan: { what: '감시 채널이 올린 새 쇼츠 전체 흐름 (최신순, 작품별 묶음)', source: '감시 채널 쇼츠' } },
       { key: 'entry', label: '진입 성적표', plan: { what: '최근 새로 다뤄지기 시작한 작품의 첫 쇼츠 성적 — 지금 들어가도 되는지', source: '감시 채널 쇼츠 · 작품별 첫 등장' } },
-      { key: 'daily', label: '데일리 떡상쇼츠', plan: { what: '하루 단위 조회 상위 쇼츠 랭킹', source: '감시 채널 쇼츠 · 하루 조회 증가량' } },
+      // 터진 영상을 24시간 기준으로 연다
+      { key: 'daily', label: '데일리 떡상쇼츠' },
       { key: 'golden', label: '황금키워드', plan: { what: '검색은 많은데 쇼츠는 적은 작품·배우 키워드', source: '네이버 월간 검색수(트렌드 탭) × 감시 채널 쇼츠 수' } },
     ],
   },
@@ -476,9 +485,13 @@ function SummaryTile({ label, value, detail }: { label: string; value: string; d
   );
 }
 
-export function RadarClient({ data }: { data: RadarData }) {
+/** 실제 데이터로 도는 화면 — 시안(아래 꿀통 화면)의 머리말·요약을 쓰지 않는다 */
+const REAL_VIEWS = new Set(['ranking', 'hot', 'daily', 'watchlist', 'past']);
+
+export function RadarClient({ data, folders }: { data: RadarData; folders: { id: string; name: string }[] }) {
   const [cat, setCat] = useState<WorkCategory | 'all'>('all');
-  const [view, setView] = useState<ViewKey>('rising');
+  const [view, setView] = useState<ViewKey>('ranking');
+  const [rankFolder, setRankFolder] = useState<string | null>(null);
   const [navCats, setNavCats] = useState<WorkCategory[] | null>(null);
   const [period, setPeriod] = useState('3d');
   const [group, setGroup] = useState('all');
@@ -514,6 +527,23 @@ export function RadarClient({ data }: { data: RadarData }) {
           </Pill>
         ))}
       </div>
+      {REAL_VIEWS.has(view) ? (
+        view === 'ranking' ? (
+          <RankingView folders={folders} folderId={rankFolder} onFolder={setRankFolder} />
+        ) : view === 'past' ? (
+          <PastView />
+        ) : view === 'watchlist' ? (
+          <WatchlistView
+            onRanking={(id) => {
+              setRankFolder(id);
+              setView('ranking');
+            }}
+          />
+        ) : (
+          <HotView initialWindow={view === 'daily' ? 24 : 1} onWatchlist={() => setView('watchlist')} />
+        )
+      ) : (
+      <>
       {data.sample && (
         <div className="surface-warn mb-3 rounded-xl border px-4 py-2.5 text-[13px] font-semibold">
           시안 화면입니다 — 작품·포스터·출연진은 TMDB 실제 정보, 조회수·채널 수·쇼츠 제목은 예시입니다. 감시 채널을 등록하면 실제 데이터로 바뀝니다.
@@ -597,6 +627,8 @@ export function RadarClient({ data }: { data: RadarData }) {
         <CrowdedList rows={crowded} />
         <UnmatchedList rows={data.unmatched} />
       </div>
+      </>
+      )}
       </>
       )}
       </div>
