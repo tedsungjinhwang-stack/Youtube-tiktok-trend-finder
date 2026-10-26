@@ -3,9 +3,14 @@
  *
  *  - 후보: #해시태그, 「」『』[]<>《》'' 안의 말, 영상 태그
  *  - 후보는 공백·기호를 빼고 소문자로 맞춰(RadarAlias) 한 번 물어본 건 다시 묻지 않는다
- *  - TMDB 제목(한국어·원제)과 정확히 같을 때만 작품으로 본다 (비슷한 이름으로 엉뚱한 작품이 붙지 않게)
+ *  - TMDB 제목(한국어·원제) 또는 부제를 뗀 앞 제목("닥터X: 하얀 마피아의 시대" → "닥터X")과 정확히 같을 때만 작품으로 본다
  *    같은 이름이 여럿이면 한국 작품 → 인기순
- *  - 한 영상에 작품 후보가 여럿이면 가장 많이 걸린 작품 (같으면 인기순)
+ *  - 영상 제목 안에 알려진 작품 제목(방영 중·최근 작품 등)이 그대로 들어 있으면 그것도 근거로 본다
+ *  - 믿을 만한 근거만 쓴다 (엉뚱한 작품이 붙는 걸 막으려고):
+ *      제목 해시태그·괄호 > 영상 태그(작품명이 제목에도 있거나 "작품명 몰아보기/결말" 꼴일 때만)
+ *      세 글자 이하 작품명(레이·메이 같은 이름과 겹침)은 드라마·영화·예능 채널의 제목 해시태그로만
+ *      게임·스포츠·쇼핑처럼 작품과 상관없는 채널팩은 아예 찾지 않는다
+ *  - 한 영상에 작품 후보가 여럿이면 근거 점수가 높은 작품 (같으면 인기순)
  *  - 작품 상세(장르·방송사·방영 중·출연진)와 출연자의 다른 출연작은 따로 받아 둔다
  */
 
@@ -40,7 +45,14 @@ export type Candidate = {
   text: string;
   /** 제목의 해시태그·괄호에서 나온 것 (영상 태그보다 믿을 만하다) */
   strong: boolean;
+  /** "작품명 몰아보기/결말/명장면" 꼴에서 떼어 낸 작품명 — 영상 태그여도 작품 얘기라는 근거 */
+  review?: boolean;
 };
+
+/** 부제를 뗀 앞 제목 ("닥터X: 하얀 마피아의 시대" → "닥터X") */
+export function mainTitle(t: string): string {
+  return t.split(/\s*[:：]\s*|\s+[-–—]\s+/)[0].trim();
+}
 
 /** 영상 하나에서 작품 이름 후보 (원래 글자 그대로 — TMDB 에 그대로 물어본다) */
 export function candidatesOf(title: string, tags: string[]): Candidate[] {
@@ -58,15 +70,16 @@ export function candidatesOf(title: string, tags: string[]): Candidate[] {
     seen.add(n);
     out.push({ text: t, strong });
     // "드라마제목 3화", "제목 시즌2", "제목2", "제목 몰아보기" 같은 꼬리를 떼고 한 번 더
-    const trimmed = t
-      .replace(/\s*(몰아보기|결말포함|결말|명장면|하이라이트|리뷰|요약|레전드|모음|다시보기|통합본|풀버전|full)+$/i, '')
+    const noReview = t.replace(/\s*(몰아보기|결말포함|결말|명장면|하이라이트|리뷰|요약|레전드|모음|다시보기|통합본|풀버전|full)+$/i, '');
+    const review = noReview !== t;
+    const trimmed = noReview
       .replace(/\s*(시즌\s*\d+|\d+\s*화|\d+\s*회|ep\.?\s*\d+|e\d+|season\s*\d+)$/i, '')
       .replace(/(?<=[가-힣a-z])\s*\d{1,2}$/i, '')
       .trim();
     const tn = normalizeAlias(trimmed);
     if (tn !== n && tn.length >= 2 && !STOP.has(tn) && !seen.has(tn)) {
       seen.add(tn);
-      out.push({ text: trimmed, strong });
+      out.push({ text: trimmed, strong, review });
     }
   }
   return out.slice(0, 14);
@@ -113,7 +126,9 @@ async function lookup(raw: string, norm: string): Promise<{ work?: SearchItem; p
     const exact = results.filter(
       (x) =>
         (x.media_type === 'tv' || x.media_type === 'movie') &&
-        [x.name, x.title, x.original_name, x.original_title].some((t) => t && normalizeAlias(t) === norm)
+        [x.name, x.title, x.original_name, x.original_title].some(
+          (t) => t && (normalizeAlias(t) === norm || normalizeAlias(mainTitle(t)) === norm)
+        )
     );
     // 두세 글자 이름은 흔해서 어느 정도 알려진 작품만
     const ok = exact.filter((x) => norm.length > 3 || (x.popularity ?? 0) >= 5 || (x.vote_count ?? 0) >= 20);
@@ -218,44 +233,95 @@ export async function resolveAliases(raws: string[], deadline: number): Promise<
   return out;
 }
 
+/** 작품 얘기가 나오는 채널팩 — 여기서만 작품을 찾는다 (게임·스포츠·쇼핑·요리 등은 건너뜀) */
+const WORK_FOLDER_RE = /(영드짜|드짜|드라마|영화|예능|애니|셀럽|팬튜브|연예|스케치|커뮤형|랭킹|넘사|고래|주제 자주 변경|썰|짤|인스타 틱톡 짜집기|해짜|방송사)/;
+/** 세 글자 이하 작품명을 믿어도 되는 채널팩 (드라마·영화·예능 클립 채널) */
+const DRAMA_FOLDER_RE = /(영드짜|드짜|드라마|영화|예능|애니)/;
+
+type DictWork = { id: string; main: string; full: string; popularity: number };
+
+/**
+ * 영상 제목 안에서 찾을 '알려진 작품' — 한국 작품(방영 중·2년 안·인기 10+)과 인기 해외 작품(30+).
+ * 앞 제목이 네 글자 이상이거나, 세 글자라도 방영 중·두 달 안에 시작한 작품만 (흔한 말과 겹치지 않게)
+ */
+async function knownTitles(): Promise<DictWork[]> {
+  const rows = await prisma.$queryRaw<{ id: string; title: string; popularity: number | null; recent: boolean }[]>`
+    SELECT id, title, popularity, ("onAir" OR "firstAirDate" > NOW() - INTERVAL '60 days') AS recent
+    FROM "RadarWork"
+    WHERE (category LIKE 'kr_%' AND ("onAir" OR "firstAirDate" > NOW() - INTERVAL '2 years' OR COALESCE(popularity, 0) >= 10))
+       OR COALESCE(popularity, 0) >= 30`;
+  return rows
+    .map((r) => ({ id: r.id, main: normalizeAlias(mainTitle(r.title)), full: normalizeAlias(r.title), popularity: r.popularity ?? 0, recent: r.recent }))
+    .filter((w) => w.main.length >= 4 || (w.main.length === 3 && w.recent))
+    .map(({ id, main, full, popularity }) => ({ id, main, full, popularity }));
+}
+
 /** 작품을 아직 안 찾아본 영상에 작품을 붙인다. 붙인 수 */
 export async function matchVideos(deadline: number, limit = 400): Promise<{ matched: number; checked: number }> {
-  const vids = await prisma.radarVideo.findMany({
-    where: { matchedAt: null },
-    select: { id: true, title: true, tags: true },
-    orderBy: { publishedAt: 'desc' },
-    take: limit,
-  });
+  const vids = await prisma.$queryRaw<{ id: string; title: string; tags: string[]; folder: string }[]>`
+    SELECT v.id, v.title, v.tags, f.name AS folder
+    FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId" JOIN "Folder" f ON f.id = c."folderId"
+    WHERE v."matchedAt" IS NULL
+    ORDER BY v."publishedAt" DESC
+    LIMIT ${limit}`;
   if (!vids.length) return { matched: 0, checked: 0 };
-  const cands = new Map(vids.map((v) => [v.id, candidatesOf(v.title, v.tags)]));
+  const now = new Date();
+
+  // 작품과 상관없는 채널팩은 찾지 않고 끝낸다
+  const skip = vids.filter((v) => !WORK_FOLDER_RE.test(v.folder));
+  if (skip.length) {
+    await prisma.radarVideo.updateMany({ where: { id: { in: skip.map((v) => v.id) } }, data: { workId: null, matchedBy: null, matchedAt: now } });
+  }
+  const todo = vids.filter((v) => WORK_FOLDER_RE.test(v.folder));
+
+  const cands = new Map(todo.map((v) => [v.id, candidatesOf(v.title, v.tags)]));
   const aliases = await resolveAliases(
     [...cands.values()].flat().map((c) => c.text),
     deadline
   );
+  const dict = await knownTitles();
 
-  const workIds = new Set<string>();
+  const workIds = new Set<string>(dict.map((d) => d.id));
   for (const a of aliases.values()) if (a.workId) workIds.add(a.workId);
-  const pop = new Map(
-    (await prisma.radarWork.findMany({ where: { id: { in: [...workIds] } }, select: { id: true, popularity: true } })).map((w) => [w.id, w.popularity ?? 0])
+  const works = new Map(
+    (await prisma.radarWork.findMany({ where: { id: { in: [...workIds] } }, select: { id: true, title: true, popularity: true } })).map((w) => [
+      w.id,
+      { main: normalizeAlias(mainTitle(w.title)), full: normalizeAlias(w.title), popularity: w.popularity ?? 0 },
+    ])
   );
 
   let matched = 0;
   let checked = 0;
-  const now = new Date();
-  for (const v of vids) {
+  for (const v of todo) {
     const list = cands.get(v.id)!;
     // 후보를 아직 다 못 물어봤으면(시간 초과) 다음 번에
     if (list.some((c) => !aliases.has(normalizeAlias(c.text)))) continue;
-    // 제목 해시태그로 걸린 작품을 영상 태그로 걸린 작품보다 먼저
+    const titleNorm = normalizeAlias(v.title);
+    const dramaFolder = DRAMA_FOLDER_RE.test(v.folder);
     const hits = new Map<string, { n: number; by: string }>();
+    const add = (workId: string, n: number, by: string) => {
+      const h = hits.get(workId) ?? { n: 0, by };
+      h.n += n;
+      hits.set(workId, h);
+    };
     for (const c of list) {
       const a = aliases.get(normalizeAlias(c.text));
       if (!a?.workId) continue;
-      const h = hits.get(a.workId) ?? { n: 0, by: c.text };
-      h.n += c.strong ? 2 : 1;
-      hits.set(a.workId, h);
+      const w = works.get(a.workId);
+      if (!w) continue;
+      // 세 글자 이하 작품명은 드라마·영화·예능 채널의 제목 해시태그로만 (멤버 이름·흔한 말과 겹친다)
+      if (w.main.length <= 3 && !(c.strong && dramaFolder)) continue;
+      if (c.strong) add(a.workId, 2, c.text);
+      // 영상 태그는 채널마다 늘 붙이는 말이 많아서, 작품명이 제목에도 있거나 "작품명 몰아보기" 꼴일 때만
+      else if (c.review || titleNorm.includes(w.main)) add(a.workId, 1, c.text);
     }
-    const best = [...hits.entries()].sort((x, y) => y[1].n - x[1].n || (pop.get(y[0]) ?? 0) - (pop.get(x[0]) ?? 0))[0];
+    // 제목 안의 알려진 작품 제목
+    for (const d of dict) {
+      if (titleNorm.includes(d.main)) add(d.id, 1.5, d.main);
+    }
+    const best = [...hits.entries()].sort(
+      (x, y) => y[1].n - x[1].n || (works.get(y[0])?.popularity ?? 0) - (works.get(x[0])?.popularity ?? 0)
+    )[0];
     await prisma.radarVideo.update({
       where: { id: v.id },
       data: { workId: best?.[0] ?? null, matchedBy: best?.[1].by ?? null, matchedAt: now },
@@ -263,7 +329,33 @@ export async function matchVideos(deadline: number, limit = 400): Promise<{ matc
     checked++;
     if (best) matched++;
   }
-  return { matched, checked };
+  return { matched, checked: checked + skip.length };
+}
+
+/** 편성표·시즌·오픈에서 받은 TMDB 작품을 미리 넣어 둔다 — 제목만으로도 작품을 알아보게 */
+export async function seedWorks(
+  shows: { id: number; name: string; posterPath: string | null; category: string; networks: string[]; firstAirDate: string | null; popularity: number; kind?: string }[]
+): Promise<void> {
+  for (const s of shows) {
+    const mediaType = s.kind === 'movie' ? 'movie' : 'tv';
+    const id = `${mediaType}:${s.id}`;
+    await prisma.radarWork.upsert({
+      where: { id },
+      create: {
+        id,
+        tmdbId: s.id,
+        mediaType,
+        title: s.name,
+        year: s.firstAirDate ? s.firstAirDate.slice(0, 4) : null,
+        category: s.category,
+        posterPath: s.posterPath,
+        networks: s.networks,
+        firstAirDate: s.firstAirDate ? new Date(s.firstAirDate) : null,
+        popularity: s.popularity,
+      },
+      update: { popularity: s.popularity },
+    });
+  }
 }
 
 type CastMember = { id: number; name: string; character: string | null; order: number; profilePath: string | null };

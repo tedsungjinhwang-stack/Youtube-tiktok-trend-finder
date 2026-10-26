@@ -31,7 +31,7 @@ import {
 } from '@/lib/youtube/api';
 import { resetStaleQuotas } from '@/lib/youtube/keyManager';
 import { UNITS_PER_OTHER_CHANNEL, UNITS_PER_WATCHED_CHANNEL } from './budget';
-import { fetchPersons, fetchWorkDetails, matchVideos } from './match';
+import { fetchPersons, fetchWorkDetails, matchVideos, seedWorks } from './match';
 import { getSchedule, getSeason } from './tabs';
 
 /** 다른 기능(키워드 검색 등)이 쓸 몫으로 남겨 두는 할당량 */
@@ -147,12 +147,13 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
   };
 
   try {
-    const p1 = phase(12_000).canSpend;
+    // 조회수 재기가 '터진 영상'의 핵심이라 새 영상 찾기보다 먼저 (예전엔 새 영상 찾기가 시간을 다 써서 한 번도 못 돌았다)
+    const p1 = phase(10_000).canSpend;
     await stepChannelStats(report, p1, tierB(p1), spend);
-    const p2 = phase(22_000).canSpend;
-    await stepUploadScan(report, p2, tierB(p2), spend);
-    const p3 = phase(30_000).canSpend;
-    await stepRefreshVideos(report, p3, tierB(p3), spend);
+    const p2 = phase(21_000).canSpend;
+    await stepRefreshVideos(report, p2, tierB(p2), spend);
+    const p3 = phase(31_000).canSpend;
+    await stepUploadScan(report, p3, tierB(p3), spend);
     report.maintenance = await stepDailyMaintenance();
     // 작품 인식 — TMDB (유튜브 할당량 안 씀). 실패해도 다른 단계는 계속
     // 작품 찾기가 시간을 다 쓰면 상세·출연작을 못 받아서, 각자 몫을 따로 둔다
@@ -163,8 +164,12 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
       report.videosMatched = r.matched;
       report.worksDetailed = await fetchWorkDetails(m2);
       await fetchPersons(m2);
-      // 편성표·시즌·오픈 TMDB 조회를 미리 받아 둔다 (6시간 캐시라 대부분은 바로 끝남) — 화면이 빨리 열리게
-      if (Date.now() < m2) await Promise.all([getSchedule(), getSeason()]);
+      // 편성표·시즌·오픈 TMDB 조회를 미리 받아 둔다 (6시간 캐시라 대부분은 바로 끝남) — 화면이 빨리 열리게.
+      // 거기 나온 작품은 작품 목록에 넣어 둬서, 해시태그가 없어도 제목만으로 알아보게
+      if (Date.now() < m2) {
+        const [sched, season] = await Promise.all([getSchedule(), getSeason()]);
+        await seedWorks([...sched.flatMap((d) => d.items), ...season]);
+      }
     } catch (e) {
       report.matchError = (e as Error).message.slice(0, 200);
     }
@@ -395,21 +400,15 @@ async function stepUploadScan(
     }
   }
 
-  // 본 채널: 본 시각·그때 영상 수·마지막 업로드
-  for (const ch of scanned) {
-    const latest = await prisma.radarVideo.findFirst({
-      where: { channelId: ch.id },
-      orderBy: { publishedAt: 'desc' },
-      select: { publishedAt: true },
-    });
-    await prisma.channel.update({
-      where: { id: ch.id },
-      data: {
-        uploadsCheckedAt: new Date(),
-        uploadsSeenCount: ch.videoCount ?? undefined,
-        ...(latest ? { lastUploadAt: latest.publishedAt } : {}),
-      },
-    });
+  // 본 채널: 본 시각·그때 영상 수·마지막 업로드 — 한 번에 (채널마다 따로 쓰면 수백 번 왕복이라 느리다)
+  if (scanned.length) {
+    await prisma.$executeRaw`
+      UPDATE "Channel" c SET
+        "uploadsCheckedAt" = NOW(),
+        "uploadsSeenCount" = COALESCE(u.vc, c."uploadsSeenCount"),
+        "lastUploadAt" = GREATEST(c."lastUploadAt", (SELECT MAX(v."publishedAt") FROM "RadarVideo" v WHERE v."channelId" = c.id))
+      FROM unnest(${scanned.map((c) => c.id)}::text[], ${scanned.map((c) => c.videoCount)}::int[]) AS u(id, vc)
+      WHERE c.id = u.id`;
   }
 }
 
