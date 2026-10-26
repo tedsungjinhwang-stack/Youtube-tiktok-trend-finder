@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ago, short } from '../../trends/ui';
 import type { CollectStatus } from '@/lib/radar/queries';
 
@@ -25,20 +26,42 @@ export function Chip({ children, tone = 'plain', title }: { children: React.Reac
 
 export const FORMAT_LABEL: Record<string, string> = { shorts: '숏폼', long: '롱폼', hybrid: '숏폼+롱폼' };
 
-/** 영상 썸네일 — 쇼츠는 9:16 칸에 가운데를 채운다 */
+/**
+ * 유튜브 썸네일 주소 — 큰 것부터. 없는 크기면(404) 다음 것으로 넘어간다.
+ *  쇼츠: oardefault(세로 원본, 약 1080×1920) → hq720(1280×720) → hqdefault(480×360)
+ *  롱폼: hq720 → hqdefault
+ *  작은 칸(sm): mqdefault(320×180) 로 충분
+ */
+function thumbCandidates(id: string, vertical: boolean | undefined, size: 'sm' | 'lg', stored: string | null): string[] {
+  const base = `https://i.ytimg.com/vi/${id}`;
+  const list =
+    size === 'sm'
+      ? [`${base}/mqdefault.jpg`]
+      : vertical
+        ? [`${base}/oardefault.jpg`, `${base}/hq720.jpg`, `${base}/hqdefault.jpg`]
+        : [`${base}/hq720.jpg`, `${base}/hqdefault.jpg`];
+  if (stored) list.push(stored);
+  return list;
+}
+
+/** 영상 썸네일 — 쇼츠는 9:16 칸에 세로 원본 썸네일 */
 export function VideoThumb({
   id,
   src,
   vertical,
+  size = 'lg',
   className = '',
   children,
 }: {
   id: string;
   src: string | null;
   vertical?: boolean;
+  size?: 'sm' | 'lg';
   className?: string;
   children?: React.ReactNode;
 }) {
+  const candidates = thumbCandidates(id, vertical, size, src);
+  const [i, setI] = useState(0);
   return (
     <a
       href={vertical ? `https://www.youtube.com/shorts/${id}` : `https://www.youtube.com/watch?v=${id}`}
@@ -47,9 +70,19 @@ export function VideoThumb({
       className={'relative block shrink-0 overflow-hidden rounded-lg ' + className}
       style={{ aspectRatio: vertical ? '9 / 16' : '16 / 9', background: 'var(--chip)' }}
     >
-      {src && (
+      {i < candidates.length && (
         // eslint-disable-next-line @next/next/no-img-element -- 유튜브 썸네일
-        <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
+        <img
+          src={candidates[i]}
+          alt=""
+          className="h-full w-full object-cover"
+          loading="lazy"
+          onError={() => setI(i + 1)}
+          // 유튜브는 없는 크기에 120×90 회색 그림을 200 으로 줄 때가 있다 — 너무 작으면 다음 것으로
+          onLoad={(e) => {
+            if (size === 'lg' && e.currentTarget.naturalWidth > 0 && e.currentTarget.naturalWidth <= 120) setI(i + 1);
+          }}
+        />
       )}
       {children}
     </a>
