@@ -285,7 +285,7 @@ function MiniVideo({ label, v, watched }: { label: string; v: VideoBrief | null;
   }
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <VideoThumb id={v.id} src={v.thumbnailUrl} className="w-[72px]" />
+      <VideoThumb id={v.id} src={v.thumbnailUrl} size="sm" className="w-[72px]" />
       <div className="min-w-0">
         <div className="text-[10.5px] font-extrabold text-[color:var(--text-faint)]">{label}</div>
         <a
