@@ -1,7 +1,8 @@
 /**
- * 꿀통레이더 수집기 — /api/cron/radar 가 10분마다 부른다 (Supabase pg_cron).
+ * 꿀통레이더 수집기 — /api/cron/radar 를 Supabase pg_cron 이 매시 정각·3분·6분에 부른다.
+ * 한 번에 60초 제한이라 한 시간 몫을 세 번에 나눠 하고, 할 일이 없으면 바로 끝난다 (할당량을 쓰지 않음).
  *
- * 한 번 돌 때 시간(약 45초)과 유튜브 할당량 안에서 아래를 차례로 한다.
+ * 한 번 돌 때 시간(약 45초)과 유튜브 할당량 안에서 아래를 차례로 한다. 유튜브 호출은 몇 개씩 동시에 보낸다.
  *  1. 채널 통계  — 모든 활성 채널은 하루 한 번, 관심 목록 채널은 매시간 (channels.list, 50개 = 1 unit)
  *                 하루 한 번 총 조회수·영상 수를 기록해 하루/7일/30일 조회수와 주당 업로드를 낸다.
  *  2. 새 영상 찾기 — 관심 목록 채널 중 영상 수가 늘었거나 하루 넘게 안 본 채널 (playlistItems, 채널당 1 unit)
@@ -51,6 +52,24 @@ function kstToday(now = new Date()): Date {
 }
 
 const toMin = (d: Date) => Math.floor(d.getTime() / 60_000);
+
+/** items 를 n 개씩 동시에 처리 (유튜브 호출이 대부분 기다리는 시간이라 묶어서 보낸다) */
+async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const item = items[next++];
+      await fn(item);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, worker));
+}
+
+function chunks<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
 
 export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise<CollectReport> {
   const t0 = Date.now();
@@ -133,8 +152,7 @@ async function stepChannelStats(report: CollectReport, canSpend: (u: number) => 
   for (const c of [...watched, ...daily]) byExt.set(c.externalId, c.id);
   const exts = [...byExt.keys()];
 
-  for (let i = 0; i < exts.length; i += 50) {
-    const slice = exts.slice(i, i + 50);
+  await pool(chunks(exts, 50), 4, async (slice) => {
     if (!canSpend(1)) return;
     const stats = await fetchChannelStats(slice);
     spend(1);
@@ -147,7 +165,7 @@ async function stepChannelStats(report: CollectReport, canSpend: (u: number) => 
       report.channelsGone += gone.length;
     }
     report.channelsChecked += stats.length;
-  }
+  });
 }
 
 async function applyChannelStats(
@@ -230,14 +248,14 @@ async function stepUploadScan(report: CollectReport, canSpend: (u: number) => bo
         OR c."uploadsCheckedAt" < ${dayAgo}
         OR (c."videoCount" IS NOT NULL AND c."videoCount" > COALESCE(c."uploadsSeenCount", 0)))
     ORDER BY c."uploadsCheckedAt" ASC NULLS FIRST
-    LIMIT 40`;
+    LIMIT 150`;
   if (!candidates.length) return;
 
   const newIds: string[] = [];
   const owner = new Map<string, string>();
   const scanned: typeof candidates = [];
-  for (const ch of candidates) {
-    if (!canSpend(2)) break;
+  await pool(candidates, 6, async (ch) => {
+    if (!canSpend(2)) return;
     // 처음 보는 채널은 50개 — 7~30일 된 영상으로 채널 평소 조회(중앙값)를 바로 낼 수 있게
     const ids = await fetchLatestUploadIds(ch.externalId, ch.first ? 50 : 15).catch((e) => {
       if (e instanceof QuotaGoneError) throw e;
@@ -247,7 +265,7 @@ async function stepUploadScan(report: CollectReport, canSpend: (u: number) => bo
     scanned.push(ch);
     for (const id of ids) owner.set(id, ch.id);
     newIds.push(...ids);
-  }
+  });
   report.uploadScans = scanned.length;
 
   if (newIds.length) {
@@ -350,9 +368,8 @@ async function stepRefreshVideos(report: CollectReport, canSpend: (u: number) =>
     ORDER BY v."checkedAt" ASC NULLS FIRST
     LIMIT 2500`;
 
-  for (let i = 0; i < due.length; i += 50) {
+  await pool(chunks(due, 50), 4, async (slice) => {
     if (!canSpend(1)) return;
-    const slice = due.slice(i, i + 50);
     const stats = await fetchVideos(
       slice.map((v) => v.id),
       false
@@ -416,7 +433,7 @@ async function stepRefreshVideos(report: CollectReport, canSpend: (u: number) =>
       await prisma.radarVideo.deleteMany({ where: { id: { in: gone } } });
       report.videosGone += gone.length;
     }
-  }
+  });
 }
 
 /* ───────────── 4. 하루 정리 ───────────── */
