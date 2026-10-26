@@ -4,11 +4,11 @@ import { usePathname } from 'next/navigation';
 import { PlansCard } from './plan-pane';
 
 /**
- * 계획 사이드바를 띄우는 탭 — 전체 현황 · 유튜브 · 인스타 · 네이버클립.
- * 나머지(스레드·트렌드·꿀통레이더·설정·공유 링크 등)는 본문이 전체 폭을 쓴다.
+ * 계획 사이드바를 띄우는 탭 — 전체 현황 · 유튜브 · 인스타 · 네이버클립 · 스레드.
+ * 나머지(트렌드·꿀통레이더·설정·공유 링크 등)는 본문이 전체 폭을 쓴다.
  * /shopping-dashboard 는 인스타의 예전 주소.
  */
-const SHOW_ON = ['/', '/channel-dashboard', '/instagram-dashboard', '/shopping-dashboard', '/naverclip-dashboard'];
+const SHOW_ON = ['/', '/channel-dashboard', '/instagram-dashboard', '/shopping-dashboard', '/naverclip-dashboard', '/threads-dashboard'];
 
 export function showsPlanSidebar(pathname: string): boolean {
   return SHOW_ON.includes(pathname);
