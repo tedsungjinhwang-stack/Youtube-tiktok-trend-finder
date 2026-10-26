@@ -17,9 +17,64 @@ import {
 } from '@/lib/radar/queries';
 import type { RadarData } from '@/lib/radar/types';
 import { getRadarData, type WorksPeriod } from '@/lib/radar/works';
+import {
+  AWARD_CALENDAR,
+  getAwards,
+  getEntries,
+  getGolden,
+  getPersons,
+  getSameSeasonPast,
+  getSchedule,
+  getSeason,
+  getSpeed,
+  getTones,
+} from '@/lib/radar/tabs';
 
 export async function radarDataAction(period: WorksPeriod): Promise<RadarData> {
   return getRadarData(period);
+}
+
+export async function entriesAction() {
+  return getEntries();
+}
+export async function personsAction() {
+  return getPersons();
+}
+export async function tonesAction() {
+  return getTones();
+}
+export async function scheduleAction() {
+  return getSchedule();
+}
+export async function seasonAction() {
+  return getSeason();
+}
+export async function goldenAction() {
+  return getGolden();
+}
+export async function speedAction() {
+  return getSpeed();
+}
+export async function awardsAction() {
+  return { ...(await getAwards()), calendar: AWARD_CALENDAR };
+}
+/** 홈 — 지금 터지는 쇼츠·뜨는 작품·오늘 편성·작년 이맘때 터진 영상 */
+export async function homeAction() {
+  const [hot, works, schedule, past] = await Promise.all([
+    getHotVideos({ format: 'shorts', window: 3, sort: 'rising', excludeWhale: false }),
+    getRadarData('3d'),
+    // 편성표는 수집기가 미리 받아 두지만, 비어 있으면 홈이 오래 기다리지 않게 5초까지만
+    Promise.race([getSchedule().catch(() => []), new Promise<Awaited<ReturnType<typeof getSchedule>>>((r) => setTimeout(() => r([]), 5000))]),
+    getSameSeasonPast(12),
+  ]);
+  return { hot: hot.items.slice(0, 10), status: hot.status, works, schedule: schedule.slice(0, 2), past };
+}
+
+/** 채널팩 이름으로 관심 목록에 넣기 (팬튜브·코미디 등 묶음 화면에서) */
+export async function watchFoldersByNameAction(names: string[]): Promise<{ ok: boolean; count: number }> {
+  const r = await prisma.folder.updateMany({ where: { name: { in: names } }, data: { watched: true } });
+  revalidatePath('/radar');
+  return { ok: true, count: r.count };
 }
 
 export async function rankingAction(q: RankingQuery): Promise<RankingResult> {

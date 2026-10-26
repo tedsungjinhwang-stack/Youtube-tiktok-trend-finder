@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { Pill } from '../../trends/ui';
-import { hotVideosAction } from '../actions';
+import { hotVideosAction, watchFoldersByNameAction } from '../actions';
 import type { HotResult, HotSort, HotVideo, HotWindow } from '@/lib/radar/queries';
 import { Chip, Empty, StatusLine, Toggle, VideoThumb, ago, short } from './parts';
 
@@ -18,10 +18,28 @@ const SORTS: { key: HotSort; label: string }[] = [
   { key: 'latest', label: '최신' },
 ];
 
-export function HotView({ initialWindow = 1, onWatchlist }: { initialWindow?: HotWindow; onWatchlist: () => void }) {
-  const [format, setFormat] = useState<'shorts' | 'long'>('shorts');
-  const [win, setWin] = useState<HotWindow>(initialWindow);
-  const [sort, setSort] = useState<HotSort>('rising');
+export type HotPreset = {
+  title: string;
+  subtitle: string;
+  /** 이 채널팩들만 */
+  folders?: string[];
+  format?: 'shorts' | 'long';
+  sort?: HotSort;
+  window?: HotWindow;
+  /** 화면 위 안내 */
+  note?: string;
+};
+
+export const HOT_DEFAULT: HotPreset = {
+  title: '터진 영상',
+  subtitle: '관심 목록 채널에서 지금 조회가 빠르게 느는 영상 — 남들보다 먼저 보고 선점',
+};
+
+export function HotView({ preset = HOT_DEFAULT, onWatchlist }: { preset?: HotPreset; onWatchlist: () => void }) {
+  const [format, setFormat] = useState<'shorts' | 'long'>(preset.format ?? 'shorts');
+  const [win, setWin] = useState<HotWindow>(preset.window ?? 1);
+  const [sort, setSort] = useState<HotSort>(preset.sort ?? 'rising');
+  const [reload, setReload] = useState(0);
   const [excludeWhale, setExcludeWhale] = useState(false);
   const [folder, setFolder] = useState<string | null>(null);
   const [data, setData] = useState<HotResult | null>(null);
@@ -29,13 +47,19 @@ export function HotView({ initialWindow = 1, onWatchlist }: { initialWindow?: Ho
   const [err, setErr] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
-  useEffect(() => setWin(initialWindow), [initialWindow]);
+  // 다른 묶음 화면으로 바뀌면 그 화면의 기본값으로
+  useEffect(() => {
+    setFormat(preset.format ?? 'shorts');
+    setWin(preset.window ?? 1);
+    setSort(preset.sort ?? 'rising');
+    setFolder(null);
+  }, [preset]);
 
   useEffect(() => {
     let alive = true;
     start(async () => {
       try {
-        const r = await hotVideosAction({ format, window: win, sort, excludeWhale });
+        const r = await hotVideosAction({ format, window: win, sort, excludeWhale, folders: preset.folders });
         if (!alive) return;
         setData(r);
         setShown(40);
@@ -47,7 +71,13 @@ export function HotView({ initialWindow = 1, onWatchlist }: { initialWindow?: Ho
     return () => {
       alive = false;
     };
-  }, [format, win, sort, excludeWhale]);
+  }, [format, win, sort, excludeWhale, preset, reload]);
+
+  const watchAll = async () => {
+    if (!data?.unwatched.length) return;
+    await watchFoldersByNameAction(data.unwatched);
+    setReload((n) => n + 1);
+  };
 
   const items = (data?.items ?? []).filter((it) => !folder || it.folderId === folder);
   const vertical = format === 'shorts';
@@ -56,11 +86,23 @@ export function HotView({ initialWindow = 1, onWatchlist }: { initialWindow?: Ho
     <>
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[26px] font-extrabold tracking-[-0.04em]">터진 영상</h1>
-          <p className="mt-1 text-[13px] font-semibold text-muted-foreground">관심 목록 채널에서 지금 조회가 빠르게 느는 영상 — 남들보다 먼저 보고 선점</p>
+          <h1 className="text-[26px] font-extrabold tracking-[-0.04em]">{preset.title}</h1>
+          <p className="mt-1 text-[13px] font-semibold text-muted-foreground">{preset.subtitle}</p>
         </div>
         {data && <StatusLine s={data.status} />}
       </div>
+
+      {preset.note && <div className="card-surface mb-3 rounded-xl border px-4 py-2.5 text-[13px] font-semibold">{preset.note}</div>}
+      {data && data.unwatched.length > 0 && (
+        <div className="surface-warn mb-3 flex flex-wrap items-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] font-semibold">
+          <span>
+            {data.unwatched.join(' · ')} 채널팩이 관심 목록에 없어서 영상을 모으지 않고 있습니다.
+          </span>
+          <button onClick={watchAll} className="h-8 rounded-[10px] bg-brand px-3 text-[12.5px] font-bold text-brand-foreground">
+            관심 목록에 넣기
+          </button>
+        </div>
+      )}
 
       <div className="card-surface theme-fade mb-3 space-y-2.5 rounded-[22px] px-[22px] py-4">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -106,7 +148,7 @@ export function HotView({ initialWindow = 1, onWatchlist }: { initialWindow?: Ho
         <Empty>불러오지 못했습니다 — {err}</Empty>
       ) : !data ? (
         <Empty>불러오는 중…</Empty>
-      ) : data.status.watchedChannels === 0 ? (
+      ) : !preset.folders && data.status.watchedChannels === 0 ? (
         <Empty>
           관심 목록이 비어 있습니다. 채널팩을 관심 목록에 넣으면 10분마다 그 채널들의 새 영상과 조회수를 모읍니다.
           <div className="mt-3">
@@ -184,6 +226,11 @@ function HotCard({ it, rank, vertical, win, sort }: { it: HotVideo; rank: number
         >
           {it.title}
         </a>
+        {it.work && (
+          <span className="truncate text-[11.5px] font-bold" style={{ color: 'var(--accent-solid)' }} title="작품 인식">
+            {it.work}
+          </span>
+        )}
         <a
           href={`https://www.youtube.com/channel/${it.channelExternalId}`}
           target="_blank"

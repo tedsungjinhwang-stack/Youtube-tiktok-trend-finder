@@ -26,6 +26,7 @@ import {
 } from '@/lib/youtube/api';
 import { resetStaleQuotas } from '@/lib/youtube/keyManager';
 import { fetchPersons, fetchWorkDetails, matchVideos } from './match';
+import { getSchedule, getSeason } from './tabs';
 
 /** 다른 기능(키워드 검색 등)이 쓸 몫으로 남겨 두는 할당량 */
 const RESERVE_UNITS = 1500;
@@ -47,6 +48,7 @@ export type CollectReport = {
   pastHits: number;
   videosMatched: number;
   worksDetailed: number;
+  matchError?: string;
   stoppedBy: string | null;
 };
 
@@ -130,12 +132,18 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
     await stepUploadScan(report, phase(22_000).canSpend, spend);
     await stepRefreshVideos(report, phase(30_000).canSpend, spend);
     report.maintenance = await stepDailyMaintenance();
-    // 작품 인식 — TMDB (유튜브 할당량 안 씀)
+    // 작품 인식 — TMDB (유튜브 할당량 안 씀). 실패해도 다른 단계는 계속
     const m = phase(39_000).until;
-    const r = await matchVideos(m);
-    report.videosMatched = r.matched;
-    report.worksDetailed = await fetchWorkDetails(m);
-    await fetchPersons(m);
+    try {
+      const r = await matchVideos(m);
+      report.videosMatched = r.matched;
+      report.worksDetailed = await fetchWorkDetails(m);
+      await fetchPersons(m);
+      // 편성표·시즌·오픈 TMDB 조회를 미리 받아 둔다 (6시간 캐시라 대부분은 바로 끝남) — 화면이 빨리 열리게
+      if (Date.now() < m) await Promise.all([getSchedule(), getSeason()]);
+    } catch (e) {
+      report.matchError = (e as Error).message.slice(0, 200);
+    }
     await stepArchive(report, phase(46_000).canSpend, spend);
   } catch (e) {
     if (e instanceof QuotaGoneError) report.stoppedBy = 'quota';
