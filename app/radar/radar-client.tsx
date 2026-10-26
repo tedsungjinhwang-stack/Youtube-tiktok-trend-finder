@@ -428,7 +428,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       {
         key: 'ig-shopping',
-        label: '쇼핑쇼츠(인스타)',
+        label: '쇼핑릴스(인스타)',
         plan: {
           what: '쇼핑·공구 릴스 계정에서 뜨는 상품 — 상품마다 그 상품 릴스(조회순, 누르면 재생), 상품별 릴스 수·최고 조회·다루는 계정 수, 검색·쇼핑 클릭은 많은데 릴스는 적은 꿀통 상품, 연관 상품(검색광고 연관 키워드)',
           source: '인스타 쇼핑 계정 감시 그룹 (Meta 공식 API) · 네이버 쇼핑인사이트·검색수(트렌드 탭)',
@@ -462,13 +462,13 @@ const HOT_PRESETS: Record<string, HotPreset> = {
   sketch: { title: '스케치', subtitle: '스케치 코미디 채널에서 지금 뜨는 쇼츠', folders: ['스케치코미디', '스케치코미디(원본)'], window: 24 },
   'yt-shopping': {
     title: '쇼핑쇼츠(유튜브)',
-    subtitle: '유튜브 쇼핑 쇼츠·셀럽 쇼핑 채널에서 지금 뜨는 쇼츠 — 뜨는 상품 (인스타 쇼핑 릴스는 따로)',
+    subtitle: '유튜브 쇼핑 쇼츠·셀럽 쇼핑 채널에서 지금 뜨는 쇼츠 — 뜨는 상품 (쇼핑릴스(인스타)는 따로)',
     folders: ['쇼핑 쇼츠', '셀럽 쇼핑'],
     window: 24,
   },
   'yt-travel': {
     title: '여행쇼츠(유튜브)',
-    subtitle: '유튜브 여행 채널에서 지금 뜨는 쇼츠 — 뜨는 숙소·여행지 (인스타 여행 릴스는 따로)',
+    subtitle: '유튜브 여행 채널에서 지금 뜨는 쇼츠 — 뜨는 숙소·여행지 (여행릴스(인스타)는 따로)',
     folders: ['여행'],
     window: 24,
   },
