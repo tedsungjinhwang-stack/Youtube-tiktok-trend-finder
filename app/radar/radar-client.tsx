@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CATEGORIES,
   CATEGORY_LABEL,
@@ -18,6 +18,7 @@ import { HotView } from './views/hot';
 import { PastView } from './views/past';
 import { RankingView } from './views/ranking';
 import { WatchlistView } from './views/watchlist';
+import { radarDataAction } from './actions';
 
 /**
  * 꿀통레이더 — 경쟁 채널 쇼츠를 감시해서
@@ -61,9 +62,10 @@ function Poster({ path, title, w = 48 }: { path: string | null; title: string; w
   );
 }
 
-/** 9:16 쇼츠 썸네일 + 조회수 */
+/** 9:16 쇼츠 썸네일 + 조회수 — 세로 원본 썸네일이 없으면 작은 걸로 */
 function ShortThumb({ c, rank, size = 'md' }: { c: ShortClip; rank?: number; size?: 'sm' | 'md' }) {
-  const src = c.thumb ? (c.thumb.startsWith('/') ? img(c.thumb, 'w300') : c.thumb) : null;
+  const first = c.thumb ? (c.thumb.startsWith('/') ? img(c.thumb, 'w300') : c.thumb) : null;
+  const [src, setSrc] = useState(first);
   return (
     <a
       href={c.videoId.length === 11 ? `https://www.youtube.com/shorts/${c.videoId}` : undefined}
@@ -75,7 +77,13 @@ function ShortThumb({ c, rank, size = 'md' }: { c: ShortClip; rank?: number; siz
     >
       {src && (
         // eslint-disable-next-line @next/next/no-img-element -- 썸네일
-        <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
+        <img
+          src={src}
+          alt=""
+          className="h-full w-full object-cover"
+          loading="lazy"
+          onError={() => setSrc(src.includes('hqdefault') ? null : `https://i.ytimg.com/vi/${c.videoId}/hqdefault.jpg`)}
+        />
       )}
       <span className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,.75), rgba(0,0,0,0) 55%)' }} />
       {rank && (
@@ -488,13 +496,27 @@ function SummaryTile({ label, value, detail }: { label: string; value: string; d
 /** 실제 데이터로 도는 화면 — 시안(아래 꿀통 화면)의 머리말·요약을 쓰지 않는다 */
 const REAL_VIEWS = new Set(['ranking', 'hot', 'daily', 'watchlist', 'past']);
 
-export function RadarClient({ data, folders }: { data: RadarData; folders: { id: string; name: string }[] }) {
+export function RadarClient({ data: initial, folders }: { data: RadarData; folders: { id: string; name: string }[] }) {
   const [cat, setCat] = useState<WorkCategory | 'all'>('all');
   const [view, setView] = useState<ViewKey>('ranking');
   const [rankFolder, setRankFolder] = useState<string | null>(null);
   const [navCats, setNavCats] = useState<WorkCategory[] | null>(null);
-  const [period, setPeriod] = useState('3d');
-  const [group, setGroup] = useState('all');
+  const [period, setPeriod] = useState<'24h' | '3d' | '7d'>('3d');
+  const [data, setData] = useState(initial);
+  const [loading, setLoading] = useState(false);
+  // 기간을 바꾸면 그 기간으로 다시 계산 (처음 3일은 서버가 미리 계산해 줌)
+  useEffect(() => {
+    if (period === '3d' && data === initial) return;
+    let alive = true;
+    setLoading(true);
+    radarDataAction(period)
+      .then((d) => alive && setData(d))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 기간이 바뀔 때만
+  }, [period]);
   const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? '3일';
   // 사이드의 분류 메뉴(한드짜 등)가 고른 분류 → 위 칩 필터보다 먼저
   const inCats = (c: WorkCategory) => (navCats ? navCats.includes(c) : cat === 'all' || c === cat);
@@ -544,11 +566,6 @@ export function RadarClient({ data, folders }: { data: RadarData; folders: { id:
         )
       ) : (
       <>
-      {data.sample && (
-        <div className="surface-warn mb-3 rounded-xl border px-4 py-2.5 text-[13px] font-semibold">
-          시안 화면입니다 — 작품·포스터·출연진은 TMDB 실제 정보, 조회수·채널 수·쇼츠 제목은 예시입니다. 감시 채널을 등록하면 실제 데이터로 바뀝니다.
-        </div>
-      )}
 
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -557,14 +574,11 @@ export function RadarClient({ data, folders }: { data: RadarData; folders: { id:
             경쟁 채널 쇼츠를 감시해서 — 뜨는 작품, 그 출연진의 경쟁 적은 작품, 아직 아무도 안 만든 작품
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-right text-[12px] font-semibold text-[color:var(--text-faint)]">
-            감시 채널 <span className="num">{data.monitoredChannels}</span>곳
-            <br />
-            마지막 수집 {ago(data.collectedAt)}
-          </span>
-          <button className="h-10 rounded-xl bg-brand px-4 text-[13.5px] font-bold text-brand-foreground hover:opacity-90">지금 수집</button>
-        </div>
+        <span className="text-right text-[12px] font-semibold text-[color:var(--text-faint)]">
+          감시 채널 <span className="num">{data.monitoredChannels.toLocaleString('ko-KR')}</span>곳 (관심 목록)
+          <br />
+          마지막 수집 {ago(data.collectedAt)} · 매시간
+        </span>
       </div>
 
       <div className="mb-3 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
@@ -588,22 +602,18 @@ export function RadarClient({ data, folders }: { data: RadarData; folders: { id:
           </div>
           <div className="flex items-center gap-1">
             {PERIODS.map((p) => (
-              <Pill key={p.key} active={period === p.key} onClick={() => setPeriod(p.key)}>
+              <Pill key={p.key} active={period === p.key} onClick={() => setPeriod(p.key as typeof period)}>
                 {p.label}
               </Pill>
             ))}
           </div>
         </div>
-        <div className="mt-2.5 flex flex-wrap items-center gap-1">
-          <span className="mr-1 text-[12.5px] font-bold text-[color:var(--text-faint)]">감시 그룹</span>
-          <Pill active={group === 'all'} onClick={() => setGroup('all')}>
-            전체
-          </Pill>
-          {data.groups.map((g) => (
-            <Pill key={g} active={group === g} onClick={() => setGroup(g)}>
-              {g}
-            </Pill>
-          ))}
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12.5px] font-semibold text-[color:var(--text-faint)]">
+          <span className="font-bold">감시 그룹</span>
+          <span>{data.groups.join(' · ') || '없음'}</span>
+          <button onClick={() => setView('watchlist')} className="font-bold text-muted-foreground hover:text-foreground">
+            관심 목록에서 바꾸기 ›
+          </button>
         </div>
       </div>
 
@@ -615,9 +625,13 @@ export function RadarClient({ data, folders }: { data: RadarData; folders: { id:
         <h2 className="text-[18px] font-extrabold tracking-[-0.03em]">{current?.category ? `${current.label} · ` : ''}막 뜨는 작품 · 연관 꿀통</h2>
         <span className="text-[12px] font-semibold text-[color:var(--text-faint)]">최근 {periodLabel} 감시 채널에서 조회가 튄 작품 순</span>
       </div>
-      <div className="mb-6 space-y-3">
+      <div className={'mb-6 space-y-3 ' + (loading ? 'opacity-60' : '')}>
         {rising.length === 0 ? (
-          <p className="card-surface rounded-[22px] py-12 text-center text-[14px] font-semibold text-muted-foreground">이 분류에는 뜨는 작품이 없습니다</p>
+          <p className="card-surface rounded-[22px] px-6 py-12 text-center text-[14px] font-semibold leading-relaxed text-muted-foreground">
+            {data.rising.length === 0
+              ? `아직 작품을 찾은 쇼츠가 없습니다. 수집기가 매시간 감시 채널 쇼츠의 제목·해시태그·태그로 TMDB 작품을 찾습니다 (지금 작품 인식 ${data.summary.matchRate}%).`
+              : '이 분류에는 뜨는 작품이 없습니다'}
+          </p>
         ) : (
           rising.map((w) => <RisingCard key={w.key} w={w} periodLabel={periodLabel} />)
         )}

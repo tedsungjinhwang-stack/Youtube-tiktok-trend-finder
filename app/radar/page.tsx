@@ -1,13 +1,21 @@
 import { prisma } from '@/lib/db';
+import type { RadarData } from '@/lib/radar/types';
+import { getRadarData } from '@/lib/radar/works';
 import { RadarClient } from './radar-client';
-import { RADAR_MOCK } from './mock';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * 꿀통레이더 — 채널 순위·터진 영상·관심 목록은 실제 데이터(lib/radar/collect 가 모은 것),
- * 작품 단위 꿀통 화면은 아직 시안(예시 데이터).
- */
+const EMPTY: RadarData = {
+  collectedAt: new Date(0).toISOString(),
+  monitoredChannels: 0,
+  groups: [],
+  summary: { surgingShorts: 0, risingWorks: 0, honeyPots: 0, crowded: 0, matchRate: 0 },
+  rising: [],
+  crowded: [],
+  unmatched: [],
+};
+
+/** 꿀통레이더 — 수집기(lib/radar/collect)가 모은 감시 채널 영상과 작품 인식(lib/radar/match)으로 */
 export default async function Page() {
   const folders = await prisma.folder
     .findMany({
@@ -16,6 +24,7 @@ export default async function Page() {
       orderBy: [{ watched: 'desc' }, { sortOrder: 'asc' }],
     })
     .catch(() => []);
+  const data = await getRadarData('3d').catch(() => EMPTY);
   // 시스템 폴더(__로 시작)는 뺀다 — Prisma startsWith 는 '_' 를 LIKE 와일드카드로 넘겨서 JS 에서 거른다
-  return <RadarClient data={RADAR_MOCK} folders={folders.filter((f) => !f.name.startsWith('__'))} />;
+  return <RadarClient data={data} folders={folders.filter((f) => !f.name.startsWith('__'))} />;
 }
