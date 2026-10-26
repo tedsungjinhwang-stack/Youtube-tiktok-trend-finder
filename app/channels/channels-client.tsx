@@ -1,28 +1,25 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   addChannelAction,
   deleteChannelAction,
+  exportChannelsAction,
+  listFolderChannelsAction,
+  searchChannelsAction,
   updateChannelKindAction,
+  type ChannelListRow,
 } from './actions';
 
 type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN';
 type Kind = 'REFERENCE' | 'SOURCE';
 
-export type ChannelRow = {
-  id: string;
-  platform: Platform;
-  externalId: string;
-  handle: string | null;
-  displayName: string | null;
-  folder: string;
-  folderId: string;
-  subscriberCount: number | null;
-  kind: Kind;
-};
+export type ChannelRow = ChannelListRow;
+
+/** 폴더·플랫폼·분류별 활성 채널 수 (서버에서 미리 센 것) */
+export type SummaryRow = { platform: Platform; folderId: string; folder: string; sortOrder: number; kind: Kind; count: number };
 
 const KINDS: { v: Kind | 'ALL'; label: string }[] = [
   { v: 'ALL', label: '전체' },
@@ -39,33 +36,42 @@ const PLATFORMS: { v: Platform | 'ALL'; label: string }[] = [
   { v: 'DOUYIN', label: '도우인' },
 ];
 
+const nf = new Intl.NumberFormat('ko-KR');
+
 export function ChannelsClient({
-  channels,
+  summary,
   folders,
 }: {
-  channels: ChannelRow[];
+  summary: SummaryRow[];
   folders: { id: string; name: string }[];
 }) {
   const [tab, setTab] = useState<Platform | 'ALL'>('ALL');
   const [kindTab, setKindTab] = useState<Kind | 'ALL'>('ALL');
-  const filteredByKind =
-    kindTab === 'ALL' ? channels : channels.filter((c) => c.kind === kindTab);
-  const filtered =
-    tab === 'ALL'
-      ? filteredByKind
-      : filteredByKind.filter((c) => c.platform === tab);
+  const [exporting, setExporting] = useState(false);
+  const byKind = kindTab === 'ALL' ? summary : summary.filter((r) => r.kind === kindTab);
+  const sum = (rows: SummaryRow[]) => rows.reduce((a, r) => a + r.count, 0);
+  const shown = tab === 'ALL' ? byKind : byKind.filter((r) => r.platform === tab);
+
+  const onExport = async () => {
+    setExporting(true);
+    try {
+      const rows = await exportChannelsAction({ platform: tab, kind: kindTab });
+      downloadCsv(rows, tab);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <>
+      <ChannelSearch />
+
       <div className="mb-3 flex flex-wrap items-center gap-2 text-[13.5px]">
         <span className="text-[12px] font-semibold text-muted-foreground">
           분류:
         </span>
         {KINDS.map((k) => {
-          const count =
-            k.v === 'ALL'
-              ? channels.length
-              : channels.filter((c) => c.kind === k.v).length;
+          const count = sum(k.v === 'ALL' ? summary : summary.filter((r) => r.kind === k.v));
           return (
             <button
               key={k.v}
@@ -78,33 +84,30 @@ export function ChannelsClient({
               )}
             >
               {k.label}
-              <span className="num ml-1 text-[13px] opacity-70">({count})</span>
+              <span className="num ml-1 text-[13px] opacity-70">({nf.format(count)})</span>
             </button>
           );
         })}
         <div className="ml-auto">
           <button
-            onClick={() => downloadCsv(filtered, tab)}
-            disabled={filtered.length === 0}
+            onClick={onExport}
+            disabled={sum(shown) === 0 || exporting}
             className="rounded-lg border bg-card px-3 py-1.5 hover:border-foreground/40 disabled:opacity-40"
           >
-            CSV 내보내기 ({filtered.length})
+            {exporting ? '내보내는 중…' : `CSV 내보내기 (${nf.format(sum(shown))})`}
           </button>
         </div>
       </div>
 
-      <div className="mb-4 flex gap-1 border-b">
+      <div className="mb-4 flex gap-1 overflow-x-auto border-b">
         {PLATFORMS.map((p) => {
-          const count =
-            p.v === 'ALL'
-              ? filteredByKind.length
-              : filteredByKind.filter((c) => c.platform === p.v).length;
+          const count = sum(p.v === 'ALL' ? byKind : byKind.filter((r) => r.platform === p.v));
           return (
             <button
               key={p.v}
               onClick={() => setTab(p.v)}
               className={cn(
-                '-mb-px border-b-2 px-3 py-2 text-[14px] transition',
+                '-mb-px shrink-0 border-b-2 px-3 py-2 text-[14px] transition',
                 tab === p.v
                   ? 'border-foreground font-semibold text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -112,7 +115,7 @@ export function ChannelsClient({
             >
               {p.label}
               <span className="num ml-1.5 text-[12px] text-muted-foreground">
-                ({count})
+                ({nf.format(count)})
               </span>
             </button>
           );
@@ -125,7 +128,8 @@ export function ChannelsClient({
             key={p.v}
             platform={p.v as Platform}
             label={p.label}
-            list={filteredByKind.filter((c) => c.platform === p.v)}
+            rows={byKind.filter((r) => r.platform === p.v)}
+            kind={kindTab}
             folders={folders}
           />
         ))
@@ -133,9 +137,9 @@ export function ChannelsClient({
         <PlatformBlock
           platform={tab}
           label={PLATFORMS.find((p) => p.v === tab)!.label}
-          list={filtered}
+          rows={shown}
+          kind={kindTab}
           folders={folders}
-          expandedAlways
         />
       )}
     </>
@@ -145,21 +149,28 @@ export function ChannelsClient({
 function PlatformBlock({
   platform,
   label,
-  list,
+  rows,
+  kind,
   folders,
-  expandedAlways,
 }: {
   platform: Platform;
   label: string;
-  list: ChannelRow[];
+  rows: SummaryRow[];
+  kind: Kind | 'ALL';
   folders: { id: string; name: string }[];
-  expandedAlways?: boolean;
 }) {
-  const folderMap = list.reduce<Record<string, ChannelRow[]>>((acc, c) => {
-    (acc[c.folder] ??= []).push(c);
-    return acc;
-  }, {});
-  const folderEntries = Object.entries(folderMap);
+  // 폴더별로 합치기 (레퍼런스·원본 소스 개수 따로)
+  const folderEntries = useMemo(() => {
+    const m = new Map<string, { folderId: string; folder: string; sortOrder: number; refs: number; sources: number }>();
+    for (const r of rows) {
+      const e = m.get(r.folderId) ?? { folderId: r.folderId, folder: r.folder, sortOrder: r.sortOrder, refs: 0, sources: 0 };
+      if (r.kind === 'SOURCE') e.sources += r.count;
+      else e.refs += r.count;
+      m.set(r.folderId, e);
+    }
+    return [...m.values()].sort((a, b) => a.sortOrder - b.sortOrder || a.folder.localeCompare(b.folder, 'ko'));
+  }, [rows]);
+  const total = folderEntries.reduce((a, f) => a + f.refs + f.sources, 0);
 
   return (
     <section className="mb-6">
@@ -167,7 +178,7 @@ function PlatformBlock({
         <PlatformBadge p={platform} />
         <h2 className="text-[15.5px] font-bold">{label}</h2>
         <span className="num text-[12.5px] text-muted-foreground">
-          {list.length}개
+          {nf.format(total)}개
         </span>
       </div>
 
@@ -179,44 +190,149 @@ function PlatformBlock({
         </div>
       ) : (
         <div className="space-y-2">
-          {folderEntries.map(([folder, items]) => {
-            const refs = items.filter((x) => x.kind !== 'SOURCE');
-            const sources = items.filter((x) => x.kind === 'SOURCE');
-            return (
-              <details
-                key={folder}
-                open={expandedAlways || items.length <= 4}
-                className="group/f overflow-hidden rounded-xl border bg-card"
-              >
-                <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 hover:bg-accent/30">
-                  <span className="text-muted-foreground/60 transition group-open/f:rotate-90">
-                    ▶
-                  </span>
-                  <span className="text-[14px] font-semibold">{folder}</span>
-                  <span className="num text-[12px] text-muted-foreground">
-                    ({items.length})
-                  </span>
-                </summary>
-                <div className="border-t border-border/60">
-                  <KindGroup
-                    label="레퍼런스"
-                    color="sky"
-                    items={refs}
-                    showHeader={refs.length > 0 && sources.length > 0}
-                  />
-                  <KindGroup
-                    label="원본 소스"
-                    color="amber"
-                    items={sources}
-                    showHeader={refs.length > 0 && sources.length > 0}
-                  />
-                </div>
-              </details>
-            );
-          })}
+          {folderEntries.map((f) => (
+            <FolderSection key={f.folderId} platform={platform} kind={kind} {...f} />
+          ))}
         </div>
       )}
     </section>
+  );
+}
+
+/** 폴더 한 줄 — 펼칠 때 그 폴더 채널을 불러온다 (200개씩 더 보기) */
+function FolderSection({
+  platform,
+  kind,
+  folderId,
+  folder,
+  refs,
+  sources,
+}: {
+  platform: Platform;
+  kind: Kind | 'ALL';
+  folderId: string;
+  folder: string;
+  refs: number;
+  sources: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<ChannelRow[] | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const count = refs + sources;
+
+  const load = async (offset: number) => {
+    setLoading(true);
+    try {
+      const r = await listFolderChannelsAction({ folderId, platform, kind, offset });
+      setItems((prev) => (offset === 0 ? r.rows : [...(prev ?? []), ...r.rows]));
+      setHasMore(r.hasMore);
+    } finally {
+      setLoading(false);
+    }
+  };
+  // 분류 필터가 바뀌면 다시
+  useEffect(() => {
+    if (open) load(0);
+    else setItems(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, open]);
+
+  const refItems = (items ?? []).filter((x) => x.kind !== 'SOURCE');
+  const sourceItems = (items ?? []).filter((x) => x.kind === 'SOURCE');
+  return (
+    <details
+      open={open}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+      className="group/f overflow-hidden rounded-xl border bg-card"
+    >
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 hover:bg-accent/30">
+        <span className="text-muted-foreground/60 transition group-open/f:rotate-90">
+          ▶
+        </span>
+        <span className="text-[14px] font-semibold">{folder}</span>
+        <span className="num text-[12px] text-muted-foreground">
+          ({nf.format(count)})
+        </span>
+      </summary>
+      <div className="border-t border-border/60">
+        {items === null ? (
+          <p className="px-4 py-3 text-[13px] text-muted-foreground">불러오는 중…</p>
+        ) : (
+          <>
+            <KindGroup label="레퍼런스" color="sky" items={refItems} showHeader={refs > 0 && sources > 0} />
+            <KindGroup label="원본 소스" color="amber" items={sourceItems} showHeader={refs > 0 && sources > 0} />
+            {hasMore && (
+              <div className="px-3 pb-3">
+                <button
+                  onClick={() => load(items.length)}
+                  disabled={loading}
+                  className="w-full rounded-lg border bg-background/40 py-2 text-[13px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+                >
+                  {loading ? '불러오는 중…' : `더 보기 (${nf.format(items.length)} / ${nf.format(count)})`}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/** 이름·핸들로 찾기 — 채널이 많아서 폴더를 뒤지는 대신 */
+function ChannelSearch() {
+  const [q, setQ] = useState('');
+  const [rows, setRows] = useState<ChannelRow[] | null>(null);
+  const [pending, start] = useTransition();
+  const run = () => {
+    if (!q.trim()) {
+      setRows(null);
+      return;
+    }
+    start(async () => setRows(await searchChannelsAction(q)));
+  };
+  return (
+    <div className="mb-4">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          run();
+        }}
+        className="flex gap-2"
+      >
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="채널 이름·핸들로 찾기"
+          className="h-9 flex-1 rounded-md border bg-background/40 px-3 text-[14px] outline-none focus:border-foreground/40"
+        />
+        <button className="h-9 rounded-md border bg-card px-3 text-[13px] hover:border-foreground/40" disabled={pending}>
+          {pending ? '찾는 중…' : '찾기'}
+        </button>
+        {rows && (
+          <button type="button" onClick={() => { setRows(null); setQ(''); }} className="h-9 rounded-md px-2 text-[13px] text-muted-foreground hover:text-foreground">
+            닫기
+          </button>
+        )}
+      </form>
+      {rows && (
+        <div className="mt-2 rounded-xl border bg-card">
+          {rows.length === 0 ? (
+            <p className="px-4 py-3 text-[13px] text-muted-foreground">찾는 채널이 없습니다</p>
+          ) : (
+            <ul className="grid grid-cols-1 gap-1 p-2 sm:grid-cols-2 lg:grid-cols-3">
+              {rows.map((c) => (
+                <div key={c.id} className="space-y-0.5">
+                  <ChannelItem c={c} />
+                  <div className="px-2.5 text-[11.5px] text-muted-foreground">폴더: {c.folder}</div>
+                </div>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -256,9 +372,11 @@ function KindGroup({
   );
 }
 
-function ChannelItem({ c }: { c: ChannelRow }) {
+function ChannelItem({ c: initial }: { c: ChannelRow }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [c, setC] = useState(initial);
+  const [removed, setRemoved] = useState(false);
   const router = useRouter();
 
   const onDelete = () => {
@@ -267,6 +385,10 @@ function ChannelItem({ c }: { c: ChannelRow }) {
     startTransition(async () => {
       const r = await deleteChannelAction(c.id);
       if (!r.ok) setError(r.error);
+      else {
+        setRemoved(true);
+        router.refresh();
+      }
     });
   };
 
@@ -276,10 +398,14 @@ function ChannelItem({ c }: { c: ChannelRow }) {
     startTransition(async () => {
       const r = await updateChannelKindAction(c.id, next);
       if (!r.ok) setError(r.error);
-      else router.refresh();
+      else {
+        setC({ ...c, kind: next });
+        router.refresh();
+      }
     });
   };
 
+  if (removed) return null;
   const display = c.displayName ?? c.handle ?? c.externalId;
   const channelUrl = buildChannelUrl(c);
 

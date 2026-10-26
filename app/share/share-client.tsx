@@ -2,7 +2,12 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { addChannelAction, deleteChannelAction } from '../channels/actions';
+import {
+  addChannelAction,
+  deleteChannelAction,
+  listFolderChannelsAction,
+  type ChannelListRow,
+} from '../channels/actions';
 import { kstLocalToISO, tomorrowKstLocal } from '@/lib/kst';
 
 type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'XIAOHONGSHU' | 'DOUYIN';
@@ -16,16 +21,7 @@ type MyChannel = {
   category: string | null;
   materials: Material[];
 };
-type AssetChannel = {
-  id: string;
-  platform: Platform;
-  handle: string | null;
-  displayName: string | null;
-  externalId: string;
-  folderId: string;
-  folderName: string;
-  kind: Kind;
-};
+type AssetChannel = ChannelListRow;
 
 const PLATFORM_LABEL: Record<Platform, string> = {
   YOUTUBE: 'YouTube',
@@ -53,11 +49,9 @@ function detectPlatform(input: string): Platform {
 export function ShareClient({
   folders,
   myChannels,
-  assetChannels,
 }: {
   folders: Folder[];
   myChannels: MyChannel[];
-  assetChannels: AssetChannel[];
 }) {
   return (
     <Suspense
@@ -67,11 +61,7 @@ export function ShareClient({
         </div>
       }
     >
-      <Inner
-        folders={folders}
-        myChannels={myChannels}
-        assetChannels={assetChannels}
-      />
+      <Inner folders={folders} myChannels={myChannels} />
     </Suspense>
   );
 }
@@ -79,11 +69,9 @@ export function ShareClient({
 function Inner({
   folders,
   myChannels,
-  assetChannels,
 }: {
   folders: Folder[];
   myChannels: MyChannel[];
-  assetChannels: AssetChannel[];
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -134,6 +122,8 @@ function Inner({
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** 에셋 채널을 추가한 횟수 — 아래 채널 목록을 다시 불러오는 신호 */
+  const [addedCount, setAddedCount] = useState(0);
 
   // 소재 모드 상태
   const [matChannelId, setMatChannelId] = useState<string>('');
@@ -210,6 +200,7 @@ function Inner({
           `"${folderName}" 에 ${kind === 'SOURCE' ? '원본 소스' : '레퍼런스'} 채널 추가됨`
         );
         setInput('');
+        setAddedCount((n) => n + 1);
         router.refresh();
       } else {
         setError(r.error);
@@ -408,11 +399,10 @@ function Inner({
             </label>
 
             <AssetChannelsList
-              channels={assetChannels.filter(
-                (c) => c.folderId === folderId && c.kind === kind
-              )}
+              folderId={folderId}
               folderName={folders.find((f) => f.id === folderId)?.name ?? ''}
               kind={kind}
+              reloadKey={addedCount}
             />
           </>
         )}
@@ -569,31 +559,68 @@ function buildAssetUrl(c: AssetChannel): string | null {
 }
 
 function AssetChannelsList({
-  channels,
+  folderId,
   folderName,
   kind,
+  reloadKey,
 }: {
-  channels: AssetChannel[];
+  folderId: string;
   folderName: string;
   kind: Kind;
+  /** 채널을 추가할 때마다 바뀜 → 목록 다시 불러오기 */
+  reloadKey: number;
 }) {
-  const router = useRouter();
-  const [items, setItems] = useState<AssetChannel[]>(channels);
+  const [items, setItems] = useState<AssetChannel[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // 에셋 채널이 수만 개라 고른 폴더 것만, 200개씩 불러온다
   useEffect(() => {
-    setItems(channels);
-  }, [channels]);
+    if (!folderId) {
+      setItems([]);
+      setHasMore(false);
+      return;
+    }
+    let alive = true;
+    setLoading(true);
+    listFolderChannelsAction({ folderId, platform: 'ALL', kind })
+      .then((r) => {
+        if (!alive) return;
+        setItems(r.rows);
+        setHasMore(r.hasMore);
+      })
+      .catch(() => alive && setItems([]))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [folderId, kind, reloadKey]);
+
+  const more = async () => {
+    setLoading(true);
+    try {
+      const r = await listFolderChannelsAction({ folderId, platform: 'ALL', kind, offset: items.length });
+      setItems((prev) => [...prev, ...r.rows]);
+      setHasMore(r.hasMore);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const remove = async (id: string) => {
     if (!confirm('이 채널을 삭제할까요?')) return;
     setItems((prev) => prev.filter((x) => x.id !== id));
     await deleteChannelAction(id).catch(() => {});
-    router.refresh();
   };
 
   if (items.length === 0) {
     return (
       <div className="rounded-md border border-dashed bg-card/40 p-3 text-center text-[13px] text-muted-foreground">
-        {folderName ? `"${folderName}" · ${kind === 'SOURCE' ? '원본' : '레퍼'} 채널 없음` : '폴더를 선택하세요'}
+        {loading
+          ? '불러오는 중…'
+          : folderName
+            ? `"${folderName}" · ${kind === 'SOURCE' ? '원본' : '레퍼'} 채널 없음`
+            : '폴더를 선택하세요'}
       </div>
     );
   }
@@ -601,7 +628,7 @@ function AssetChannelsList({
   return (
     <div className="space-y-1.5 rounded-md border bg-card/40 p-2">
       <div className="px-1 text-[13px] font-semibold text-muted-foreground">
-        현재 채널 ({items.length})
+        현재 채널 ({items.length}{hasMore ? '+' : ''})
       </div>
       {items.map((c) => {
         const badge = PLATFORM_BADGE[c.platform];
@@ -643,6 +670,15 @@ function AssetChannelsList({
           </div>
         );
       })}
+      {hasMore && (
+        <button
+          onClick={more}
+          disabled={loading}
+          className="h-8 w-full rounded border bg-background text-[13px] text-muted-foreground disabled:opacity-40"
+        >
+          {loading ? '불러오는 중…' : '더 보기'}
+        </button>
+      )}
     </div>
   );
 }
