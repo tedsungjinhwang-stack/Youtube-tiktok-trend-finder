@@ -54,11 +54,15 @@ export function mainTitle(t: string): string {
   return t.split(/\s*[:：]\s*|\s+[-–—]\s+/)[0].trim();
 }
 
-/** 영상 하나에서 작품 이름 후보 (원래 글자 그대로 — TMDB 에 그대로 물어본다) */
-export function candidatesOf(title: string, tags: string[]): Candidate[] {
+/**
+ * 영상 하나에서 작품 이름 후보 (원래 글자 그대로 — TMDB 에 그대로 물어본다).
+ * 제목 해시태그·괄호와 설명란 단서(해시태그·출처·괄호)는 믿을 만한 근거, 영상 태그는 약한 근거.
+ */
+export function candidatesOf(title: string, tags: string[], descTags: string[] = []): Candidate[] {
   const raw: Candidate[] = [];
   for (const m of title.matchAll(/#([^\s#]+)/g)) raw.push({ text: m[1], strong: true });
   for (const m of title.matchAll(/[「『\[〈<《'"“‘]([^」』\]〉>》'"”’]{2,30})[」』\]〉>》'"”’]/g)) raw.push({ text: m[1], strong: true });
+  for (const t of descTags) raw.push({ text: t, strong: true });
   for (const t of tags) raw.push({ text: t, strong: false });
   const seen = new Set<string>();
   const out: Candidate[] = [];
@@ -82,7 +86,7 @@ export function candidatesOf(title: string, tags: string[]): Candidate[] {
       out.push({ text: trimmed, strong, review });
     }
   }
-  return out.slice(0, 14);
+  return out.slice(0, 24);
 }
 
 type SearchItem = {
@@ -192,7 +196,9 @@ export async function resolveAliases(raws: string[], deadline: number): Promise<
   const known = await prisma.radarAlias.findMany({ where: { alias: { in: norms } } });
   const stale = Date.now() - 30 * 24 * H;
   for (const a of known) {
-    if (a.workId || a.personId || a.checkedAt.getTime() > stale) out.set(a.alias, { workId: a.workId, personId: a.personId });
+    // 막은 별칭은 작품이 아닌 말로
+    if (a.blocked) out.set(a.alias, { workId: null, personId: null });
+    else if (a.workId || a.personId || a.checkedAt.getTime() > stale) out.set(a.alias, { workId: a.workId, personId: a.personId });
   }
   const todo = norms.filter((n) => !out.has(n));
 
@@ -225,8 +231,8 @@ export async function resolveAliases(raws: string[], deadline: number): Promise<
     }
     await prisma.radarAlias.upsert({
       where: { alias: norm },
-      create: { alias: norm, workId, personId },
-      update: { workId, personId, checkedAt: new Date() },
+      create: { alias: norm, workId, personId, source: 'tmdb' },
+      update: { workId, personId, checkedAt: new Date(), source: 'tmdb' },
     });
     out.set(norm, { workId, personId });
   });
@@ -256,12 +262,24 @@ async function knownTitles(): Promise<DictWork[]> {
     .map(({ id, main, full, popularity }) => ({ id, main, full, popularity }));
 }
 
+/** 이 점수 이상이면 확정 (집계에 씀), 그 아래 1점 이상은 추정 (화면에 '추정'으로만) */
+export const CONFIDENT_SCORE = 2;
+const GUESS_SCORE = 1;
+
+/** 채널팩과 작품 종류가 안 맞으면 감점 — 아이돌·셀럽 채널의 '영화', 예능 채널의 '영화' */
+function compatPenalty(folder: string, category: string): number {
+  const movie = category.endsWith('movie');
+  if (movie && /(팬튜브|아이돌|셀럽|연예)/.test(folder)) return -1;
+  if (movie && /예능/.test(folder)) return -0.5;
+  return 0;
+}
+
 /** 작품을 아직 안 찾아본 영상에 작품을 붙인다. 붙인 수 */
 export async function matchVideos(deadline: number, limit = 400): Promise<{ matched: number; checked: number }> {
-  const vids = await prisma.$queryRaw<{ id: string; title: string; tags: string[]; folder: string }[]>`
-    SELECT v.id, v.title, v.tags, f.name AS folder
+  const vids = await prisma.$queryRaw<{ id: string; title: string; tags: string[]; descTags: string[]; folder: string }[]>`
+    SELECT v.id, v.title, v.tags, v."descTags", f.name AS folder
     FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId" JOIN "Folder" f ON f.id = c."folderId"
-    WHERE v."matchedAt" IS NULL
+    WHERE v."matchedAt" IS NULL AND NOT v."matchLocked"
     ORDER BY v."publishedAt" DESC
     LIMIT ${limit}`;
   if (!vids.length) return { matched: 0, checked: 0 };
@@ -270,11 +288,14 @@ export async function matchVideos(deadline: number, limit = 400): Promise<{ matc
   // 작품과 상관없는 채널팩은 찾지 않고 끝낸다
   const skip = vids.filter((v) => !WORK_FOLDER_RE.test(v.folder));
   if (skip.length) {
-    await prisma.radarVideo.updateMany({ where: { id: { in: skip.map((v) => v.id) } }, data: { workId: null, matchedBy: null, matchedAt: now } });
+    await prisma.radarVideo.updateMany({
+      where: { id: { in: skip.map((v) => v.id) } },
+      data: { workId: null, guessWorkId: null, matchScore: null, matchedBy: null, matchedAt: now },
+    });
   }
   const todo = vids.filter((v) => WORK_FOLDER_RE.test(v.folder));
 
-  const cands = new Map(todo.map((v) => [v.id, candidatesOf(v.title, v.tags)]));
+  const cands = new Map(todo.map((v) => [v.id, candidatesOf(v.title, v.tags, v.descTags)]));
   const aliases = await resolveAliases(
     [...cands.values()].flat().map((c) => c.text),
     deadline
@@ -284,9 +305,23 @@ export async function matchVideos(deadline: number, limit = 400): Promise<{ matc
   const workIds = new Set<string>(dict.map((d) => d.id));
   for (const a of aliases.values()) if (a.workId) workIds.add(a.workId);
   const works = new Map(
-    (await prisma.radarWork.findMany({ where: { id: { in: [...workIds] } }, select: { id: true, title: true, popularity: true } })).map((w) => [
+    (
+      await prisma.radarWork.findMany({
+        where: { id: { in: [...workIds] } },
+        select: { id: true, title: true, popularity: true, category: true, cast: true, onAir: true, firstAirDate: true },
+      })
+    ).map((w) => [
       w.id,
-      { main: normalizeAlias(mainTitle(w.title)), full: normalizeAlias(w.title), popularity: w.popularity ?? 0 },
+      {
+        main: normalizeAlias(mainTitle(w.title)),
+        popularity: w.popularity ?? 0,
+        category: w.category,
+        recent: w.onAir || (w.firstAirDate != null && w.firstAirDate.getTime() > Date.now() - 60 * 24 * H),
+        castNames: ((w.cast as { name?: string; order?: number }[] | null) ?? [])
+          .filter((c) => (c.order ?? 9) < 6 && c.name)
+          .map((c) => normalizeAlias(c.name!))
+          .filter((n) => n.length >= 2),
+      },
     ])
   );
 
@@ -297,6 +332,7 @@ export async function matchVideos(deadline: number, limit = 400): Promise<{ matc
     // 후보를 아직 다 못 물어봤으면(시간 초과) 다음 번에
     if (list.some((c) => !aliases.has(normalizeAlias(c.text)))) continue;
     const titleNorm = normalizeAlias(v.title);
+    const descNorm = normalizeAlias(v.descTags.join(' '));
     const dramaFolder = DRAMA_FOLDER_RE.test(v.folder);
     const hits = new Map<string, { n: number; by: string }>();
     const add = (workId: string, n: number, by: string) => {
@@ -309,25 +345,44 @@ export async function matchVideos(deadline: number, limit = 400): Promise<{ matc
       if (!a?.workId) continue;
       const w = works.get(a.workId);
       if (!w) continue;
-      // 세 글자 이하 작품명은 드라마·영화·예능 채널의 제목 해시태그로만 (멤버 이름·흔한 말과 겹친다)
+      // 세 글자 이하 작품명은 드라마·영화·예능 채널의 제목·설명란 해시태그로만 (멤버 이름·흔한 말과 겹친다)
       if (w.main.length <= 3 && !(c.strong && dramaFolder)) continue;
       if (c.strong) add(a.workId, 2, c.text);
       // 영상 태그는 채널마다 늘 붙이는 말이 많아서, 작품명이 제목에도 있거나 "작품명 몰아보기" 꼴일 때만
       else if (c.review || titleNorm.includes(w.main)) add(a.workId, 1, c.text);
     }
-    // 제목 안의 알려진 작품 제목
+    // 제목·설명란 안의 알려진 작품 제목 — 방영 중·최근 작품을 드라마 채널에서 보면 확정 근거
     for (const d of dict) {
-      if (titleNorm.includes(d.main)) add(d.id, 1.5, d.main);
+      if (titleNorm.includes(d.main) || descNorm.includes(d.main)) {
+        const w = works.get(d.id);
+        add(d.id, w?.recent && dramaFolder ? 2 : 1.5, d.main);
+      }
+    }
+    // 출연 배우 이름이 제목·설명란에 있으면 더 확실, 채널과 종류가 안 맞으면 감점
+    for (const [workId, h] of hits) {
+      const w = works.get(workId);
+      if (!w) continue;
+      if (w.castNames.some((n) => titleNorm.includes(n) || descNorm.includes(n))) h.n += 0.5;
+      h.n += compatPenalty(v.folder, w.category);
     }
     const best = [...hits.entries()].sort(
       (x, y) => y[1].n - x[1].n || (works.get(y[0])?.popularity ?? 0) - (works.get(x[0])?.popularity ?? 0)
     )[0];
+    const score = best?.[1].n ?? 0;
+    const confident = score >= CONFIDENT_SCORE;
+    const guess = !confident && score >= GUESS_SCORE;
     await prisma.radarVideo.update({
       where: { id: v.id },
-      data: { workId: best?.[0] ?? null, matchedBy: best?.[1].by ?? null, matchedAt: now },
+      data: {
+        workId: confident ? best[0] : null,
+        guessWorkId: guess ? best[0] : null,
+        matchScore: best ? score : null,
+        matchedBy: confident || guess ? best[1].by : null,
+        matchedAt: now,
+      },
     });
     checked++;
-    if (best) matched++;
+    if (confident) matched++;
   }
   return { matched, checked: checked + skip.length };
 }

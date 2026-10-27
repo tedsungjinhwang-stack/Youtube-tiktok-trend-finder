@@ -157,9 +157,28 @@ export type YtVideo = {
   likes: number | null;
   comments: number | null;
   tags: string[];
+  /** 설명란의 해시태그·출처·괄호 안 말 (snippet 을 받았을 때만, 아니면 null) */
+  descTags: string[] | null;
   /** 예약 공개·라이브 대기 등 아직 안 올라온 영상 */
   upcoming: boolean;
 };
+
+/**
+ * 설명란에서 작품 이름이 있을 만한 말만 뽑는다 — 해시태그, '출처: …' 줄, 「」『』<>《》'' 안의 말.
+ * 설명란 전체는 크기 때문에 저장하지 않는다.
+ */
+export function descriptionTags(desc: string): string[] {
+  if (!desc) return [];
+  const out: string[] = [];
+  for (const m of desc.matchAll(/#([^\s#]+)/g)) out.push(m[1]);
+  for (const m of desc.matchAll(/[「『〈<《'"“‘]([^」』〉>》'"”’\n]{2,30})[」』〉>》'"”’]/g)) out.push(m[1]);
+  // "출처: tvN 닥터X", "영상 출처 - 넷플릭스 스캔들" — 괄호가 없으면 줄 끝까지(30자)
+  for (const m of desc.matchAll(/(?:출처|원작|source)\s*[:：\-]\s*([^\n]{2,40})/gi)) {
+    const line = m[1].replace(/https?:\/\/\S+/g, '').trim();
+    if (line && !/[「『〈<《'"“‘]/.test(line)) out.push(line.slice(0, 30));
+  }
+  return [...new Set(out.map((t) => t.trim()).filter(Boolean))].slice(0, 20);
+}
 
 const INT_MAX = 2_147_483_647;
 
@@ -191,6 +210,7 @@ export async function fetchVideos(ids: string[], withSnippet = true): Promise<Yt
         likes: st.likeCount != null ? Math.min(INT_MAX, Number(st.likeCount)) : null,
         comments: st.commentCount != null ? Math.min(INT_MAX, Number(st.commentCount)) : null,
         tags: [...new Set([...hashtags, ...((sn.tags as string[] | undefined) ?? [])])].slice(0, 30),
+        descTags: withSnippet ? descriptionTags(sn.description ?? '') : null,
         upcoming: sn.liveBroadcastContent === 'upcoming',
       });
     }

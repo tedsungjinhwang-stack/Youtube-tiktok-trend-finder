@@ -31,6 +31,7 @@ import {
 } from '@/lib/youtube/api';
 import { resetStaleQuotas } from '@/lib/youtube/keyManager';
 import { UNITS_PER_OTHER_CHANNEL, UNITS_PER_WATCHED_CHANNEL } from './budget';
+import { learnAliases } from './learn';
 import { fetchPersons, fetchWorkDetails, matchVideos, seedWorks } from './match';
 import { getSchedule, getSeason } from './tabs';
 
@@ -56,6 +57,8 @@ export type CollectReport = {
   videosMatched: number;
   worksDetailed: number;
   matchError?: string;
+  aliasesLearned?: number;
+  aliasesBlocked?: number;
   stoppedBy: string | null;
 };
 
@@ -160,6 +163,18 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
     const m = phase(35_000).until;
     const m2 = phase(40_000).until;
     try {
+      // 6시간마다: 같이 붙는 해시태그로 별칭 배우기 · 작품과 상관없는 채널에서만 나오는 짧은 별칭 막기
+      const lm = await prisma.trendCache.findUnique({ where: { key: 'radar:learn' } }).catch(() => null);
+      if (!lm || Date.now() - lm.fetchedAt.getTime() > 6 * H) {
+        const lr = await learnAliases();
+        report.aliasesLearned = lr.learned;
+        report.aliasesBlocked = lr.blocked;
+        await prisma.trendCache.upsert({
+          where: { key: 'radar:learn' },
+          create: { key: 'radar:learn', payload: lr },
+          update: { payload: lr, fetchedAt: new Date() },
+        });
+      }
       const r = await matchVideos(m);
       report.videosMatched = r.matched;
       report.worksDetailed = await fetchWorkDetails(m2);
@@ -388,6 +403,8 @@ async function stepUploadScan(
           likes: v.likes,
           comments: v.comments,
           tags: v.tags,
+          descTags: v.descTags ?? [],
+          descAt: v.descTags ? new Date() : null,
           trackT: [nowMin],
           trackV: [v.views],
           ...gainsFor(v.publishedAt, [nowMin], [v.views], nowMin),
@@ -474,9 +491,10 @@ async function stepRefreshVideos(
   ];
   await pool(batches, 6, async ({ b: slice, can }) => {
     if (!can(1)) return;
+    // 설명란(snippet)도 같이 — videos.list 는 받는 부분이 늘어도 1 unit 이라 공짜. 아직 안 읽은 영상의 설명란 작품 단서를 채운다
     const stats = await fetchVideos(
       slice.map((v) => v.id),
-      false
+      true
     );
     spend(1);
     const byId = new Map(stats.map((s) => [s.id, s]));
@@ -489,6 +507,7 @@ async function stepRefreshVideos(
     const comments: (number | null)[] = [];
     const tT: string[] = [];
     const tV: string[] = [];
+    const descJson: string[] = [];
     const g: (number | null)[][] = [[], [], [], [], []];
     const gone: string[] = [];
     for (const row of slice) {
@@ -510,6 +529,7 @@ async function stepRefreshVideos(
       views.push(s.views);
       likes.push(s.likes);
       comments.push(s.comments);
+      descJson.push(JSON.stringify(s.descTags ?? []));
       tT.push(`{${t.join(',')}}`);
       tV.push(`{${v.join(',')}}`);
       g[0].push(gains.gain1h);
@@ -524,11 +544,15 @@ async function stepRefreshVideos(
           views = u.views, likes = COALESCE(u.likes, r.likes), comments = COALESCE(u.comments, r.comments),
           "trackT" = u.tt::int[], "trackV" = u.tv::int[],
           "gain1h" = u.g1, "gain3h" = u.g3, "gain6h" = u.g6, "gain12h" = u.g12, "gain24h" = u.g24,
-          "checkedAt" = NOW()
+          "checkedAt" = NOW(),
+          -- 설명란을 처음 읽은 영상: 단서를 저장하고 작품을 다시 찾게 (직접 고친 영상은 그대로)
+          "descTags" = CASE WHEN r."descAt" IS NULL THEN ARRAY(SELECT jsonb_array_elements_text(u.dj::jsonb)) ELSE r."descTags" END,
+          "matchedAt" = CASE WHEN r."descAt" IS NULL AND NOT r."matchLocked" THEN NULL ELSE r."matchedAt" END,
+          "descAt" = COALESCE(r."descAt", NOW())
         FROM unnest(
           ${ids}::text[], ${views}::int[], ${likes}::int[], ${comments}::int[], ${tT}::text[], ${tV}::text[],
-          ${g[0]}::int[], ${g[1]}::int[], ${g[2]}::int[], ${g[3]}::int[], ${g[4]}::int[]
-        ) AS u(id, views, likes, comments, tt, tv, g1, g3, g6, g12, g24)
+          ${g[0]}::int[], ${g[1]}::int[], ${g[2]}::int[], ${g[3]}::int[], ${g[4]}::int[], ${descJson}::text[]
+        ) AS u(id, views, likes, comments, tt, tv, g1, g3, g6, g12, g24, dj)
         WHERE r.id = u.id`;
       report.videosRefreshed += ids.length;
     }
