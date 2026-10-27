@@ -30,7 +30,7 @@ import {
   type YtVideo,
 } from '@/lib/youtube/api';
 import { resetStaleQuotas } from '@/lib/youtube/keyManager';
-import { UNITS_PER_OTHER_CHANNEL, UNITS_PER_WATCHED_CHANNEL } from './budget';
+import { monitorPlan, UNITS_PER_WATCHED_CHANNEL, type MonitorPlan } from './budget';
 import { learnAliases } from './learn';
 import { fetchPersons, fetchWorkDetails, matchVideos, seedWorks } from './match';
 import { getSchedule, getSeason } from './tabs';
@@ -60,6 +60,8 @@ export type CollectReport = {
   aliasesLearned?: number;
   aliasesBlocked?: number;
   aliasesForgotten?: number;
+  /** 이번에 전체 채널을 매시간 쟀나 (키가 넉넉할 때) */
+  allHourly?: boolean;
   stoppedBy: string | null;
 };
 
@@ -142,6 +144,9 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
    * 그래서 키가 모자라도 관심 목록은 매시간 돌고, 키가 늘면 나머지가 그만큼 촘촘해진다.
    */
   const watchedReserve = await watchedNeedForRestOfDay();
+  // 키가 넉넉하면 관심 목록이 아닌 채널도 매시간 (모자라면 3~6시간, 관심 목록 몫을 먼저 떼어 둔다)
+  const plan = await monitorPlan();
+  report.allHourly = plan.allHourly;
   const tierB = (c: (u: number) => boolean) => (units: number) => {
     if (left - units < RESERVE_UNITS + watchedReserve) {
       report.stoppedBy ??= 'quota-other';
@@ -153,9 +158,9 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
   try {
     // 조회수 재기가 '터진 영상'의 핵심이라 새 영상 찾기보다 먼저 (예전엔 새 영상 찾기가 시간을 다 써서 한 번도 못 돌았다)
     const p1 = phase(10_000).canSpend;
-    await stepChannelStats(report, p1, tierB(p1), spend);
+    await stepChannelStats(report, p1, tierB(p1), spend, plan.allHourly);
     const p2 = phase(21_000).canSpend;
-    await stepRefreshVideos(report, p2, tierB(p2), spend);
+    await stepRefreshVideos(report, p2, tierB(p2), spend, plan.allHourly);
     const p3 = phase(31_000).canSpend;
     await stepUploadScan(report, p3, tierB(p3), spend);
     report.maintenance = await stepDailyMaintenance();
@@ -191,7 +196,7 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
       report.matchError = (e as Error).message.slice(0, 200);
     }
     // 과거 트래픽도 감시 몫(관심 목록)을 떼어 둔 뒤 남는 할당량으로
-    await stepArchive(report, tierB(phase(46_000).canSpend), spend);
+    await stepArchive(report, tierB(phase(46_000).canSpend), spend, plan);
   } catch (e) {
     if (e instanceof QuotaGoneError) report.stoppedBy = 'quota';
     else throw e;
@@ -215,13 +220,15 @@ async function stepChannelStats(
   report: CollectReport,
   canSpend: (u: number) => boolean,
   canSpendOther: (u: number) => boolean,
-  spend: (u: number) => void
+  spend: (u: number) => void,
+  allHourly: boolean
 ) {
   const today = kstToday();
   const hourAgo = new Date(Date.now() - H);
   const sixAgo = new Date(Date.now() - 6 * H);
   const base = { platform: 'YOUTUBE' as const, isActive: true, externalId: { startsWith: 'UC' } };
-  // 관심 목록 채널은 매시간, 나머지는 6시간마다 (그리고 하루 기록은 꼭)
+  // 관심 목록 채널은 매시간, 나머지는 키가 넉넉하면 매시간·모자라면 6시간마다 (그리고 하루 기록은 꼭)
+  const otherAgo = allHourly ? hourAgo : sixAgo;
   const watched = await prisma.channel.findMany({
     where: { ...base, folder: { watched: true }, OR: [{ statsCheckedAt: null }, { statsCheckedAt: { lt: hourAgo } }] },
     select: { id: true, externalId: true },
@@ -232,15 +239,15 @@ async function stepChannelStats(
     where: {
       ...base,
       folder: { watched: false },
-      OR: [{ statsCheckedAt: null }, { statsCheckedAt: { lt: sixAgo } }, { historyDate: null }, { historyDate: { lt: today } }],
+      OR: [{ statsCheckedAt: null }, { statsCheckedAt: { lt: otherAgo } }, { historyDate: null }, { historyDate: { lt: today } }],
     },
     select: { id: true, externalId: true, historyDate: true },
     orderBy: { statsCheckedAt: { sort: 'asc', nulls: 'first' } },
-    take: 1500,
+    take: allHourly ? 6000 : 1500,
   });
   const run = async (list: { id: string; externalId: string }[], can: (u: number) => boolean) => {
     const byExt = new Map(list.map((c) => [c.externalId, c.id]));
-    await pool(chunks([...byExt.keys()], 50), 4, async (slice) => {
+    await pool(chunks([...byExt.keys()], 50), 10, async (slice) => {
       if (!can(1)) return;
       const stats = await fetchChannelStats(slice);
       spend(1);
@@ -343,56 +350,67 @@ async function stepUploadScan(
   spend: (u: number) => void
 ) {
   const dayAgo = new Date(Date.now() - 24 * H);
+  type Cand = { id: string; externalId: string; videoCount: number | null; seen: number | null; first: boolean; watched: boolean };
   // 관심 목록: 처음 보는 채널·하루 넘게 안 본 채널·영상 수가 늘어난 채널
-  // 나머지: 영상 수가 늘어난 채널만 (처음 본 채널통계의 영상 수가 기준 — 감시를 시작한 뒤 올라온 것부터)
-  const candidates = await prisma.$queryRaw<
-    { id: string; externalId: string; videoCount: number | null; seen: number | null; first: boolean; watched: boolean }[]
-  >`
-    SELECT c.id, c."externalId", c."videoCount", c."uploadsSeenCount" AS seen, (c."uploadsCheckedAt" IS NULL) AS first, f.watched
+  const watched = await prisma.$queryRaw<Cand[]>`
+    SELECT c.id, c."externalId", c."videoCount", c."uploadsSeenCount" AS seen, (c."uploadsCheckedAt" IS NULL) AS first, TRUE AS watched
     FROM "Channel" c JOIN "Folder" f ON f.id = c."folderId"
-    WHERE c."isActive" AND c.platform = 'YOUTUBE' AND c."externalId" LIKE 'UC%'
-      AND (
-        (f.watched AND (c."uploadsCheckedAt" IS NULL
-          OR c."uploadsCheckedAt" < ${dayAgo}
-          OR (c."videoCount" IS NOT NULL AND c."videoCount" > COALESCE(c."uploadsSeenCount", 0))))
-        OR (NOT f.watched AND c."uploadsSeenCount" IS NOT NULL AND c."videoCount" > c."uploadsSeenCount")
-      )
-    ORDER BY f.watched DESC, c."dailyViews" DESC NULLS LAST, c."uploadsCheckedAt" ASC NULLS FIRST
-    LIMIT 400`;
+    WHERE c."isActive" AND c.platform = 'YOUTUBE' AND c."externalId" LIKE 'UC%' AND f.watched
+      AND (c."uploadsCheckedAt" IS NULL OR c."uploadsCheckedAt" < ${dayAgo}
+        OR (c."videoCount" IS NOT NULL AND c."videoCount" > COALESCE(c."uploadsSeenCount", 0)))
+    ORDER BY (c."videoCount" > COALESCE(c."uploadsSeenCount", 0)) DESC, c."dailyViews" DESC NULLS LAST, c."uploadsCheckedAt" ASC NULLS FIRST
+    LIMIT 600`;
+  // 나머지: 영상 수가 늘어난 채널만 (처음 본 채널통계의 영상 수가 기준 — 감시를 시작한 뒤 올라온 것부터)
+  const others = await prisma.$queryRaw<Cand[]>`
+    SELECT c.id, c."externalId", c."videoCount", c."uploadsSeenCount" AS seen, (c."uploadsCheckedAt" IS NULL) AS first, FALSE AS watched
+    FROM "Channel" c JOIN "Folder" f ON f.id = c."folderId"
+    WHERE c."isActive" AND c.platform = 'YOUTUBE' AND c."externalId" LIKE 'UC%' AND NOT f.watched
+      AND c."uploadsSeenCount" IS NOT NULL AND c."videoCount" > c."uploadsSeenCount"
+    ORDER BY c."dailyViews" DESC NULLS LAST, c."uploadsCheckedAt" ASC NULLS FIRST
+    LIMIT 900`;
+  // 관심 목록과 나머지를 번갈아 — 관심 목록 채널을 처음 훑는 날에도 나머지 채널 새 영상이 밀리지 않게
+  const candidates: Cand[] = [];
+  for (let i = 0; i < Math.max(watched.length, others.length); i++) {
+    if (i < watched.length) candidates.push(watched[i]);
+    if (i < others.length) candidates.push(others[i]);
+  }
   if (!candidates.length) return;
 
-  const newIds: string[] = [];
-  const owner = new Map<string, string>();
-  const scanned: typeof candidates = [];
-  await pool(candidates, 8, async (ch) => {
-    if (!(ch.watched ? canSpend(2) : canSpendOther(2))) return;
-    // 관심 목록 채널을 처음 볼 땐 50개 — 7~30일 된 영상으로 채널 평소 조회(중앙값)를 바로 낼 수 있게.
-    // 나머지는 늘어난 만큼만 (조금 넉넉히)
-    const max = ch.watched ? (ch.first ? 50 : 15) : Math.min(15, Math.max(3, (ch.videoCount ?? 0) - (ch.seen ?? 0) + 2));
-    const ids = await fetchLatestUploadIds(ch.externalId, max).catch((e) => {
-      if (e instanceof QuotaGoneError) throw e;
-      return [] as string[];
+  const cutoff = new Date(Date.now() - 30 * 24 * H);
+  // 조금씩 끊어서 훑고 → 상세 받고 → 저장. 시간이 다 되면 거기서 멈춰도 한 일은 남는다
+  // (예전엔 다 모은 뒤 끝에 한 번에 저장해서, 함수가 60초에 끊기면 매번 같은 채널을 다시 훑었다)
+  for (const round of chunks(candidates, 60)) {
+    if (!canSpend(1)) break;
+    const owner = new Map<string, string>();
+    const scanned: Cand[] = [];
+    await pool(round, 16, async (ch) => {
+      if (!(ch.watched ? canSpend(2) : canSpendOther(2))) return;
+      // 관심 목록 채널을 처음 볼 땐 50개 — 7~30일 된 영상으로 채널 평소 조회(중앙값)를 바로 낼 수 있게.
+      // 나머지는 늘어난 만큼만 (조금 넉넉히)
+      const max = ch.watched ? (ch.first ? 50 : 15) : Math.min(15, Math.max(3, (ch.videoCount ?? 0) - (ch.seen ?? 0) + 2));
+      const ids = await fetchLatestUploadIds(ch.externalId, max, cutoff).catch((e) => {
+        if (e instanceof QuotaGoneError) throw e;
+        return [] as string[];
+      });
+      spend(1);
+      scanned.push(ch);
+      for (const id of ids) owner.set(id, ch.id);
     });
-    spend(1);
-    scanned.push(ch);
-    for (const id of ids) owner.set(id, ch.id);
-    newIds.push(...ids);
-  });
-  report.uploadScans = scanned.length;
+    if (!scanned.length) break;
+    report.uploadScans += scanned.length;
 
-  if (newIds.length) {
-    const known = new Set(
-      (await prisma.radarVideo.findMany({ where: { id: { in: newIds } }, select: { id: true } })).map((v) => v.id)
-    );
-    const fresh = [...new Set(newIds.filter((id) => !known.has(id)))];
-    if (fresh.length) {
-      const units = Math.ceil(fresh.length / 50);
-      spend(units);
-      const vids = await fetchVideos(fresh);
-      const cutoff = Date.now() - 30 * 24 * H;
+    const ids = [...owner.keys()];
+    if (ids.length) {
+      const known = new Set((await prisma.radarVideo.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((v) => v.id));
+      const fresh = ids.filter((id) => !known.has(id));
+      const vids: Awaited<ReturnType<typeof fetchVideos>> = [];
+      await pool(chunks(fresh, 50), 6, async (slice) => {
+        spend(1);
+        vids.push(...(await fetchVideos(slice)));
+      });
       const nowMin = toMin(new Date());
       const rows = vids
-        .filter((v) => !v.upcoming && v.publishedAt.getTime() >= cutoff)
+        .filter((v) => !v.upcoming && v.publishedAt >= cutoff && owner.has(v.id))
         .map((v) => ({
           id: v.id,
           channelId: owner.get(v.id)!,
@@ -417,10 +435,8 @@ async function stepUploadScan(
         report.newVideos += r.count;
       }
     }
-  }
 
-  // 본 채널: 본 시각·그때 영상 수·마지막 업로드 — 한 번에 (채널마다 따로 쓰면 수백 번 왕복이라 느리다)
-  if (scanned.length) {
+    // 본 채널: 본 시각·그때 영상 수·마지막 업로드 — 한 번에 (채널마다 따로 쓰면 수백 번 왕복이라 느리다)
     await prisma.$executeRaw`
       UPDATE "Channel" c SET
         "uploadsCheckedAt" = NOW(),
@@ -467,23 +483,24 @@ async function stepRefreshVideos(
   report: CollectReport,
   canSpend: (u: number) => boolean,
   canSpendOther: (u: number) => boolean,
-  spend: (u: number) => void
+  spend: (u: number) => void,
+  allHourly: boolean
 ) {
-  // 관심 목록: 72시간 안 매시간 · 7일 안 6시간 · 30일 안 하루 / 나머지: 72시간 안 3시간 · 7일 안 12시간
+  // 관심 목록(키가 넉넉하면 전체): 72시간 안 매시간 · 7일 안 6시간 · 30일 안 하루 / 나머지: 72시간 안 3시간 · 7일 안 12시간
   const due = await prisma.$queryRaw<{ id: string; publishedAt: Date; trackT: number[]; trackV: number[]; watched: boolean }[]>`
     SELECT v.id, v."publishedAt", v."trackT", v."trackV", f.watched
     FROM "RadarVideo" v
     JOIN "Channel" c ON c.id = v."channelId"
     JOIN "Folder" f ON f.id = c."folderId"
-    WHERE (f.watched AND (
+    WHERE ((f.watched OR ${allHourly}) AND (
          (v."publishedAt" > NOW() - INTERVAL '72 hours' AND (v."checkedAt" IS NULL OR v."checkedAt" < NOW() - INTERVAL '50 minutes'))
       OR (v."publishedAt" > NOW() - INTERVAL '7 days'   AND v."checkedAt" < NOW() - INTERVAL '6 hours')
       OR (v."publishedAt" > NOW() - INTERVAL '30 days'  AND v."checkedAt" < NOW() - INTERVAL '24 hours')))
-    OR (NOT f.watched AND (
+    OR (NOT (f.watched OR ${allHourly}) AND (
          (v."publishedAt" > NOW() - INTERVAL '72 hours' AND (v."checkedAt" IS NULL OR v."checkedAt" < NOW() - INTERVAL '170 minutes'))
       OR (v."publishedAt" > NOW() - INTERVAL '7 days'   AND v."checkedAt" < NOW() - INTERVAL '12 hours')))
     ORDER BY f.watched DESC, v."checkedAt" ASC NULLS FIRST
-    LIMIT 5000`;
+    LIMIT 12000`;
 
   const watchedDue = due.filter((v) => v.watched);
   const otherDue = due.filter((v) => !v.watched);
@@ -491,7 +508,7 @@ async function stepRefreshVideos(
     ...chunks(watchedDue, 50).map((b) => ({ b, can: canSpend })),
     ...chunks(otherDue, 50).map((b) => ({ b, can: canSpendOther })),
   ];
-  await pool(batches, 6, async ({ b: slice, can }) => {
+  await pool(batches, 12, async ({ b: slice, can }) => {
     if (!can(1)) return;
     // 설명란(snippet)도 같이 — videos.list 는 받는 부분이 늘어도 1 unit 이라 공짜. 아직 안 읽은 영상의 설명란 작품 단서를 채운다
     const stats = await fetchVideos(
@@ -623,23 +640,16 @@ export const HIT_VIEWS = 1_000_000;
  * 과거 트래픽에 하루 쓸 몫 — 키 한도 합의 90% 에서 감시 몫(관심 목록 + 나머지 전체)과 남겨 둘 몫을 뺀 것.
  * 감시가 먼저라, 키가 모자라면 과거 트래픽 정리는 쉬었다가 키가 늘면 돈다. 그래도 하루 1,000 은 쓴다.
  */
-async function archiveDailyCap(): Promise<number> {
-  const [keys, watched, others] = await Promise.all([
-    prisma.youtubeApiKey.findMany({ where: { isActive: true }, select: { dailyQuotaLimit: true } }),
-    prisma.channel.count({ where: { isActive: true, platform: 'YOUTUBE', folder: { watched: true } } }),
-    prisma.channel.count({ where: { isActive: true, platform: 'YOUTUBE', folder: { watched: false } } }),
-  ]);
-  const limit = keys.reduce((a, k) => a + k.dailyQuotaLimit, 0);
-  const need = watched * UNITS_PER_WATCHED_CHANNEL + others * UNITS_PER_OTHER_CHANNEL + 600;
-  return Math.max(1000, Math.floor(limit * 0.9 - need - RESERVE_UNITS));
+function archiveDailyCap(plan: MonitorPlan): number {
+  return Math.max(1000, Math.floor(plan.limit * 0.9 - plan.need - RESERVE_UNITS));
 }
 
-async function stepArchive(report: CollectReport, canSpend: (u: number) => boolean, spend: (u: number) => void) {
+async function stepArchive(report: CollectReport, canSpend: (u: number) => boolean, spend: (u: number) => void, plan: MonitorPlan) {
   const day = kstToday().toISOString().slice(0, 10);
   const mark = await prisma.trendCache.findUnique({ where: { key: 'radar:archive-day' } }).catch(() => null);
   const prev = mark?.payload as { day?: string; units?: number } | null;
   let used = prev?.day === day ? prev.units ?? 0 : 0;
-  const cap = await archiveDailyCap();
+  const cap = archiveDailyCap(plan);
   if (used >= cap) return;
   const use = (u: number) => {
     spend(u);

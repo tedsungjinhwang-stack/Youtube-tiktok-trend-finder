@@ -9,7 +9,7 @@ import { Chip, Empty, FORMAT_LABEL, Spark, Toggle, VideoThumb, ago, channelAge, 
 /**
  * 채널 순위 — pint 홈처럼 하루 조회수로 채널을 줄 세운다.
  * 하루 조회수는 유튜브 채널 총 조회수의 하루 증가분 (수집기가 하루 한 번 적는다).
- * 터진 영상·최신 영상은 감시를 시작한 뒤 올라온 영상부터 (관심 목록은 매시간, 나머지는 3~6시간마다 잰다).
+ * 터진 영상·최신 영상은 감시를 시작한 뒤 올라온 영상부터 (키가 넉넉하면 전부 매시간, 모자라면 관심 목록만 매시간·나머지 3~6시간).
  */
 
 const FORMATS: { key: RankFormat; label: string }[] = [
