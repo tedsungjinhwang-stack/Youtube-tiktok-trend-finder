@@ -59,6 +59,7 @@ export type CollectReport = {
   matchError?: string;
   aliasesLearned?: number;
   aliasesBlocked?: number;
+  aliasesForgotten?: number;
   stoppedBy: string | null;
 };
 
@@ -169,6 +170,7 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
         const lr = await learnAliases();
         report.aliasesLearned = lr.learned;
         report.aliasesBlocked = lr.blocked;
+        report.aliasesForgotten = lr.forgotten;
         await prisma.trendCache.upsert({
           where: { key: 'radar:learn' },
           create: { key: 'radar:learn', payload: lr },

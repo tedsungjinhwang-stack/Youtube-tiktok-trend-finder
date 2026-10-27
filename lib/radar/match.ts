@@ -31,6 +31,9 @@ const STOP = new Set(
     '웃긴영상', '웃긴', '감동', '반전', '소름', '눈물', '사이다', '참교육', '복수', '로맨스', '코미디', '스릴러', '액션', '공포', '범죄',
     '연예', '연예인', '배우', '아이돌', '케이팝', 'kpop', '먹방', '브이로그', 'vlog', '밈', 'meme', '꿀잼', '노잼', 'ㅋㅋ', 'ㅋㅋㅋ',
     '오늘의드라마', '오늘의영화', '실화', '역대급', '충격', '최신', '신작', '1화', '2화', '최종화', '마지막화',
+    // 숏드라마·클립 채널이 영상마다 붙이는 영어 말 (같은 이름의 해외 작품으로 잘못 붙는다)
+    'love', 'ceo', 'series', 'romance', 'revenge', 'family', 'koreandrama', 'koreanshortdrama', 'shortdrama', 'chinesedrama',
+    'cdrama', 'jdrama', 'film', 'tv', 'show', 'story', 'life', 'happy', 'sad', 'cute', 'baby', 'wedding', 'marriage', 'boss',
   ].map((w) => normalizeAlias(w))
 );
 
@@ -69,7 +72,8 @@ export function candidatesOf(title: string, tags: string[], descTags: string[] =
   for (const { text: r, strong } of raw) {
     const t = r.replace(/^#/, '').trim();
     const n = normalizeAlias(t);
-    if (n.length < 2 || n.length > 30 || /^\d+$/.test(n) || /^\d+(화|회|부|편|탄)$/.test(n) || STOP.has(n) || seen.has(n)) continue;
+    // 숫자만, "3화", 채널이 붙이는 관리 코드(#260809cyA3)는 작품 이름이 아니다
+    if (n.length < 2 || n.length > 30 || /^\d+$/.test(n) || /^\d+(화|회|부|편|탄)$/.test(n) || /^\d{4,}[a-z]{1,4}\d*$/.test(n) || STOP.has(n) || seen.has(n)) continue;
     // "드라마제목 3화", "시즌2" 같은 꼬리는 떼고 한 번 더
     seen.add(n);
     out.push({ text: t, strong });
@@ -347,6 +351,9 @@ export async function matchVideos(deadline: number, limit = 400): Promise<{ matc
       if (!w) continue;
       // 세 글자 이하 작품명은 드라마·영화·예능 채널의 제목·설명란 해시태그로만 (멤버 이름·흔한 말과 겹친다)
       if (w.main.length <= 3 && !(c.strong && dramaFolder)) continue;
+      // 다섯 글자 이하 영어 말(#reina·#love)도 흔한 단어·사람 이름과 겹친다 — 드라마 채널에서, 방영 중이거나 인기 많은 작품일 때만
+      const an = normalizeAlias(c.text);
+      if (an.length <= 5 && /^[a-z0-9]+$/.test(an) && !(c.strong && dramaFolder && (w.recent || w.popularity >= 50))) continue;
       if (c.strong) add(a.workId, 2, c.text);
       // 영상 태그는 채널마다 늘 붙이는 말이 많아서, 작품명이 제목에도 있거나 "작품명 몰아보기" 꼴일 때만
       else if (c.review || titleNorm.includes(w.main)) add(a.workId, 1, c.text);
