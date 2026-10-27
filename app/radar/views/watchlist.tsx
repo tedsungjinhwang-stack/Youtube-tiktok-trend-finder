@@ -7,7 +7,7 @@ import { Empty, StatusLine, short } from './parts';
 
 /**
  * 관심 목록 — 채널팩(에셋 채널 폴더)을 모아 두는 곳.
- * 살아있는 채널은 전부 감시하고(3~6시간마다), 관심 목록에 넣은 팩은 매시간 정밀하게 (1시간 급상승까지).
+ * 살아있는 채널은 전부 감시한다 — 키가 넉넉하면 전부 매시간, 모자라면 관심 목록에 넣은 팩만 매시간·나머지 3~6시간.
  * 팩이 많을수록 유튜브 할당량을 많이 써서, 하루 예상 사용량을 같이 보여 준다.
  */
 export function WatchlistView({ onRanking }: { onRanking: (folderId: string) => void }) {
@@ -53,7 +53,9 @@ export function WatchlistView({ onRanking }: { onRanking: (folderId: string) => 
         <div>
           <h1 className="text-[26px] font-extrabold tracking-[-0.04em]">관심 목록</h1>
           <p className="mt-1 text-[13px] font-semibold text-muted-foreground">
-            살아있는 채널은 전부 3~6시간마다 감시합니다 — 관심 목록에 넣은 팩은 매시간 정밀하게 (1시간 급상승까지)
+            {data.status.allHourly
+              ? '살아있는 채널은 전부 매시간 감시합니다 — 관심 목록은 키가 모자랄 때 먼저 챙기는 채널팩'
+              : '살아있는 채널은 전부 3~6시간마다 감시합니다 — 관심 목록에 넣은 팩은 매시간 정밀하게 (1시간 급상승까지)'}
           </p>
         </div>
         <StatusLine s={data.status} />
@@ -62,7 +64,7 @@ export function WatchlistView({ onRanking }: { onRanking: (folderId: string) => 
       <div className={'mb-3 rounded-xl border px-4 py-2.5 text-[13px] font-semibold ' + (over ? 'surface-warn' : 'card-surface')}>
         하루 예상 유튜브 사용량 — 관심 목록 <span className="num">{data.watchedChannels.toLocaleString('ko-KR')}</span>곳 매시간 약{' '}
         <span className="num">{data.estimatedUnits.toLocaleString('ko-KR')}</span> + 나머지{' '}
-        <span className="num">{data.otherChannels.toLocaleString('ko-KR')}</span>곳 3~6시간마다 약{' '}
+        <span className="num">{data.otherChannels.toLocaleString('ko-KR')}</span>곳 {data.status.allHourly ? '매시간' : '3~6시간마다'} 약{' '}
         <span className="num">{data.estimatedOtherUnits.toLocaleString('ko-KR')}</span>
         {data.quotaLimit > 0 && (
           <>

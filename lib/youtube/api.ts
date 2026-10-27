@@ -106,13 +106,15 @@ export async function fetchChannelStats(ids: string[]): Promise<YtChannelStat[]>
 }
 
 /** 채널 업로드 목록의 최신 영상 ID (uploads 재생목록 = UU + 채널ID 뒷부분) */
-export async function fetchLatestUploadIds(channelId: string, max: number): Promise<string[]> {
+export async function fetchLatestUploadIds(channelId: string, max: number, since?: Date): Promise<string[]> {
   const json = await ytFetch<{ items?: any[] }>('/playlistItems', {
     part: 'contentDetails',
     playlistId: 'UU' + channelId.slice(2),
     maxResults: String(Math.min(max, 50)),
   });
   return (json.items ?? [])
+    // since 보다 오래된 영상은 상세를 받지 않는다 (재생목록에 게시 시각이 같이 온다)
+    .filter((it) => !since || !it.contentDetails?.videoPublishedAt || new Date(it.contentDetails.videoPublishedAt) >= since)
     .map((it) => it.contentDetails?.videoId)
     .filter((v): v is string => typeof v === 'string' && v.length > 0);
 }

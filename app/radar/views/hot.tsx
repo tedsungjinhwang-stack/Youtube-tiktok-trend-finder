@@ -8,7 +8,7 @@ import { WorkChip } from './fix';
 import { Chip, Empty, StatusLine, Toggle, VideoThumb, ago, short } from './parts';
 
 /**
- * 터진 영상 — 관심 목록 채널의 최근 영상 중 지금 조회가 빠르게 느는 것.
+ * 터진 영상 — 감시 채널의 최근 영상 중 지금 조회가 빠르게 느는 것.
  * 수집기가 72시간 안 영상은 매시간 조회수를 재서 N시간 동안 늘어난 만큼으로 줄 세운다.
  */
 
@@ -33,7 +33,7 @@ export type HotPreset = {
 
 export const HOT_DEFAULT: HotPreset = {
   title: '터진 영상',
-  subtitle: '관심 목록 채널에서 지금 조회가 빠르게 느는 영상 — 남들보다 먼저 보고 선점',
+  subtitle: '감시 채널 전체에서 지금 조회가 빠르게 느는 영상 — 남들보다 먼저 보고 선점',
 };
 
 export function HotView({ preset = HOT_DEFAULT, onWatchlist }: { preset?: HotPreset; onWatchlist: () => void }) {
@@ -94,7 +94,7 @@ export function HotView({ preset = HOT_DEFAULT, onWatchlist }: { preset?: HotPre
       </div>
 
       {preset.note && <div className="card-surface mb-3 rounded-xl border px-4 py-2.5 text-[13px] font-semibold">{preset.note}</div>}
-      {data && data.unwatched.length > 0 && (
+      {data && data.unwatched.length > 0 && !data.status.allHourly && (
         <div className="surface-warn mb-3 flex flex-wrap items-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] font-semibold">
           <span>
             {data.unwatched.join(' · ')} 채널팩은 3시간마다 잽니다. 관심 목록에 넣으면 매시간 (1시간 급상승까지).
@@ -153,7 +153,8 @@ export function HotView({ preset = HOT_DEFAULT, onWatchlist }: { preset?: HotPre
         <Empty>
           아직 보여줄 영상이 없습니다.
           <br />
-          감시를 시작한 뒤 올라온 영상부터 모으고, 시간당 증가는 같은 영상을 두 번 이상 재야 나옵니다 (관심 목록은 1~2시간, 나머지는 3~6시간 뒤).
+          감시를 시작한 뒤 올라온 영상부터 모으고, 시간당 증가는 같은 영상을 두 번 이상 재야 나옵니다 (
+          {data.status.allHourly ? '1~2시간 뒤' : '관심 목록은 1~2시간, 나머지는 3~6시간 뒤'}).
           <div className="mt-3">
             <button onClick={onWatchlist} className="h-9 rounded-xl bg-brand px-4 text-[13px] font-bold text-brand-foreground">
               관심 목록 열기

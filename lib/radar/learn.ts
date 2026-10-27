@@ -38,8 +38,9 @@ export async function learnAliases(): Promise<{ learned: number; blocked: number
   >`
     SELECT v.id, v.title, v.tags, v."descTags", v."workId", v."matchedBy", f.name AS folder, v."channelId"
     FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId" JOIN "Folder" f ON f.id = c."folderId"
-    WHERE v."publishedAt" > NOW() - INTERVAL '30 days' AND v."matchedAt" IS NOT NULL
-    LIMIT 60000`;
+    WHERE v."publishedAt" > NOW() - INTERVAL '14 days' AND v."matchedAt" IS NOT NULL
+    ORDER BY v."publishedAt" DESC
+    LIMIT 40000`;
   if (!vids.length) return { learned: 0, blocked: 0, forgotten: 0, requeued: 0 };
 
   const known = new Map(
