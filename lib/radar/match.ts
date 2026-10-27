@@ -284,7 +284,7 @@ export async function matchVideos(deadline: number, limit = 400): Promise<{ matc
     SELECT v.id, v.title, v.tags, v."descTags", f.name AS folder
     FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId" JOIN "Folder" f ON f.id = c."folderId"
     WHERE v."matchedAt" IS NULL AND NOT v."matchLocked"
-    ORDER BY v."publishedAt" DESC
+    ORDER BY (v."publishedAt" > NOW() - INTERVAL '3 days') DESC, v.views DESC
     LIMIT ${limit}`;
   if (!vids.length) return { matched: 0, checked: 0 };
   const now = new Date();
@@ -299,7 +299,14 @@ export async function matchVideos(deadline: number, limit = 400): Promise<{ matc
   }
   const todo = vids.filter((v) => WORK_FOLDER_RE.test(v.folder));
 
-  const cands = new Map(todo.map((v) => [v.id, candidatesOf(v.title, v.tags, v.descTags)]));
+  // 영상 태그(약한 근거)는 제목에도 나오거나 "작품명 몰아보기" 꼴일 때만 점수가 붙으니, 그 밖의 태그는 TMDB 에 묻지 않는다
+  // (채널이 영상마다 붙이는 태그 수십 개를 다 물어보느라 작품 찾기가 한 번에 몇 개밖에 못 하던 것)
+  const cands = new Map(
+    todo.map((v) => {
+      const t = normalizeAlias(v.title);
+      return [v.id, candidatesOf(v.title, v.tags, v.descTags).filter((c) => c.strong || c.review || t.includes(normalizeAlias(c.text)))];
+    })
+  );
   const aliases = await resolveAliases(
     [...cands.values()].flat().map((c) => c.text),
     deadline
@@ -330,7 +337,7 @@ export async function matchVideos(deadline: number, limit = 400): Promise<{ matc
   );
 
   let matched = 0;
-  let checked = 0;
+  const done: { id: string; workId: string | null; guessWorkId: string | null; score: string | null; by: string | null }[] = [];
   for (const v of todo) {
     const list = cands.get(v.id)!;
     // 후보를 아직 다 못 물어봤으면(시간 초과) 다음 번에
@@ -378,20 +385,27 @@ export async function matchVideos(deadline: number, limit = 400): Promise<{ matc
     const score = best?.[1].n ?? 0;
     const confident = score >= CONFIDENT_SCORE;
     const guess = !confident && score >= GUESS_SCORE;
-    await prisma.radarVideo.update({
-      where: { id: v.id },
-      data: {
-        workId: confident ? best[0] : null,
-        guessWorkId: guess ? best[0] : null,
-        matchScore: best ? score : null,
-        matchedBy: confident || guess ? best[1].by : null,
-        matchedAt: now,
-      },
+    done.push({
+      id: v.id,
+      workId: confident ? best[0] : null,
+      guessWorkId: guess ? best[0] : null,
+      score: best ? String(score) : null,
+      by: confident || guess ? best[1].by : null,
     });
-    checked++;
     if (confident) matched++;
   }
-  return { matched, checked: checked + skip.length };
+  // 한 번에 저장 (영상마다 따로 쓰면 수백 번 왕복)
+  if (done.length) {
+    await prisma.$executeRaw`
+      UPDATE "RadarVideo" r SET
+        "workId" = u.wid, "guessWorkId" = u.gid, "matchScore" = u.score::double precision, "matchedBy" = u.by, "matchedAt" = ${now}
+      FROM unnest(
+        ${done.map((d) => d.id)}::text[], ${done.map((d) => d.workId)}::text[], ${done.map((d) => d.guessWorkId)}::text[],
+        ${done.map((d) => d.score)}::text[], ${done.map((d) => d.by)}::text[]
+      ) AS u(id, wid, gid, score, by)
+      WHERE r.id = u.id AND NOT r."matchLocked"`;
+  }
+  return { matched, checked: done.length + skip.length };
 }
 
 /** 편성표·시즌·오픈에서 받은 TMDB 작품을 미리 넣어 둔다 — 제목만으로도 작품을 알아보게 */

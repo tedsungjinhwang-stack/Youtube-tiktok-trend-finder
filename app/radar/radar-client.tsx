@@ -453,8 +453,8 @@ const NAV: { group: string; items: NavItem[] }[] = [
 const HOT_PRESETS: Record<string, HotPreset> = {
   hot: HOT_DEFAULT,
   daily: { title: '데일리 떡상쇼츠', subtitle: '최근 24시간 동안 조회가 가장 많이 늘어난 쇼츠', window: 24 },
-  feed: { title: '소재 피드', subtitle: '관심 목록 채널이 올린 새 영상 흐름 (최신순) — 작품 인식이 붙은 건 작품 이름이 같이 나온다', sort: 'latest', window: 24 },
-  longform: { title: '영화롱폼', subtitle: '관심 목록 채널의 롱폼(10분+ 포함) 영상 중 지금 뜨는 것 — 쇼츠로 옮길 거리', format: 'long', window: 24 },
+  feed: { title: '소재 피드', subtitle: '감시 채널이 올린 새 영상 흐름 (최신순) — 작품 인식이 붙은 건 작품 이름이 같이 나온다', sort: 'latest', window: 24 },
+  longform: { title: '영화롱폼', subtitle: '감시 채널의 롱폼(10분+ 포함) 영상 중 지금 뜨는 것 — 쇼츠로 옮길 거리', format: 'long', window: 24 },
   fan: { title: '팬튜브', subtitle: '아이돌·셀럽 팬 채널에서 지금 뜨는 쇼츠', folders: ['아이돌 팬튜브', '셀럽 팬튜브'], window: 6 },
   comedy: {
     title: '코미디',

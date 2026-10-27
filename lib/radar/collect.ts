@@ -157,17 +157,18 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
 
   try {
     // 조회수 재기가 '터진 영상'의 핵심이라 새 영상 찾기보다 먼저 (예전엔 새 영상 찾기가 시간을 다 써서 한 번도 못 돌았다)
-    const p1 = phase(10_000).canSpend;
+    const p1 = phase(9_000).canSpend;
     await stepChannelStats(report, p1, tierB(p1), spend, plan.allHourly);
-    const p2 = phase(21_000).canSpend;
+    const p2 = phase(18_000).canSpend;
     await stepRefreshVideos(report, p2, tierB(p2), spend, plan.allHourly);
-    const p3 = phase(31_000).canSpend;
+    const p3 = phase(27_000).canSpend;
     await stepUploadScan(report, p3, tierB(p3), spend);
     report.maintenance = await stepDailyMaintenance();
     // 작품 인식 — TMDB (유튜브 할당량 안 씀). 실패해도 다른 단계는 계속
-    // 작품 찾기가 시간을 다 쓰면 상세·출연작을 못 받아서, 각자 몫을 따로 둔다
-    const m = phase(35_000).until;
-    const m2 = phase(40_000).until;
+    // 작품 찾기가 시간을 다 쓰면 상세·출연작을 못 받아서, 각자 몫을 따로 둔다.
+    // 전체 채널을 매시간 재면서 새 영상이 시간당 만 개 넘게 들어와, 작품 찾기 몫을 넉넉히 (새 영상 찾기는 27초까지)
+    const m = phase(37_000).until;
+    const m2 = phase(41_000).until;
     try {
       // 6시간마다: 같이 붙는 해시태그로 별칭 배우기 · 작품과 상관없는 채널에서만 나오는 짧은 별칭 막기
       const lm = await prisma.trendCache.findUnique({ where: { key: 'radar:learn' } }).catch(() => null);
@@ -247,7 +248,7 @@ async function stepChannelStats(
   });
   const run = async (list: { id: string; externalId: string }[], can: (u: number) => boolean) => {
     const byExt = new Map(list.map((c) => [c.externalId, c.id]));
-    await pool(chunks([...byExt.keys()], 50), 10, async (slice) => {
+    await pool(chunks([...byExt.keys()], 50), 16, async (slice) => {
       if (!can(1)) return;
       const stats = await fetchChannelStats(slice);
       spend(1);
