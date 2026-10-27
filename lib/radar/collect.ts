@@ -380,11 +380,13 @@ async function stepUploadScan(
   const cutoff = new Date(Date.now() - 30 * 24 * H);
   // 조금씩 끊어서 훑고 → 상세 받고 → 저장. 시간이 다 되면 거기서 멈춰도 한 일은 남는다
   // (예전엔 다 모은 뒤 끝에 한 번에 저장해서, 함수가 60초에 끊기면 매번 같은 채널을 다시 훑었다)
-  for (const round of chunks(candidates, 60)) {
-    if (!canSpend(1)) break;
+  // 세 묶음씩 동시에 (유튜브 응답·저장을 기다리는 동안 다음 묶음을 훑게)
+  let stop = false;
+  await pool(chunks(candidates, 40), 3, async (round) => {
+    if (stop || !canSpend(1)) return;
     const owner = new Map<string, string>();
     const scanned: Cand[] = [];
-    await pool(round, 16, async (ch) => {
+    await pool(round, 12, async (ch) => {
       if (!(ch.watched ? canSpend(2) : canSpendOther(2))) return;
       // 관심 목록 채널을 처음 볼 땐 50개 — 7~30일 된 영상으로 채널 평소 조회(중앙값)를 바로 낼 수 있게.
       // 나머지는 늘어난 만큼만 (조금 넉넉히)
@@ -397,7 +399,10 @@ async function stepUploadScan(
       scanned.push(ch);
       for (const id of ids) owner.set(id, ch.id);
     });
-    if (!scanned.length) break;
+    if (!scanned.length) {
+      stop = true;
+      return;
+    }
     report.uploadScans += scanned.length;
 
     const ids = [...owner.keys()];
@@ -445,7 +450,7 @@ async function stepUploadScan(
         "lastUploadAt" = GREATEST(c."lastUploadAt", (SELECT MAX(v."publishedAt") FROM "RadarVideo" v WHERE v."channelId" = c.id))
       FROM unnest(${scanned.map((c) => c.id)}::text[], ${scanned.map((c) => c.videoCount)}::int[]) AS u(id, vc)
       WHERE c.id = u.id`;
-  }
+  });
 }
 
 /* ───────────── 3. 영상 조회수 ───────────── */
