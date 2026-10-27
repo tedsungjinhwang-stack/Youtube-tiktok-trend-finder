@@ -16,6 +16,7 @@ import {
 import { Pill, ago, short } from '../trends/ui';
 import { HOT_DEFAULT, HotView, type HotPreset } from './views/hot';
 import { AwardsView, EntryView, GoldenView, HomeView, PersonView, ScheduleView, SeasonView, SpeedView, ToneView } from './views/tabs';
+import { MatchFixView, WorkAliasFix } from './views/fix';
 import { PastView } from './views/past';
 import { RankingView } from './views/ranking';
 import { WatchlistView } from './views/watchlist';
@@ -211,6 +212,7 @@ function RisingCard({ w, periodLabel }: { w: RisingWork; periodLabel: string }) 
                 경쟁 많음 {w.channels}곳
               </Chip>
             )}
+            <WorkAliasFix workId={w.key} />
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <WorkTags w={w} />
@@ -372,6 +374,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { key: 'hot', label: '터진 영상' },
       { key: 'watchlist', label: '관심 목록' },
       { key: 'past', label: '과거 트래픽' },
+      { key: 'matchfix', label: '작품 인식' },
       { key: 'schedule', label: '편성표' },
     ],
   },
@@ -532,7 +535,7 @@ function SummaryTile({ label, value, detail }: { label: string; value: string; d
 
 /** 실제 데이터로 도는 화면 — 시안(아래 꿀통 화면)의 머리말·요약을 쓰지 않는다 */
 const REAL_VIEWS = new Set([
-  'home', 'ranking', 'watchlist', 'past', 'schedule', 'tone', 'season', 'entry', 'golden', 'awards', 'person', 'speed',
+  'home', 'ranking', 'watchlist', 'past', 'matchfix', 'schedule', 'tone', 'season', 'entry', 'golden', 'awards', 'person', 'speed',
   ...Object.keys(HOT_PRESETS),
 ]);
 
@@ -596,6 +599,8 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
           <RankingView folders={folders} folderId={rankFolder} onFolder={setRankFolder} />
         ) : view === 'past' ? (
           <PastView />
+        ) : view === 'matchfix' ? (
+          <MatchFixView />
         ) : view === 'watchlist' ? (
           <WatchlistView
             onRanking={(id) => {

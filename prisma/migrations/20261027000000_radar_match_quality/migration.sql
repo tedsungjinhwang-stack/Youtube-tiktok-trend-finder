@@ -1,0 +1,12 @@
+-- 작품 인식 품질: 별칭 출처·막기, 영상 근거 점수·추정·직접 고침, 설명란 단서
+ALTER TABLE "RadarAlias"
+  ADD COLUMN IF NOT EXISTS "source" TEXT,
+  ADD COLUMN IF NOT EXISTS "blocked" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "blockReason" TEXT;
+ALTER TABLE "RadarVideo"
+  ADD COLUMN IF NOT EXISTS "matchScore" DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS "guessWorkId" TEXT,
+  ADD COLUMN IF NOT EXISTS "matchLocked" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "descTags" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  ADD COLUMN IF NOT EXISTS "descAt" TIMESTAMP(3);
+UPDATE "RadarAlias" SET "source" = 'tmdb' WHERE "source" IS NULL;

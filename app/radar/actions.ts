@@ -18,6 +18,18 @@ import {
 import type { RadarData } from '@/lib/radar/types';
 import { getRadarData, type WorksPeriod } from '@/lib/radar/works';
 import {
+  assignVideoWork,
+  blockAlias,
+  confirmGuess,
+  matchAdmin,
+  searchWorks,
+  unblockAlias,
+  unmatchVideo,
+  workAliases,
+  type MatchAdmin,
+  type WorkPick,
+} from '@/lib/radar/fix';
+import {
   AWARD_CALENDAR,
   getAwards,
   getEntries,
@@ -29,6 +41,32 @@ import {
   getSpeed,
   getTones,
 } from '@/lib/radar/tabs';
+
+/* ── 작품 인식 고치기 ── */
+export async function searchWorksAction(q: string): Promise<WorkPick[]> {
+  return searchWorks(q);
+}
+export async function assignVideoWorkAction(videoId: string, pick: WorkPick, remember?: string): Promise<void> {
+  await assignVideoWork(videoId, pick, remember);
+}
+export async function unmatchVideoAction(videoId: string): Promise<void> {
+  await unmatchVideo(videoId);
+}
+export async function confirmGuessAction(videoId: string): Promise<void> {
+  await confirmGuess(videoId);
+}
+export async function blockAliasAction(text: string): Promise<number> {
+  return blockAlias(text);
+}
+export async function unblockAliasAction(text: string): Promise<void> {
+  await unblockAlias(text);
+}
+export async function workAliasesAction(workId: string): Promise<{ text: string; count: number }[]> {
+  return workAliases(workId);
+}
+export async function matchAdminAction(): Promise<MatchAdmin> {
+  return matchAdmin();
+}
 
 export async function radarDataAction(period: WorksPeriod): Promise<RadarData> {
   return getRadarData(period);

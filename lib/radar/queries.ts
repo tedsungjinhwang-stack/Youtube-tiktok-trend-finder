@@ -268,8 +268,13 @@ export type HotVideo = {
   channelThumb: string | null;
   folder: string;
   folderId: string;
-  /** 작품 인식이 붙은 작품 이름 */
+  /** 작품 인식이 붙은 작품 이름 (확정) */
   work: string | null;
+  workId: string | null;
+  /** 근거가 약해 추정만 한 작품 (집계에는 안 씀) */
+  guess: string | null;
+  /** 작품을 붙인 말 (해시태그 등) — 고칠 때 이 말을 막을 수 있다 */
+  matchedBy: string | null;
   badges: string[];
 };
 
@@ -335,15 +340,19 @@ export async function getHotVideos(q: HotQuery): Promise<HotResult> {
       folder: string;
       folderId: string;
       work: string | null;
+      workId: string | null;
+      guess: string | null;
+      matchedBy: string | null;
     }[]
   >`
     SELECT v.id, v.title, v."thumbnailUrl", v."publishedAt", v.views, v.${gainCol} AS gain, v."gain1h",
       c."baselineMedian", c.id AS "channelId", c."externalId", c."displayName", c."thumbnailUrl" AS "channelThumb",
-      f.name AS folder, f.id AS "folderId", w.title AS work
+      f.name AS folder, f.id AS "folderId", w.title AS work, v."workId", gw.title AS guess, v."matchedBy"
     FROM "RadarVideo" v
     JOIN "Channel" c ON c.id = v."channelId"
     JOIN "Folder" f ON f.id = c."folderId"
     LEFT JOIN "RadarWork" w ON w.id = v."workId"
+    LEFT JOIN "RadarWork" gw ON gw.id = v."guessWorkId"
     WHERE ${Prisma.join(conds, ' AND ')}
     ORDER BY ${order}
     LIMIT 200`;
@@ -379,6 +388,9 @@ export async function getHotVideos(q: HotQuery): Promise<HotResult> {
       folder: r.folder,
       folderId: r.folderId,
       work: r.work,
+      workId: r.workId,
+      guess: r.guess,
+      matchedBy: r.matchedBy,
       badges,
     };
   });

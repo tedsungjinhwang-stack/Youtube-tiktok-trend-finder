@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { Pill } from '../../trends/ui';
 import { hotVideosAction, watchFoldersByNameAction } from '../actions';
 import type { HotResult, HotSort, HotVideo, HotWindow } from '@/lib/radar/queries';
+import { WorkChip } from './fix';
 import { Chip, Empty, StatusLine, Toggle, VideoThumb, ago, short } from './parts';
 
 /**
@@ -222,11 +223,8 @@ function HotCard({ it, rank, vertical, win, sort }: { it: HotVideo; rank: number
         >
           {it.title}
         </a>
-        {it.work && (
-          <span className="truncate text-[11.5px] font-bold" style={{ color: 'var(--accent-solid)' }} title="작품 인식">
-            {it.work}
-          </span>
-        )}
+        {/* 작품 이름 — 누르면 고치기 (이 작품 아님 · 이 말은 작품 아님 · 다른 작품으로) */}
+        <WorkChip videoId={it.id} work={it.work} guess={it.guess} matchedBy={it.matchedBy} />
         <a
           href={`https://www.youtube.com/channel/${it.channelExternalId}`}
           target="_blank"
