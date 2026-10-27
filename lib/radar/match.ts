@@ -119,9 +119,14 @@ const isKr = (x: SearchItem) => x.original_language === 'ko' || (x.origin_countr
  * TMDB 검색은 띄어쓰기 단위로 맞춰서 "#폭싹속았수다" 처럼 붙여 쓴 해시태그는 그대로는 안 나온다
  * — 그럴 땐 앞 두세 글자·뒤 세 글자·앞쪽 영문으로 다시 찾고, 결과 중 공백·기호를 뺀 이름이 같은 걸 고른다.
  */
-async function lookup(raw: string, norm: string): Promise<{ work?: SearchItem; person?: SearchItem }> {
+async function lookup(
+  raw: string,
+  norm: string,
+  opts: { prefix: boolean; cache: Map<string, Promise<SearchItem[]>> }
+): Promise<{ work?: SearchItem; person?: SearchItem }> {
   const queries = [raw];
-  if (!/\s/.test(raw.trim())) {
+  // 띄어쓰기 없는 해시태그(#닥터x하얀마피아의시대)는 앞 두세 글자로도 찾아본다 — 여러 채널에서 자주 나온 말만 (TMDB 호출이 다섯 배라)
+  if (opts.prefix && !/\s/.test(raw.trim())) {
     const compact = raw.replace(/[\s\p{P}\p{S}]/gu, '');
     const latin = compact.match(/^[a-z0-9]+/i)?.[0];
     if (latin && latin.length >= 2 && latin.length < compact.length) queries.push(latin);
@@ -129,8 +134,13 @@ async function lookup(raw: string, norm: string): Promise<{ work?: SearchItem; p
   }
   let person: SearchItem | undefined;
   for (const [i, q] of [...new Set(queries)].entries()) {
-    const r = await tmdb<{ results?: SearchItem[] }>('/search/multi', { query: q, include_adult: 'false' });
-    const results = r.results ?? [];
+    // 같은 검색어(앞 두 글자 등)는 한 번만 묻는다
+    let p = opts.cache.get(q);
+    if (!p) {
+      p = tmdb<{ results?: SearchItem[] }>('/search/multi', { query: q, include_adult: 'false' }).then((r) => r.results ?? []);
+      opts.cache.set(q, p);
+    }
+    const results = await p;
     const exact = results.filter(
       (x) =>
         (x.media_type === 'tv' || x.media_type === 'movie') &&
@@ -186,8 +196,13 @@ async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>) {
 /**
  * 후보들을 작품·인물로 바꾼다. 처음 보는 후보만 TMDB 에 묻는다.
  * 작품이 아니었던 후보도 30일 동안은 다시 묻지 않는다.
+ * ask 를 주면 그 말만 묻고, 나머지 처음 보는 말은 이번엔 '작품 아님'으로 둔다(저장하지 않아 나중에 다시 볼 수 있음).
  */
-export async function resolveAliases(raws: string[], deadline: number): Promise<Map<string, { workId: string | null; personId: number | null }>> {
+export async function resolveAliases(
+  raws: string[],
+  deadline: number,
+  opts: { ask?: (norm: string) => boolean; prefix?: (norm: string) => boolean } = {}
+): Promise<Map<string, { workId: string | null; personId: number | null }>> {
   const byNorm = new Map<string, string>();
   for (const r of raws) {
     const n = normalizeAlias(r);
@@ -204,14 +219,23 @@ export async function resolveAliases(raws: string[], deadline: number): Promise<
     if (a.blocked) out.set(a.alias, { workId: null, personId: null });
     else if (a.workId || a.personId || a.checkedAt.getTime() > stale) out.set(a.alias, { workId: a.workId, personId: a.personId });
   }
-  const todo = norms.filter((n) => !out.has(n));
+  const todo: string[] = [];
+  for (const n of norms) {
+    if (out.has(n)) continue;
+    if (opts.ask && !opts.ask(n)) out.set(n, { workId: null, personId: null });
+    else todo.push(n);
+  }
 
-  await pool(todo, 10, async (norm) => {
+  const cache = new Map<string, Promise<SearchItem[]>>();
+  const works = new Map<string, ReturnType<typeof workRow>>();
+  const persons = new Map<number, { id: number; name: string; profilePath: string | null }>();
+  const found: { alias: string; workId: string | null; personId: number | null }[] = [];
+  await pool(todo, 12, async (norm) => {
     if (Date.now() > deadline) return;
     const raw = byNorm.get(norm)!;
     let res: Awaited<ReturnType<typeof lookup>>;
     try {
-      res = await lookup(raw, norm);
+      res = await lookup(raw, norm, { prefix: opts.prefix ? opts.prefix(norm) : true, cache });
     } catch {
       return; // TMDB 오류 — 다음에 다시
     }
@@ -220,26 +244,28 @@ export async function resolveAliases(raws: string[], deadline: number): Promise<
     if (res.work) {
       const w = workRow(res.work);
       workId = w.id;
-      await prisma.radarWork.upsert({
-        where: { id: w.id },
-        create: w,
-        update: { popularity: w.popularity, posterPath: w.posterPath ?? undefined },
-      });
+      works.set(w.id, w);
     } else if (res.person) {
       personId = res.person.id;
-      await prisma.radarPerson.upsert({
-        where: { id: res.person.id },
-        create: { id: res.person.id, name: res.person.name ?? raw, profilePath: res.person.profile_path ?? null },
-        update: {},
-      });
+      persons.set(personId, { id: personId, name: res.person.name ?? raw, profilePath: res.person.profile_path ?? null });
     }
-    await prisma.radarAlias.upsert({
-      where: { alias: norm },
-      create: { alias: norm, workId, personId, source: 'tmdb' },
-      update: { workId, personId, checkedAt: new Date(), source: 'tmdb' },
-    });
+    found.push({ alias: norm, workId, personId });
     out.set(norm, { workId, personId });
   });
+
+  // 한 번에 저장 — 작품·인물 먼저 (별칭이 가리키므로)
+  for (const w of works.values()) {
+    await prisma.radarWork.upsert({ where: { id: w.id }, create: w, update: { popularity: w.popularity, posterPath: w.posterPath ?? undefined } });
+  }
+  if (persons.size) await prisma.radarPerson.createMany({ data: [...persons.values()], skipDuplicates: true });
+  if (found.length) {
+    await prisma.$executeRaw`
+      INSERT INTO "RadarAlias" (alias, "workId", "personId", source, "checkedAt")
+      SELECT u.alias, u.wid, u.pid::int, 'tmdb', NOW()
+      FROM unnest(${found.map((f) => f.alias)}::text[], ${found.map((f) => f.workId)}::text[], ${found.map((f) => (f.personId == null ? null : String(f.personId)))}::text[]) AS u(alias, wid, pid)
+      ON CONFLICT (alias) DO UPDATE SET "workId" = EXCLUDED."workId", "personId" = EXCLUDED."personId", source = 'tmdb', "checkedAt" = NOW()
+      WHERE NOT "RadarAlias".blocked AND "RadarAlias".source IS DISTINCT FROM 'manual'`;
+  }
   return out;
 }
 
@@ -279,25 +305,27 @@ function compatPenalty(folder: string, category: string): number {
 }
 
 /** 작품을 아직 안 찾아본 영상에 작품을 붙인다. 붙인 수 */
-export async function matchVideos(deadline: number, limit = 400): Promise<{ matched: number; checked: number }> {
-  const vids = await prisma.$queryRaw<{ id: string; title: string; tags: string[]; descTags: string[]; folder: string }[]>`
-    SELECT v.id, v.title, v.tags, v."descTags", f.name AS folder
+export async function matchVideos(deadline: number, limit = 1500): Promise<{ matched: number; checked: number }> {
+  const now = new Date();
+  // 작품과 상관없는 채널팩(게임·스포츠·쇼핑·요리 등) 영상은 TMDB 없이 한 번에 끝낸다
+  const folders = await prisma.folder.findMany({ select: { id: true, name: true } });
+  const nonWork = folders.filter((f) => !WORK_FOLDER_RE.test(f.name)).map((f) => f.id);
+  const workFolders = folders.filter((f) => WORK_FOLDER_RE.test(f.name)).map((f) => f.id);
+  const skipped = nonWork.length
+    ? await prisma.$executeRaw`
+        UPDATE "RadarVideo" v SET "workId" = NULL, "guessWorkId" = NULL, "matchScore" = NULL, "matchedBy" = NULL, "matchedAt" = ${now}
+        FROM "Channel" c
+        WHERE c.id = v."channelId" AND c."folderId" = ANY(${nonWork}::text[]) AND v."matchedAt" IS NULL AND NOT v."matchLocked"`
+    : 0;
+  if (!workFolders.length) return { matched: 0, checked: skipped };
+
+  const todo = await prisma.$queryRaw<{ id: string; title: string; tags: string[]; descTags: string[]; folder: string; channelId: string }[]>`
+    SELECT v.id, v.title, v.tags, v."descTags", f.name AS folder, v."channelId"
     FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId" JOIN "Folder" f ON f.id = c."folderId"
-    WHERE v."matchedAt" IS NULL AND NOT v."matchLocked"
+    WHERE v."matchedAt" IS NULL AND NOT v."matchLocked" AND c."folderId" = ANY(${workFolders}::text[])
     ORDER BY (v."publishedAt" > NOW() - INTERVAL '3 days') DESC, v.views DESC
     LIMIT ${limit}`;
-  if (!vids.length) return { matched: 0, checked: 0 };
-  const now = new Date();
-
-  // 작품과 상관없는 채널팩은 찾지 않고 끝낸다
-  const skip = vids.filter((v) => !WORK_FOLDER_RE.test(v.folder));
-  if (skip.length) {
-    await prisma.radarVideo.updateMany({
-      where: { id: { in: skip.map((v) => v.id) } },
-      data: { workId: null, guessWorkId: null, matchScore: null, matchedBy: null, matchedAt: now },
-    });
-  }
-  const todo = vids.filter((v) => WORK_FOLDER_RE.test(v.folder));
+  if (!todo.length) return { matched: 0, checked: skipped };
 
   // 영상 태그(약한 근거)는 제목에도 나오거나 "작품명 몰아보기" 꼴일 때만 점수가 붙으니, 그 밖의 태그는 TMDB 에 묻지 않는다
   // (채널이 영상마다 붙이는 태그 수십 개를 다 물어보느라 작품 찾기가 한 번에 몇 개밖에 못 하던 것)
@@ -307,9 +335,22 @@ export async function matchVideos(deadline: number, limit = 400): Promise<{ matc
       return [v.id, candidatesOf(v.title, v.tags, v.descTags).filter((c) => c.strong || c.review || t.includes(normalizeAlias(c.text)))];
     })
   );
+  // 처음 보는 말은 두 채널 이상에서 나온 것만 TMDB 에 묻는다 — 한 채널만 쓰는 해시태그는 대개 작품이 아니고,
+  // 뜨는 작품은 여러 채널에 같이 나온다. 알려진 작품 제목은 아래 사전으로 TMDB 없이 맞춘다
+  const chans = new Map<string, Set<string>>();
+  for (const v of todo) {
+    for (const c of cands.get(v.id)!) {
+      const n = normalizeAlias(c.text);
+      let set = chans.get(n);
+      if (!set) chans.set(n, (set = new Set()));
+      set.add(v.channelId);
+    }
+  }
+  const spread = (n: string) => chans.get(n)?.size ?? 0;
   const aliases = await resolveAliases(
     [...cands.values()].flat().map((c) => c.text),
-    deadline
+    deadline,
+    { ask: (n) => spread(n) >= 2, prefix: (n) => spread(n) >= 3 }
   );
   const dict = await knownTitles();
 
@@ -405,7 +446,7 @@ export async function matchVideos(deadline: number, limit = 400): Promise<{ matc
       ) AS u(id, wid, gid, score, by)
       WHERE r.id = u.id AND NOT r."matchLocked"`;
   }
-  return { matched, checked: done.length + skip.length };
+  return { matched, checked: done.length + skipped };
 }
 
 /** 편성표·시즌·오픈에서 받은 TMDB 작품을 미리 넣어 둔다 — 제목만으로도 작품을 알아보게 */
