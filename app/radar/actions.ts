@@ -30,6 +30,17 @@ import {
   type WorkPick,
 } from '@/lib/radar/fix';
 import {
+  acceptAllSuggested,
+  acceptCandidate,
+  addCandidatesByLinks,
+  listCandidates,
+  rejectCandidate,
+  restoreCandidate,
+  rookiesInPacks,
+  type CandidateList,
+  type RookieRow,
+} from '@/lib/radar/discover';
+import {
   AWARD_CALENDAR,
   getAwards,
   getEntries,
@@ -41,6 +52,33 @@ import {
   getSpeed,
   getTones,
 } from '@/lib/radar/tabs';
+
+/* ── 신규 발굴 ── */
+export async function candidatesAction(status: 'new' | 'added' | 'rejected'): Promise<CandidateList> {
+  return listCandidates(status);
+}
+export async function acceptCandidateAction(id: string, target: { folderId?: string; newFolder?: string }) {
+  const r = await acceptCandidate(id, target);
+  revalidatePath('/radar');
+  return r;
+}
+export async function rejectCandidateAction(id: string): Promise<void> {
+  await rejectCandidate(id);
+}
+export async function restoreCandidateAction(id: string): Promise<void> {
+  await restoreCandidate(id);
+}
+export async function acceptAllSuggestedAction(minScore: number): Promise<number> {
+  const n = await acceptAllSuggested(minScore);
+  revalidatePath('/radar');
+  return n;
+}
+export async function addCandidatesAction(text: string) {
+  return addCandidatesByLinks(text);
+}
+export async function rookiesInPacksAction(): Promise<RookieRow[]> {
+  return rookiesInPacks();
+}
 
 /* ── 작품 인식 고치기 ── */
 export async function searchWorksAction(q: string): Promise<WorkPick[]> {

@@ -32,6 +32,7 @@ import {
 import { resetStaleQuotas } from '@/lib/youtube/keyManager';
 import { monitorPlan, UNITS_PER_WATCHED_CHANNEL, type MonitorPlan } from './budget';
 import { learnAliases } from './learn';
+import { discoveryDue, markDiscovered, runDiscovery, type DiscoverReport } from './discover';
 import { fetchPersons, fetchWorkDetails, matchVideos, seedWorks } from './match';
 import { getSchedule, getSeason } from './tabs';
 
@@ -62,6 +63,9 @@ export type CollectReport = {
   aliasesForgotten?: number;
   /** 이번에 전체 채널을 매시간 쟀나 (키가 넉넉할 때) */
   allHourly?: boolean;
+  /** 신규 발굴 (2시간마다) */
+  discover?: DiscoverReport;
+  discoverError?: string;
   stoppedBy: string | null;
 };
 
@@ -163,6 +167,19 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
     await stepRefreshVideos(report, p2, tierB(p2), spend, plan.allHourly);
     const p3 = phase(27_000).canSpend;
     await stepUploadScan(report, p3, tierB(p3), spend);
+    // 신규 발굴 — 2시간마다 6초. 검색이 100 unit 씩이라 관심 목록 몫을 먼저 떼어 둔 뒤 남는 할당량으로.
+    // 직접 넣었거나 pint 목록에서 온 후보는 기다리지 않고 매번 채운다
+    const due = await discoveryDue();
+    if (due.search || due.pending) {
+      const pd = phase(33_000);
+      try {
+        report.discover = await runDiscovery({ canSpend: tierB(pd.canSpend), spend, deadline: pd.until, search: due.search });
+        if (due.search) await markDiscovered(report.discover);
+      } catch (e) {
+        if (e instanceof QuotaGoneError) throw e;
+        report.discoverError = (e as Error).message.slice(0, 200);
+      }
+    }
     report.maintenance = await stepDailyMaintenance();
     // 작품 인식 — TMDB (유튜브 할당량 안 씀). 실패해도 다른 단계는 계속
     // 작품 찾기가 시간을 다 쓰면 상세·출연작을 못 받아서, 각자 몫을 따로 둔다.
