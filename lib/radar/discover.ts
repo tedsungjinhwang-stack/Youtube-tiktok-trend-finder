@@ -43,8 +43,23 @@ const CATEGORY_FOLDER: Record<string, string> = {
   kr_variety: '한국 예능',
   intl_variety: '해외 예능',
 };
-/** 검색어로 쓰기엔 너무 흔한 말 */
-const GENERIC = new Set(['shorts', 'short', '쇼츠', 'youtube', 'youtubeshorts', 'fyp', 'viral', '추천', '레전드', '영상', '오늘', '이유', '진짜', '결국']);
+/** 어느 팩에나 나오는 말 — 팩을 가르는 데 쓸모가 없어 말 비교·검색어에서 뺀다 */
+const STOP_TOKENS = new Set([
+  'shorts', 'short', '쇼츠', 'youtube', 'youtubeshorts', 'fyp', 'viral', 'trending', 'funny', 'shortvideo', 'shortsvideo', 'shortsfeed',
+  '추천', '레전드', '영상', '오늘', '이유', '진짜', '결국', '순간', '방법', '정체', '선택한', '보고', '지금', '그냥', '너무', '그리고', '하는',
+  '있는', '없는', '이런', '그런', '무슨', '모든', '역대급', '충격', '반전', '사람', '사람들', '우리', '정말', '바로', '한국',
+  'the', 'in', 'with', 'and', 'for', 'of', 'to', 'a', 'is', 'on', 'my', 'you', 'your', 'this', 'that', 'it', 'at', 'from', 'by', 'be', 'are', 'how', 'what', 'when',
+]);
+
+/** n 개씩 동시에 */
+async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(n, items.length) }, async () => {
+      while (next < items.length) await fn(items[next++]);
+    })
+  );
+}
 
 export type SampleVideo = {
   id: string;
@@ -88,13 +103,15 @@ type Profile = { id: string; name: string; format: string | null; weights: Recor
 export function tokensOf(title: string, tags: string[]): string[] {
   const words = title.toLowerCase().split(/[^가-힣a-z0-9]+/);
   const t = tags.map((x) => x.toLowerCase().replace(/[\s\p{P}\p{S}]/gu, ''));
-  return [...words, ...t].filter((w) => w.length >= 2 && w.length <= 20 && !/^\d+$/.test(w));
+  return [...words, ...t].filter((w) => w.length >= 2 && w.length <= 20 && !/^\d+$/.test(w) && !STOP_TOKENS.has(w));
 }
 
 /** 팩마다 최근 14일 인기 영상(팩당 300개)의 말 — TF-IDF 상위 150개. 하루 한 번 계산해 둔다 */
-async function folderProfiles(): Promise<Profile[]> {
-  const cached = await prisma.trendCache.findUnique({ where: { key: 'radar:folder-profiles' } }).catch(() => null);
-  if (cached && Date.now() - cached.fetchedAt.getTime() < D) return cached.payload as unknown as Profile[];
+const PROFILE_KEY = 'radar:folder-profiles:v2';
+
+async function folderProfiles(): Promise<{ profiles: Profile[]; builtAt: number }> {
+  const cached = await prisma.trendCache.findUnique({ where: { key: PROFILE_KEY } }).catch(() => null);
+  if (cached && Date.now() - cached.fetchedAt.getTime() < D) return { profiles: cached.payload as unknown as Profile[], builtAt: cached.fetchedAt.getTime() };
 
   const rows = await prisma.$queryRaw<{ folderId: string; tok: string; n: number }[]>`
     WITH top AS (
@@ -122,7 +139,7 @@ async function folderProfiles(): Promise<Profile[]> {
   const byFolder = new Map<string, Map<string, number>>();
   const df = new Map<string, number>();
   for (const r of rows) {
-    if (!use.has(r.folderId)) continue;
+    if (!use.has(r.folderId) || STOP_TOKENS.has(r.tok)) continue;
     let m = byFolder.get(r.folderId);
     if (!m) byFolder.set(r.folderId, (m = new Map()));
     m.set(r.tok, r.n);
@@ -153,15 +170,15 @@ async function folderProfiles(): Promise<Profile[]> {
       format: dominant && dominant[0] && fmTotal > 0 && dominant[1] / fmTotal >= 0.6 ? dominant[0] : null,
       weights,
       norm: Math.sqrt(scored.reduce((a, [, w]) => a + w * w, 0)) || 1,
-      top: scored.map(([t]) => t).filter((t) => !GENERIC.has(t) && t.length >= 2).slice(0, 5),
+      top: scored.map(([t]) => t).slice(0, 5),
     });
   }
-  await prisma.trendCache.upsert({
-    where: { key: 'radar:folder-profiles' },
-    create: { key: 'radar:folder-profiles', payload: out as object },
+  const saved = await prisma.trendCache.upsert({
+    where: { key: PROFILE_KEY },
+    create: { key: PROFILE_KEY, payload: out as object },
     update: { payload: out as object, fetchedAt: new Date() },
   });
-  return out;
+  return { profiles: out, builtAt: saved.fetchedAt.getTime() };
 }
 
 /** 최근 영상으로 팩 추천 — 위에서 3개 */
@@ -197,9 +214,10 @@ async function suggestFor(samples: SampleVideo[], format: string | null, sourceF
       dot += n * w;
       shared.push([t, n * w]);
     }
-    let score = dot / (cnorm * p.norm);
+    // 겹치는 말이 하나뿐이면 우연일 수 있어 말 점수는 안 준다
+    let score = shared.length >= 2 ? dot / (cnorm * p.norm) : 0;
     const reasons: string[] = [];
-    if (shared.length) {
+    if (shared.length >= 2) {
       shared.sort((a, b) => b[1] - a[1]);
       reasons.push('겹치는 말: ' + shared.slice(0, 4).map(([t]) => t).join(' · '));
     }
@@ -297,20 +315,42 @@ export type DiscoverReport = { searches: number; seeds: number; checked: number;
 export async function runDiscovery(o: { canSpend: (u: number) => boolean; spend: (u: number) => void; deadline: number; search?: boolean }): Promise<DiscoverReport> {
   const report: DiscoverReport = { searches: 0, seeds: 0, checked: 0, found: 0, enriched: 0 };
   const left = () => Date.now() < o.deadline;
-  const profiles = await folderProfiles();
+  const { profiles, builtAt } = await folderProfiles();
 
-  // 1. 직접 넣었거나 pint 목록에서 온 후보 중 아직 통계를 안 받은 것
-  const pending = await prisma.radarCandidate.findMany({ where: { status: 'new', checkedAt: null }, take: 40 });
+  // 0. 팩 말을 새로 계산했으면 새로 찾음 후보의 추천도 다시 (저장해 둔 최근 영상으로 — 유튜브 안 씀)
+  const mark = await prisma.trendCache.findUnique({ where: { key: 'radar:resuggest' } }).catch(() => null);
+  if ((mark?.payload as { builtAt?: number } | null)?.builtAt !== builtAt) {
+    const old = await prisma.radarCandidate.findMany({
+      where: { status: 'new', checkedAt: { not: null } },
+      select: { externalId: true, sampleVideos: true, contentFormat: true, sourceFolderId: true },
+      take: 300,
+    });
+    await pool(old, 8, async (c) => {
+      const sug = await suggestFor((c.sampleVideos as unknown as SampleVideo[]) ?? [], c.contentFormat, c.sourceFolderId, profiles);
+      await prisma.radarCandidate.update({ where: { externalId: c.externalId }, data: { suggestions: sug as object } });
+    });
+    await prisma.trendCache.upsert({
+      where: { key: 'radar:resuggest' },
+      create: { key: 'radar:resuggest', payload: { builtAt } },
+      update: { payload: { builtAt }, fetchedAt: new Date() },
+    });
+  }
+
+  // 1. 직접 넣었거나 pint 목록에서 온 후보 중 아직 통계를 안 받은 것 — 여섯 곳씩 동시에
+  const pending = await prisma.radarCandidate.findMany({ where: { status: 'new', checkedAt: null }, take: 50 });
   if (pending.length && o.canSpend(1)) {
     const stats = await fetchChannelStats(pending.map((p) => p.externalId));
-    o.spend(Math.ceil(pending.length / 50));
+    o.spend(1);
     const byId = new Map(pending.map((p) => [p.externalId, p]));
-    for (const s of stats) {
-      if (!left() || !o.canSpend(2)) break;
+    await pool(stats, 6, async (s) => {
+      if (!left() || !o.canSpend(2)) return;
       const p = byId.get(s.id)!;
       await fill(s, { source: p.source, sourceFolderId: p.sourceFolderId, keepAnyway: true }, profiles, o.spend);
       report.enriched++;
-    }
+    });
+    // 없어진 채널(삭제·정지)은 제외로
+    const gone = pending.filter((p) => !stats.some((s) => s.id === p.externalId)).map((p) => p.externalId);
+    if (gone.length) await prisma.radarCandidate.updateMany({ where: { externalId: { in: gone } }, data: { status: 'rejected', decidedAt: new Date(), checkedAt: new Date() } });
   }
 
   if (o.search === false) return report;
@@ -396,11 +436,11 @@ export async function runDiscovery(o: { canSpend: (u: number) => boolean; spend:
     const stats = await fetchChannelStats(slice);
     o.spend(1);
     report.checked += stats.length;
-    for (const s of stats) {
-      if (!left() || !o.canSpend(2)) break;
+    await pool(stats, 6, async (s) => {
+      if (!left() || !o.canSpend(2)) return;
       const seed = seeds.get(s.id)!;
       if (await fill(s, { source: seed.source, sourceFolderId: seed.folderId, seenAt: seed.seenAt }, profiles, o.spend)) report.found++;
-    }
+    });
   }
   return report;
 }
@@ -580,7 +620,7 @@ export async function addCandidatesByLinks(text: string): Promise<{ added: numbe
   const todo = ids.filter((id) => !knownIds.has(id));
   let added = 0;
   if (todo.length) {
-    const profiles = await folderProfiles();
+    const { profiles } = await folderProfiles();
     const stats = await fetchChannelStats(todo);
     for (const s of stats) {
       await prisma.radarCandidate.upsert({ where: { externalId: s.id }, create: { externalId: s.id, source: '직접 추가' }, update: { status: 'new' } });
