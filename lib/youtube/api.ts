@@ -1,8 +1,9 @@
 /**
  * YouTube Data API v3 — 키를 돌려 가며 부른다 (lib/youtube/keyManager).
  *
- * 할당량: channels.list · playlistItems.list · videos.list 모두 호출 1번에 1 unit.
+ * 할당량: channels.list · playlistItems.list · videos.list · channelSections.list 모두 호출 1번에 1 unit.
  *  - channels.list / videos.list 는 한 번에 50개까지 묶을 수 있다.
+ *  - search.list 는 한 번에 100 unit (신규 발굴에서만 쓴다).
  */
 
 import { prisma } from '@/lib/db';
@@ -18,7 +19,7 @@ export class QuotaGoneError extends Error {
 }
 
 /** 키 하나가 할당량을 다 쓰면 다음 키로. 모두 소진되면 QuotaGoneError. */
-export async function ytFetch<T = any>(path: string, params: Record<string, string>): Promise<T> {
+export async function ytFetch<T = any>(path: string, params: Record<string, string>, units = 1): Promise<T> {
   let lastErr: Error | null = null;
   for (let attempt = 0; attempt < 5; attempt++) {
     const key = await getActiveKey();
@@ -27,7 +28,7 @@ export async function ytFetch<T = any>(path: string, params: Record<string, stri
     const qs = new URLSearchParams({ ...params, key: key.apiKey });
     const resp = await fetch(`${API}${path}?${qs}`, { cache: 'no-store' });
     if (resp.ok) {
-      await markUsed(key.id, 1);
+      await markUsed(key.id, units);
       return (await resp.json()) as T;
     }
 
@@ -73,6 +74,9 @@ export function parseIsoDurationSeconds(iso: string): number {
 export type YtChannelStat = {
   id: string;
   title: string | null;
+  /** @핸들 */
+  handle: string | null;
+  country: string | null;
   thumbnailUrl: string | null;
   createdAt: Date | null;
   subscriberCount: number | null;
@@ -94,6 +98,8 @@ export async function fetchChannelStats(ids: string[]): Promise<YtChannelStat[]>
       out.push({
         id: it.id,
         title: it.snippet?.title ?? null,
+        handle: it.snippet?.customUrl ?? null,
+        country: it.snippet?.country ?? null,
         thumbnailUrl: it.snippet?.thumbnails?.default?.url ?? null,
         createdAt: it.snippet?.publishedAt ? new Date(it.snippet.publishedAt) : null,
         subscriberCount: st.subscriberCount != null && !st.hiddenSubscriberCount ? Number(st.subscriberCount) : null,
@@ -103,6 +109,82 @@ export async function fetchChannelStats(ids: string[]): Promise<YtChannelStat[]>
     }
   }
   return out;
+}
+
+/** 최근 영상 검색 (100 unit) — 신규 발굴. 조회수 순, 한국·한국어 */
+export async function searchRecentVideos(
+  q: string,
+  opts: { since: Date; short?: boolean; max?: number }
+): Promise<{ videoId: string; channelId: string; publishedAt: Date; title: string }[]> {
+  const json = await ytFetch<{ items?: any[] }>(
+    '/search',
+    {
+      part: 'snippet',
+      type: 'video',
+      order: 'viewCount',
+      regionCode: 'KR',
+      relevanceLanguage: 'ko',
+      publishedAfter: opts.since.toISOString(),
+      maxResults: String(opts.max ?? 50),
+      ...(q ? { q } : {}),
+      ...(opts.short ? { videoDuration: 'short' } : {}),
+    },
+    100
+  );
+  return (json.items ?? [])
+    .filter((it) => it.id?.videoId && it.snippet?.channelId)
+    .map((it) => ({
+      videoId: it.id.videoId,
+      channelId: it.snippet.channelId,
+      publishedAt: new Date(it.snippet.publishedAt ?? Date.now()),
+      title: it.snippet.title ?? '',
+    }));
+}
+
+/** 한국 인기 급상승 영상의 채널 (쪽마다 1 unit, 최대 200개) */
+export async function mostPopularChannels(pages = 4): Promise<{ channelId: string; publishedAt: Date }[]> {
+  const out: { channelId: string; publishedAt: Date }[] = [];
+  let pageToken: string | undefined;
+  for (let i = 0; i < pages; i++) {
+    const json = await ytFetch<{ items?: any[]; nextPageToken?: string }>('/videos', {
+      part: 'snippet',
+      chart: 'mostPopular',
+      regionCode: 'KR',
+      maxResults: '50',
+      ...(pageToken ? { pageToken } : {}),
+    });
+    for (const it of json.items ?? []) {
+      if (it.snippet?.channelId) out.push({ channelId: it.snippet.channelId, publishedAt: new Date(it.snippet.publishedAt ?? Date.now()) });
+    }
+    pageToken = json.nextPageToken;
+    if (!pageToken) break;
+  }
+  return out;
+}
+
+/** 채널 페이지의 「추천 채널」 칸에 걸린 채널들 (1 unit) */
+export async function featuredChannels(channelId: string): Promise<string[]> {
+  try {
+    const json = await ytFetch<{ items?: any[] }>('/channelSections', { part: 'contentDetails', channelId });
+    return [...new Set((json.items ?? []).flatMap((s) => (s.contentDetails?.channels as string[] | undefined) ?? []))].filter((c) => c.startsWith('UC'));
+  } catch (e) {
+    if (e instanceof QuotaGoneError) throw e;
+    return [];
+  }
+}
+
+/** 채널 링크·@핸들·UC ID → UC ID (@핸들은 1 unit) */
+export async function resolveChannelRef(ref: string): Promise<string | null> {
+  let s = ref.trim();
+  try {
+    s = decodeURIComponent(s); // youtube.com/@%EB%A7%8C… 꼴 한글 핸들
+  } catch {}
+  const uc = s.match(/(UC[\w-]{22})/);
+  if (uc) return uc[1];
+  const h = s.match(/@([\w.\-가-힣]+)/) ?? s.match(/^([\w.\-가-힣]{3,})$/);
+  if (!h) return null;
+  const json = await ytFetch<{ items?: any[] }>('/channels', { part: 'id', forHandle: '@' + h[1] });
+  return json.items?.[0]?.id ?? null;
 }
 
 /** 채널 업로드 목록의 최신 영상 ID (uploads 재생목록 = UU + 채널ID 뒷부분) */
