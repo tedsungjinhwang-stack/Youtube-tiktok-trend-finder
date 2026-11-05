@@ -19,6 +19,7 @@ export type CredService =
   | 'GOOGLE_TRENDS_PROXY'
   | 'NAVER_DEV_CLIENT_ID'
   | 'NAVER_DEV_CLIENT_SECRET'
+  | 'ANTHROPIC_API_KEY'
   | 'NEXT_PUBLIC_SUPABASE_URL'
   | 'NEXT_PUBLIC_SUPABASE_ANON_KEY'
   | 'SUPABASE_SERVICE_ROLE_KEY'
@@ -66,6 +67,11 @@ export const CRED_META: Record<
   NAVER_DEV_CLIENT_SECRET: {
     label: '네이버 개발자센터 · Client Secret',
     description: '같은 애플리케이션의 Client Secret',
+    editable: true,
+  },
+  ANTHROPIC_API_KEY: {
+    label: 'Claude API',
+    description: '꿀통레이더 AI 브리핑 — console.anthropic.com → API Keys 에서 만든 키 (sk-ant-…). 분석 버튼을 누를 때만 쓴다',
     editable: true,
   },
   GOOGLE_TRENDS_PROXY: {
