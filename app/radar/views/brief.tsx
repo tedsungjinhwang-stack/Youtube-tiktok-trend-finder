@@ -127,19 +127,40 @@ function OutlookBoard() {
   const [rows, setRows] = useState<PackOutlook[] | null>(null);
   const [sort, setSort] = useState<SortKey>('score');
   const [all, setAll] = useState(false);
+  // 기본은 한국어 채널만 (외국어 채널은 점수·목록에서 뺀다)
+  const [foreign, setForeign] = useState(false);
   useEffect(() => {
-    fetch('/api/radar/outlook')
+    fetch('/api/radar/outlook' + (foreign ? '?foreign=1' : ''))
       .then((r) => r.json())
       .then((d: { ok: boolean; rows?: PackOutlook[] }) => setRows(d.rows ?? []))
       .catch(() => setRows([]));
-  }, []);
+  }, [foreign]);
   if (!rows?.length) return null;
+  const foreignTotal = rows.reduce((a, r) => a + (r.foreignChannels ?? 0), 0);
+  const toggle = (
+    <button
+      onClick={() => setForeign(!foreign)}
+      className="h-7 rounded-lg px-2.5 text-[12px] font-bold"
+      style={foreign ? { background: 'var(--accent-solid)', color: 'var(--on-accent, #fff)' } : { background: 'var(--chip)' }}
+      title="외국어 채널 = 채널 이름에 한글이 없고, 수집한 영상 제목 중 한글이 든 비율도 30% 미만"
+    >
+      {foreign ? '외국어 채널 포함 중' : '외국어 채널 포함'}
+    </button>
+  );
   const val = (r: PackOutlook) => (r[sort] ?? -1e12) as number;
   const sorted = [...rows].sort((a, b) => (sort === 'top3SharePct' ? val(a) - val(b) : val(b) - val(a)));
   const shown = all ? sorted : sorted.slice(0, 15);
   const top5 = rows.slice(0, 5);
   return (
     <>
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-[12px] font-semibold text-muted-foreground">
+        {toggle}
+        <span>
+          {foreign
+            ? '외국어 채널까지 넣어 계산한 점수입니다.'
+            : `한국 시장 기준 — 외국어 채널 ${foreignTotal.toLocaleString()}곳은 점수·잘 나온 채널·대박 신생에서 뺐습니다.`}
+        </span>
+      </div>
       <Section title="떡상 카테고리 TOP 5">
         <div className="grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
           {top5.map((p, i) => (
@@ -191,7 +212,7 @@ function OutlookBoard() {
                     {r.pack}
                     {r.reuseRisk && <span className="ml-1 text-[11px]" style={{ color: 'var(--amber)' }} title="남의 영상을 편집하는 팩 — 저작권 주의">©</span>}
                     <span className="ml-1 text-[11px] font-semibold text-[color:var(--text-faint)]">
-                      {r.channels}곳 · 쇼츠 {r.shortsPct}%
+                      {r.channels}곳{!foreign && r.foreignChannels ? ` (외국어 ${r.foreignChannels} 제외)` : ''} · 쇼츠 {r.shortsPct}%
                     </span>
                   </td>
                   <td className="px-2 py-1.5 text-right">
