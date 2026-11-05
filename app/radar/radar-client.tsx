@@ -20,6 +20,7 @@ import { MatchFixView, WorkAliasFix } from './views/fix';
 import { PastView } from './views/past';
 import { RankingView } from './views/ranking';
 import { RookiesView } from './views/rookies';
+import { BriefView } from './views/brief';
 import { WatchlistView } from './views/watchlist';
 import { radarDataAction } from './actions';
 
@@ -371,6 +372,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     group: '',
     items: [
       { key: 'home', label: '홈' },
+      { key: 'brief', label: 'AI 브리핑' },
       { key: 'ranking', label: '채널 순위' },
       { key: 'hot', label: '터진 영상' },
       { key: 'rookies', label: '신규 발굴' },
@@ -537,7 +539,7 @@ function SummaryTile({ label, value, detail }: { label: string; value: string; d
 
 /** 실제 데이터로 도는 화면 — 시안(아래 꿀통 화면)의 머리말·요약을 쓰지 않는다 */
 const REAL_VIEWS = new Set([
-  'home', 'ranking', 'rookies', 'watchlist', 'past', 'matchfix', 'schedule', 'tone', 'season', 'entry', 'golden', 'awards', 'person', 'speed',
+  'home', 'brief', 'ranking', 'rookies', 'watchlist', 'past', 'matchfix', 'schedule', 'tone', 'season', 'entry', 'golden', 'awards', 'person', 'speed',
   ...Object.keys(HOT_PRESETS),
 ]);
 
@@ -605,6 +607,8 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
           <MatchFixView />
         ) : view === 'rookies' ? (
           <RookiesView />
+        ) : view === 'brief' ? (
+          <BriefView />
         ) : view === 'watchlist' ? (
           <WatchlistView
             onRanking={(id) => {
