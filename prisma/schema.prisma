@@ -269,6 +269,8 @@ model RadarCandidate {
   checkedAt        DateTime?
   /// 기준을 넘었나 (직접 추가·pint 목록은 기준 밖이어도 남긴다)
   qualified        Boolean   @default(false)
+  /// 어느 기준으로 넘었나: 대박 신생 | 최근 잘 나옴
+  qualifiedBy      String?
   foundAt          DateTime  @default(now())
   decidedAt        DateTime?
 
