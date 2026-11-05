@@ -44,7 +44,7 @@ const CATEGORY_FOLDER: Record<string, string> = {
   intl_variety: '해외 예능',
 };
 /** 어느 팩에나 나오는 말 — 팩을 가르는 데 쓸모가 없어 말 비교·검색어에서 뺀다 */
-const STOP_TOKENS = new Set([
+export const STOP_TOKENS = new Set([
   'shorts', 'short', '쇼츠', 'youtube', 'youtubeshorts', 'fyp', 'viral', 'trending', 'funny', 'shortvideo', 'shortsvideo', 'shortsfeed',
   '추천', '레전드', '영상', '오늘', '이유', '진짜', '결국', '순간', '방법', '정체', '선택한', '보고', '지금', '그냥', '너무', '그리고', '하는',
   '있는', '없는', '이런', '그런', '무슨', '모든', '역대급', '충격', '반전', '사람', '사람들', '우리', '정말', '바로', '한국',

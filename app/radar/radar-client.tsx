@@ -372,7 +372,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     group: '',
     items: [
       { key: 'home', label: '홈' },
-      { key: 'brief', label: 'AI 브리핑' },
+      { key: 'brief', label: 'AI 종합 분석' },
       { key: 'ranking', label: '채널 순위' },
       { key: 'hot', label: '터진 영상' },
       { key: 'rookies', label: '신규 발굴' },
