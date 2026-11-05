@@ -411,7 +411,7 @@ const SCHEMA = {
         properties: {
           pack: { type: 'string' },
           verdict: { type: 'string', enum: ['강력 추천', '추천', '지켜보기'] },
-          why: { type: 'string', description: '수치 근거: 1주 흐름 · 영상당 중앙값 · 10만+ 비율 · 신생 비중 · 상위 3채널 쏠림' },
+          why: { type: 'string', description: '수치 근거: 채널 오름세·오른 채널 비율 · 채널 성과 · 영상당 몫 · 신생 성공률 · 쏠림, 잘 나온 채널·대박 신생 이름' },
           entry: { type: 'string', description: '새 채널로 들어간다면 어떤 결·포맷으로 (예: 쇼츠, 소재, 업로드 빈도)' },
           risk: { type: 'string', description: '저작권·포화·일시 유행 등 위험' },
         },
@@ -531,7 +531,7 @@ const SYSTEM = `너는 한국 유튜브 쇼츠 채널 운영자를 돕는 트렌
 (4) 오늘 날짜, 이번 달·다음 달 시상식, 작년 이맘때 터진 영상(조회 100만+)
 
 할 일:
-- 유망 카테고리: 기회판(outlook)을 보고 지금 들어가기 좋은 카테고리를 고른다. 점수만 따르지 말고 수요 흐름(weekGrowthPct), 영상당 조회(medianViews), 10만+ 비율, 신생 비중(youngSharePct)·대박 신생 수, 상위 3채널 쏠림(top3SharePct)을 함께 따져, 새로 들어가는 채널이 먹힐 곳인지 판단한다. 저작권 위험이 큰 짜집기류는 risk 에 적는다.
+- 유망 카테고리: 기회판(outlook)을 보고 지금 떡상 중이고 새 채널이 들어가도 먹힐 카테고리를 고른다. 점수만 따르지 말고 채널 단위 오름세(growthPct, 채널별 증가율 중앙값)·오른 채널 비율(risingPct), 채널 성과(channelMedianViews), 영상당 몫(viewsPerUpload, 공급 대비 수요), 신생 성공률(youngSuccess/youngChannels)·대박 신생 수, 상위 3채널 쏠림(top3SharePct)을 함께 따진다. 상위 팩의 hot(최근 잘 나온 채널)·rookieList(대박 신생)를 근거로 이름을 들어 설명한다. reuseRisk 가 true 면 저작권 위험을 risk 에 적는다.
 - 카테고리(채널팩) 흐름: 어느 팩이 뜨고 꺼지는지 수치로 짚고 원인과 지금 만들 것을 낸다.
 - 키워드: 일주일 전보다 확 늘어난 해시태그 위주로 왜 뜨는지와 탈 방법.
 - 인물마다 왜 지금 뜨는지 기사·구글·유튜브 근거를 엮어 설명하고, 이 인물로 같이 탈 작품(출연작·화제작)과 쇼츠 기획을 낸다.

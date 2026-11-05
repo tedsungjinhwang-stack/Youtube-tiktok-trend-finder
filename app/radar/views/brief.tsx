@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Brief, BriefInput } from '@/lib/radar/brief';
-import type { PackOutlook } from '@/lib/radar/outlook';
+import type { ChannelHighlight, PackOutlook } from '@/lib/radar/outlook';
 import { Chip, Empty, ago, short } from './parts';
 
 /**
@@ -108,16 +108,19 @@ export function BriefView() {
   );
 }
 
-type SortKey = 'score' | 'weekGrowthPct' | 'medianViews' | 'hit100kPct' | 'youngSharePct' | 'top3SharePct' | 'dailyViews';
+type SortKey = 'score' | 'growthPct' | 'risingPct' | 'channelMedianViews' | 'viewsPerUpload' | 'youngSuccessPct' | 'top3SharePct' | 'dailyViews';
 const COLS: { key: SortKey; label: string; title: string }[] = [
-  { key: 'score', label: '기회', title: '오름세 25 · 영상당 조회 25 · 10만+ 비율 20 · 신생 비중 20 · 열린 판 10 (팩끼리 순위로)' },
-  { key: 'dailyViews', label: '하루 조회', title: '팩 채널들의 하루 조회수 합 (최근 3일 평균)' },
-  { key: 'weekGrowthPct', label: '1주 전 대비', title: '최근 3일 평균 vs 7~10일 전 3일 평균' },
-  { key: 'medianViews', label: '영상당 중앙값', title: '최근 7일 새 영상(1일 이상 된 것) 조회수 중앙값' },
-  { key: 'hit100kPct', label: '10만+', title: '최근 7일 새 영상 중 10만 회 넘은 비율' },
-  { key: 'youngSharePct', label: '신생 비중', title: '개설 1년 이내 채널이 팩 조회에서 차지하는 비중' },
+  { key: 'score', label: '기회', title: '오름세 20 · 오른 채널 10 · 채널 성과 30 · 영상당 몫 5 · 신생 성공률 25 · 열린 판 10 (표본 적으면 50 쪽으로)' },
+  { key: 'dailyViews', label: '하루 조회', title: '팩 채널들의 하루 조회수 합' },
+  { key: 'growthPct', label: '오름세(시장 대비)', title: '채널별 하루 조회 증가율의 중앙값이 전체 채널 중앙값보다 몇 % 높나 — 큰 채널 하나가 터진 건 반영 안 됨' },
+  { key: 'risingPct', label: '오른 채널', title: '시장보다 20% 넘게 더 오른 채널 비율' },
+  { key: 'channelMedianViews', label: '채널 성과', title: '채널마다 최근 7일 영상 조회 중앙값 → 그 중앙값' },
+  { key: 'viewsPerUpload', label: '영상당 몫', title: '팩 하루 조회 ÷ 하루 새 영상 수 — 공급 대비 수요' },
+  { key: 'youngSuccessPct', label: '신생 성공률', title: '개설 1년 이내 채널 중 최근 영상 중앙값 1만+ 비율 (표본 적으면 전체 평균 쪽으로)' },
   { key: 'top3SharePct', label: '상위3 쏠림', title: '상위 3채널이 팩 조회에서 차지하는 비중 — 낮을수록 열린 판' },
 ];
+
+const pct = (v: number | null) => (v == null ? '—' : `${v > 0 ? '+' : ''}${v}%`);
 
 /** 카테고리 기회판 — AI 없이 계산 (1시간마다 새로) */
 function OutlookBoard() {
@@ -131,66 +134,129 @@ function OutlookBoard() {
       .catch(() => setRows([]));
   }, []);
   if (!rows?.length) return null;
-  const sorted = [...rows].sort((a, b) => (sort === 'top3SharePct' ? a[sort] - b[sort] : ((b[sort] ?? -1e9) as number) - ((a[sort] ?? -1e9) as number)));
+  const val = (r: PackOutlook) => (r[sort] ?? -1e12) as number;
+  const sorted = [...rows].sort((a, b) => (sort === 'top3SharePct' ? val(a) - val(b) : val(b) - val(a)));
   const shown = all ? sorted : sorted.slice(0, 15);
+  const top5 = rows.slice(0, 5);
   return (
-    <Section title="카테고리 기회판">
-      <div className="card-surface theme-fade overflow-x-auto rounded-[18px]">
-        <table className="w-full min-w-[760px] text-[12.5px]">
-          <thead>
-            <tr className="text-left text-[11.5px] font-extrabold text-[color:var(--text-faint)]">
-              <th className="px-3 py-2">카테고리</th>
-              {COLS.map((c) => (
-                <th key={c.key} className="px-2 py-2 text-right">
-                  <button title={c.title} onClick={() => setSort(c.key)} className={sort === c.key ? 'text-foreground' : 'hover:text-foreground'}>
-                    {c.label}
-                    {sort === c.key ? ' ▾' : ''}
-                  </button>
-                </th>
-              ))}
-              <th className="px-2 py-2 text-right">대박 신생</th>
-            </tr>
-          </thead>
-          <tbody className="num font-semibold">
-            {shown.map((r) => (
-              <tr key={r.pack} className="border-t" style={{ borderColor: 'var(--chip)' }}>
-                <td className="px-3 py-1.5 font-bold">
-                  {r.pack}
-                  <span className="ml-1 text-[11px] font-semibold text-[color:var(--text-faint)]">
-                    {r.channels}곳 · 쇼츠 {r.shortsPct}%
-                  </span>
-                </td>
-                <td className="px-2 py-1.5 text-right">
-                  <span
-                    className="inline-block min-w-[34px] rounded-md px-1.5 text-center font-extrabold"
-                    style={r.score >= 70 ? { background: 'var(--accent-solid)', color: 'var(--on-accent, #fff)' } : { background: 'var(--chip)' }}
-                  >
-                    {r.score}
-                  </span>
-                </td>
-                <td className="px-2 py-1.5 text-right">{short(r.dailyViews)}</td>
-                <td className="px-2 py-1.5 text-right" style={{ color: (r.weekGrowthPct ?? 0) > 0 ? 'var(--red)' : (r.weekGrowthPct ?? 0) < 0 ? 'var(--text-faint)' : undefined }}>
-                  {r.weekGrowthPct == null ? '—' : `${r.weekGrowthPct > 0 ? '+' : ''}${r.weekGrowthPct}%`}
-                </td>
-                <td className="px-2 py-1.5 text-right">{short(r.medianViews)}</td>
-                <td className="px-2 py-1.5 text-right">{r.hit100kPct}%</td>
-                <td className="px-2 py-1.5 text-right">{r.youngSharePct}%</td>
-                <td className="px-2 py-1.5 text-right">{r.top3SharePct}%</td>
-                <td className="px-2 py-1.5 text-right">{r.rookies || ''}</td>
+    <>
+      <Section title="떡상 카테고리 TOP 5">
+        <div className="grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
+          {top5.map((p, i) => (
+            <Card key={p.pack}>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="num text-[13px] font-black text-[color:var(--text-faint)]">#{i + 1}</span>
+                <span className="text-[16px] font-extrabold">{p.pack}</span>
+                <Chip tone="brand">기회 {p.score}</Chip>
+                {p.reuseRisk && <Chip tone="amber" title="남의 영상을 편집하는 팩">저작권 주의</Chip>}
+              </div>
+              <div className="num mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11.5px] font-semibold text-muted-foreground">
+                <span>오름세(시장 대비) {pct(p.growthPct)}</span>
+                <span>오른 채널 {p.risingPct ?? '—'}%</span>
+                <span>채널 성과 {p.channelMedianViews != null ? short(p.channelMedianViews) : '—'}</span>
+                <span>영상당 몫 {short(p.viewsPerUpload)}</span>
+                <span>
+                  신생 성공 {p.youngSuccess}/{p.youngChannels}
+                </span>
+                <span>상위3 {p.top3SharePct}%</span>
+              </div>
+              <ChannelList label="최근 잘 나온 채널" items={p.hot ?? []} />
+              <ChannelList label="대박 신생" items={p.rookieList ?? []} empty="이 팩엔 아직 없음" />
+            </Card>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="카테고리 기회판">
+        <div className="card-surface theme-fade overflow-x-auto rounded-[18px]">
+          <table className="w-full min-w-[860px] text-[12.5px]">
+            <thead>
+              <tr className="text-left text-[11.5px] font-extrabold text-[color:var(--text-faint)]">
+                <th className="px-3 py-2">카테고리</th>
+                {COLS.map((c) => (
+                  <th key={c.key} className="px-2 py-2 text-right">
+                    <button title={c.title} onClick={() => setSort(c.key)} className={sort === c.key ? 'text-foreground' : 'hover:text-foreground'}>
+                      {c.label}
+                      {sort === c.key ? ' ▾' : ''}
+                    </button>
+                  </th>
+                ))}
+                <th className="px-2 py-2 text-right">대박 신생</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {rows.length > 15 && (
-          <button onClick={() => setAll(!all)} className="w-full py-2 text-[12.5px] font-bold text-muted-foreground hover:text-foreground">
-            {all ? '접기' : `전체 ${rows.length}개 보기`}
-          </button>
-        )}
-      </div>
-      <p className="mt-1.5 text-[11.5px] font-semibold text-[color:var(--text-faint)]">
-        기회 점수 = 오름세(1주 전 대비) 25 · 영상당 조회 중앙값 25 · 10만+ 비율 20 · 신생 채널 조회 비중 20 · 상위 3채널 쏠림 낮음 10. 머리글을 누르면 그 기준으로 정렬.
-      </p>
-    </Section>
+            </thead>
+            <tbody className="num font-semibold">
+              {shown.map((r) => (
+                <tr key={r.pack} className="border-t" style={{ borderColor: 'var(--chip)' }}>
+                  <td className="px-3 py-1.5 font-bold">
+                    {r.pack}
+                    {r.reuseRisk && <span className="ml-1 text-[11px]" style={{ color: 'var(--amber)' }} title="남의 영상을 편집하는 팩 — 저작권 주의">©</span>}
+                    <span className="ml-1 text-[11px] font-semibold text-[color:var(--text-faint)]">
+                      {r.channels}곳 · 쇼츠 {r.shortsPct}%
+                    </span>
+                  </td>
+                  <td className="px-2 py-1.5 text-right">
+                    <span
+                      className="inline-block min-w-[34px] rounded-md px-1.5 text-center font-extrabold"
+                      style={r.score >= 70 ? { background: 'var(--accent-solid)', color: 'var(--on-accent, #fff)' } : { background: 'var(--chip)' }}
+                    >
+                      {r.score}
+                    </span>
+                  </td>
+                  <td className="px-2 py-1.5 text-right">{short(r.dailyViews)}</td>
+                  <td className="px-2 py-1.5 text-right" style={{ color: (r.growthPct ?? 0) > 10 ? 'var(--red)' : (r.growthPct ?? 0) < -10 ? 'var(--text-faint)' : undefined }}>
+                    {pct(r.growthPct)}
+                  </td>
+                  <td className="px-2 py-1.5 text-right">{r.risingPct == null ? '—' : `${r.risingPct}%`}</td>
+                  <td className="px-2 py-1.5 text-right">{r.channelMedianViews == null ? '—' : short(r.channelMedianViews)}</td>
+                  <td className="px-2 py-1.5 text-right">{short(r.viewsPerUpload)}</td>
+                  <td className="px-2 py-1.5 text-right" title={`신생 ${r.youngChannels}곳 중 ${r.youngSuccess}곳 성공`}>
+                    {r.youngSuccessPct}% <span className="text-[10.5px] text-[color:var(--text-faint)]">({r.youngSuccess}/{r.youngChannels})</span>
+                  </td>
+                  <td className="px-2 py-1.5 text-right">{r.top3SharePct}%</td>
+                  <td className="px-2 py-1.5 text-right">{r.rookies || ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rows.length > 15 && (
+            <button onClick={() => setAll(!all)} className="w-full py-2 text-[12.5px] font-bold text-muted-foreground hover:text-foreground">
+              {all ? '접기' : `전체 ${rows.length}개 보기`}
+            </button>
+          )}
+        </div>
+        <p className="mt-1.5 text-[11.5px] font-semibold text-[color:var(--text-faint)]">
+          채널 단위로 계산 — 큰 채널 하나가 터진 건 팩 오름세에 안 들어가고, 오름세는 전체 채널 대비입니다. 비교 기간: {rows[0]?.growthBasis}. 기회 점수 = 채널 성과 30 · 신생 성공률 25 · 오름세 20 · 오른 채널 10 · 열린 판 10 · 영상당 몫 5 (조회 크기는 로그 척도, 나머지는 팩끼리 순위, 표본이 적은 팩은 50 쪽으로). © = 남의 영상 편집 팩. 머리글을 누르면 정렬.
+        </p>
+      </Section>
+    </>
+  );
+}
+
+function ChannelList({ label, items, empty }: { label: string; items: ChannelHighlight[]; empty?: string }) {
+  if (!items.length && !empty) return null;
+  return (
+    <div className="mt-2.5">
+      <div className="mb-1 text-[11.5px] font-extrabold text-[color:var(--text-faint)]">{label}</div>
+      {items.length === 0 ? (
+        <p className="text-[12px] text-muted-foreground">{empty}</p>
+      ) : (
+        <ul className="space-y-0.5">
+          {items.map((c) => (
+            <li key={c.externalId} className="flex min-w-0 items-baseline gap-1.5 text-[12.5px]">
+              <a href={`https://www.youtube.com/channel/${c.externalId}`} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate font-bold hover:underline">
+                {c.name}
+              </a>
+              {c.rookie ? <Chip tone="green">대박 신생</Chip> : c.young ? <Chip>신생</Chip> : null}
+              <span className="num ml-auto shrink-0 text-[11.5px] font-semibold text-muted-foreground">
+                영상 중앙값 {short(c.medianViews)} · 하루 {short(c.dailyViews)}
+                {c.growthPct != null && ` (${c.growthPct > 0 ? '+' : ''}${c.growthPct}%)`}
+                {c.subscribers != null && ` · 구독 ${short(c.subscribers)}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
