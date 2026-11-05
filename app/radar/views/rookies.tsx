@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { Pill } from '../../trends/ui';
 import type { CandidateList, CandidateRow, RookieRow } from '@/lib/radar/discover';
+import type { PackPlan } from '@/lib/radar/packPlan';
 import {
   acceptAllSuggestedAction,
   acceptCandidateAction,
@@ -15,12 +16,13 @@ import {
 import { Chip, Empty, FORMAT_LABEL, VideoThumb, ago, channelAge, short } from './parts';
 
 /**
- * 신규 발굴 — 아직 채널팩에 없는 '대박 신생' 채널.
- * 수집기가 2시간마다 유튜브 검색·인기 급상승·추천 채널에서 찾아, 기준을 넘은 것만 팩 추천과 함께 올린다.
+ * 신규 발굴 — 아직 채널팩에 없는 '대박 신생' · '최근 잘 나옴' 채널.
+ * Claude 가 하루 한 번 팩마다 검색어를 만들고(새 카테고리도 제안), 수집기가 2시간마다 그 검색어·인기 급상승·추천 채널에서 찾아
+ * 기준을 넘은 것만 팩 추천과 함께 올린다.
  * 「넣기」를 누르면 그 팩 채널이 되고 다음 수집부터 매시간 잰다.
  */
 
-type Tab = 'new' | 'added' | 'rejected' | 'packs';
+type Tab = 'new' | 'added' | 'rejected' | 'packs' | 'plan';
 
 /** 추천 1순위가 이 점수 이상이면 「추천대로 모두 넣기」 대상 */
 const AUTO_MIN = 0.3;
@@ -39,7 +41,9 @@ export function RookiesView() {
     let alive = true;
     start(async () => {
       try {
-        if (tab === 'packs') {
+        if (tab === 'plan') {
+          // 계획 화면은 PlanView 가 직접 불러온다
+        } else if (tab === 'packs') {
           const r = await rookiesInPacksAction();
           if (alive) setPacks(r);
         } else {
@@ -57,7 +61,9 @@ export function RookiesView() {
   }, [tab, reload]);
 
   const refresh = () => setReload((n) => n + 1);
-  const autoCount = (data?.rows ?? []).filter((r) => r.status === 'new' && r.qualified && (r.suggestions[0]?.score ?? 0) >= AUTO_MIN).length;
+  const autoCount = (data?.rows ?? []).filter(
+    (r) => r.status === 'new' && r.qualified && (r.suggestions.find((s) => !s.folderId.startsWith('new:'))?.score ?? 0) >= AUTO_MIN
+  ).length;
 
   const addLinks = async () => {
     if (!links.trim()) return;
@@ -81,8 +87,9 @@ export function RookiesView() {
       <div className="mb-3">
         <h1 className="text-[26px] font-extrabold tracking-[-0.04em]">신규 발굴</h1>
         <p className="mt-1 text-[13px] font-semibold text-muted-foreground">
-          아직 채널팩에 없는 대박 신생 채널 — 개설 1년 이내 · 영상 400개 이하 · 영상당 평균 100만 회+ · 30일 안에 업로드. 2시간마다 유튜브 검색·인기
-          급상승·추천 채널에서 찾습니다.
+          아직 채널팩에 없는 한국어 채널 중 <b>대박 신생</b>(개설 1년 이내 · 영상 400개 이하 · 영상당 평균 100만 회+ · 30일 안에 업로드) 또는{' '}
+          <b>최근 잘 나옴</b>(30일 안 영상 3개+ · 조회수 중앙값 5만 회+ · 14일 안에 업로드). Claude 가 하루 한 번 팩마다 만든 검색어로 2시간마다
+          유튜브를 찾고, 인기 급상승·추천 채널도 봅니다.
         </p>
       </div>
 
@@ -100,6 +107,9 @@ export function RookiesView() {
           <span className="mx-1 h-4 w-px" style={{ background: 'var(--chip)' }} />
           <Pill strong active={tab === 'packs'} onClick={() => setTab('packs')}>
             팩 안의 대박 신생
+          </Pill>
+          <Pill strong active={tab === 'plan'} onClick={() => setTab('plan')}>
+            Claude 검색어 · 새 카테고리
           </Pill>
           {tab === 'new' && autoCount > 0 && (
             <button
@@ -137,7 +147,9 @@ export function RookiesView() {
         {msg && <p className="text-[12.5px] font-semibold text-muted-foreground">{msg}</p>}
       </div>
 
-      {err ? (
+      {tab === 'plan' ? (
+        <PlanView />
+      ) : err ? (
         <Empty>불러오지 못했습니다 — {err}</Empty>
       ) : tab === 'packs' ? (
         !packs ? (
@@ -221,11 +233,18 @@ function CandidateCard({ r, folders, onDone }: { r: CandidateRow; folders: { id:
               {r.title ?? r.externalId}
             </a>
             {r.contentFormat && <Chip>{FORMAT_LABEL[r.contentFormat] ?? r.contentFormat}</Chip>}
-            {r.qualified ? <Chip tone="green">대박 신생</Chip> : r.checked ? <Chip tone="amber">기준 밖</Chip> : <Chip>확인 중</Chip>}
+            {r.qualified ? (
+              <Chip tone={r.qualifiedBy === '최근 잘 나옴' ? 'brand' : 'green'}>{r.qualifiedBy ?? '대박 신생'}</Chip>
+            ) : r.checked ? (
+              <Chip tone="amber">기준 밖</Chip>
+            ) : (
+              <Chip>확인 중</Chip>
+            )}
             <Chip title="어디서 찾았나">{r.source}</Chip>
           </div>
           {r.checked ? (
             <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[12px] font-semibold">
+              <Stat label="최근 중앙값">{r.recentMedian != null ? short(r.recentMedian) : '—'}</Stat>
               <Stat label="평균">{r.avgViews != null ? short(r.avgViews) : '—'}</Stat>
               <Stat label="누적">{r.viewCount != null ? short(r.viewCount) : '—'}</Stat>
               <Stat label="영상">{r.videoCount ?? '—'}개</Stat>
@@ -268,7 +287,10 @@ function CandidateCard({ r, folders, onDone }: { r: CandidateRow; folders: { id:
                 <button
                   key={s.folderId}
                   disabled={busy}
-                  onClick={() => put({ folderId: s.folderId })}
+                  onClick={() => {
+                    if (s.folderId.startsWith('new:') && !confirm(`새 팩 「${s.name}」을 만들고 넣을까요?`)) return;
+                    put({ folderId: s.folderId });
+                  }}
                   title={s.reasons.join('\n')}
                   className={
                     'h-8 rounded-[10px] px-3 text-[12.5px] font-bold disabled:opacity-50 ' +
@@ -276,7 +298,13 @@ function CandidateCard({ r, folders, onDone }: { r: CandidateRow; folders: { id:
                   }
                   style={i === 0 ? undefined : { background: 'var(--chip)' }}
                 >
-                  {s.name}에 넣기 <span className="num opacity-75">{Math.round(s.score * 100)}</span>
+                  {s.folderId.startsWith('new:') ? (
+                    <>새 팩 「{s.name}」 만들고 넣기</>
+                  ) : (
+                    <>
+                      {s.name}에 넣기 <span className="num opacity-75">{Math.round(s.score * 100)}</span>
+                    </>
+                  )}
                 </button>
               ))}
             </div>
@@ -396,6 +424,122 @@ function PackRookies({ rows }: { rows: RookieRow[] }) {
           </a>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Claude 가 만든 팩별 검색어 · 새 카테고리 제안 */
+function PlanView() {
+  const [plan, setPlan] = useState<PackPlan | null>(null);
+  const [hasKey, setHasKey] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/radar/pack-plan')
+      .then((r) => r.json())
+      .then((d: { plan: PackPlan | null; hasKey: boolean }) => {
+        setPlan(d.plan);
+        setHasKey(d.hasKey);
+      })
+      .catch((e) => setErr((e as Error).message))
+      .finally(() => setLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    if (!busy) return;
+    const t0 = Date.now();
+    const id = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [busy]);
+
+  const run = async () => {
+    setBusy(true);
+    setElapsed(0);
+    setErr(null);
+    try {
+      const r = await fetch('/api/radar/pack-plan', { method: 'POST' });
+      const d = (await r.json().catch(() => null)) as { ok: boolean; plan?: PackPlan; error?: string } | null;
+      if (!d?.ok || !d.plan) throw new Error(d?.error ?? `만들지 못했습니다 (HTTP ${r.status})`);
+      setPlan(d.plan);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const age = plan ? Date.now() - new Date(plan.generatedAt).getTime() : 0;
+
+  return (
+    <div className="space-y-3">
+      <div className="card-surface theme-fade flex flex-wrap items-center gap-3 rounded-[22px] px-[22px] py-4">
+        <div className="min-w-0 flex-1 text-[12.5px] font-semibold text-muted-foreground">
+          {plan ? (
+            <>
+              {ago(plan.generatedAt)} 만듦 · 팩 {plan.packs.length}곳 · 새 카테고리 {plan.newCategories.length}개 · 비용 약 {plan.costKrw.toLocaleString()}원
+              {age > 2 * 24 * 3600_000 && <span style={{ color: 'var(--amber)' }}> · 이틀 넘게 묵어 수집기는 팩 대표 말로 찾는 중</span>}
+            </>
+          ) : loaded ? (
+            '아직 만든 검색어가 없습니다 — 수집기는 팩마다 최근 영상의 대표 말로 찾는 중입니다. 매일 새벽에 자동으로 만듭니다.'
+          ) : (
+            '불러오는 중…'
+          )}
+          {!hasKey && <span style={{ color: 'var(--red)' }}> · Claude API 키가 없습니다 (설정 → API 키)</span>}
+        </div>
+        <button
+          onClick={run}
+          disabled={busy || !hasKey}
+          className="h-9 rounded-xl bg-brand px-4 text-[13px] font-bold text-brand-foreground disabled:opacity-50"
+        >
+          {busy ? `Claude가 만드는 중… ${elapsed}초` : 'Claude로 검색어 새로 만들기'}
+        </button>
+        {err && <p className="w-full text-[12px] font-semibold" style={{ color: 'var(--red)' }}>{err}</p>}
+      </div>
+
+      {plan && plan.newCategories.length > 0 && (
+        <div className="card-surface theme-fade rounded-[22px] px-[22px] py-4">
+          <h2 className="mb-2 text-[15px] font-extrabold">새 카테고리 제안</h2>
+          <p className="mb-3 text-[12px] font-semibold text-muted-foreground">
+            지금 팩에 없는 주제 — 이 검색어로 찾은 채널은 「새 팩 만들고 넣기」 추천이 붙어 새로 찾음에 올라옵니다.
+          </p>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {plan.newCategories.map((c) => (
+              <div key={c.name} className="rounded-[14px] p-3" style={{ background: 'var(--chip)' }}>
+                <div className="text-[14px] font-extrabold">{c.name}</div>
+                {c.description && <p className="mt-0.5 text-[12.5px] font-semibold">{c.description}</p>}
+                {c.why && <p className="mt-1 text-[12px] font-semibold text-muted-foreground">왜 지금: {c.why}</p>}
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {c.queries.map((q) => (
+                    <Chip key={q}>{q}</Chip>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {plan && plan.packs.length > 0 && (
+        <div className="card-surface theme-fade overflow-hidden rounded-[22px]">
+          <div className="px-5 pt-4 text-[15px] font-extrabold">팩별 검색어</div>
+          <p className="px-5 pt-1 text-[12px] font-semibold text-muted-foreground">
+            수집기가 2시간마다 8개씩 돌아가며 최근 7일 영상을 조회수 순으로 찾습니다.
+          </p>
+          <div className="mt-2 divide-y" style={{ borderColor: 'var(--chip)' }}>
+            {plan.packs.map((p) => (
+              <div key={p.pack} className="flex flex-wrap items-center gap-1.5 px-5 py-2">
+                <span className="w-[140px] shrink-0 truncate text-[13px] font-bold">{p.pack}</span>
+                {p.queries.map((q) => (
+                  <Chip key={q}>{q}</Chip>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

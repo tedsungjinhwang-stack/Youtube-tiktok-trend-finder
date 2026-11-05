@@ -5,6 +5,8 @@
  *   - 유튜브 검색(100 unit): 지금 뜨는 작품 · 채널팩마다 돌아가며 그 팩의 대표 말 · 최근 조회수 높은 쇼츠
  *   - 한국 인기 급상승 영상(4 unit) · 지금 터지는 채널이 걸어 둔 「추천 채널」(채널당 1 unit)
  *  남기는 기준 (pint 「대박 신생」과 같다): 개설 1년 이내 · 영상 400개 이하 · 영상당 평균 100만+ · 30일 안에 업로드
+ *  또는 「최근 잘 나옴」: 30일 안 영상 3개+ · 그 영상 조회수 중앙값 5만+ · 14일 안에 업로드 (오래된 채널이어도)
+ *  검색어는 Claude 가 하루 한 번 팩마다 만든 것(packPlan.ts) — 없으면 팩마다 TF-IDF 대표 말
  *  팩 추천 (AI 없이): 그 채널 최근 영상의 말(제목·태그)이 어느 팩 영상들과 겹치나 + 작품 종류 + 쇼츠/롱폼 + 어느 팩 검색에서 찾았나
  */
 
@@ -29,8 +31,12 @@ const D = 24 * H;
 export const ROOKIE = { maxAgeDays: 365, maxVideos: 400, minAvgViews: 1_000_000, uploadWithinDays: 30 };
 /** 발굴은 이만큼마다 */
 export const DISCOVER_EVERY_MS = 2 * H;
-/** 한 번에 검색 몇 번 (100 unit 씩) */
-const SEARCHES_PER_RUN = 4;
+/** 「최근 잘 나옴」 기준 — 나이와 상관없이 요즘 영상이 잘 나오는 채널 */
+export const HOT_RECENT = { withinDays: 30, minVideos: 3, minMedianViews: 50_000, uploadWithinDays: 14 };
+/** 한 번에 검색 몇 번 (100 unit 씩) — 2시간마다 8번 = 하루 약 9,600 unit */
+const SEARCHES_PER_RUN = 8;
+/** Claude 팩별 검색어 계획 (packPlan.ts 가 쓴다 — 서로 부르지 않게 키만 공유) */
+const PLAN_KEY = 'radar:pack-plan';
 
 /** 주제가 아니라 규모·성격으로 묶은 팩 — 추천 대상에서 뺀다 (pint 동기화의 meta 팩) */
 const META_FOLDERS = new Set(['넘사', '고래', 'No양산형', '주제 자주 변경', '제외', '대기업', '방송사 채널팩', '뉴스공식', '저작권ㄱㅊ?']);
@@ -86,6 +92,19 @@ export function rookieCheck(c: { createdAt: Date | null; videoCount: number | nu
     /** 최근 업로드는 모르는 채로 나머지만 */
     okExceptRecent: young && videos >= 1 && videos <= ROOKIE.maxVideos && avg >= ROOKIE.minAvgViews,
     avg,
+  };
+}
+
+/** 최근 영상 조회수 — 30일 안 영상의 중앙값과 개수 */
+export function recentPerf(samples: { views: number; publishedAt: string }[]) {
+  const cut = Date.now() - HOT_RECENT.withinDays * D;
+  const v = samples.filter((s) => new Date(s.publishedAt).getTime() >= cut).map((s) => s.views).sort((a, b) => a - b);
+  const median = v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : 0;
+  const last = samples.reduce((m, s) => Math.max(m, new Date(s.publishedAt).getTime()), 0);
+  return {
+    n: v.length,
+    median: Math.round(median),
+    ok: v.length >= HOT_RECENT.minVideos && median >= HOT_RECENT.minMedianViews && Date.now() - last <= HOT_RECENT.uploadWithinDays * D,
   };
 }
 
@@ -271,18 +290,24 @@ function formatOf(samples: SampleVideo[]): string | null {
 /** 통계를 받아 후보로 쓴다. 기준을 못 넘으면 keepAnyway 일 때만 남긴다. 남겼으면 true */
 async function fill(
   stat: YtChannelStat,
-  o: { source: string; sourceFolderId?: string | null; seenAt?: Date | null; keepAnyway?: boolean },
+  o: { source: string; sourceFolderId?: string | null; seenAt?: Date | null; keepAnyway?: boolean; newCategory?: string | null },
   profiles: Profile[],
   spend: (u: number) => void
 ): Promise<boolean> {
   const pre = rookieCheck({ createdAt: stat.createdAt, videoCount: stat.videoCount, viewCount: stat.viewCount, lastUploadAt: o.seenAt ?? null });
-  if (!o.keepAnyway && !pre.okExceptRecent) return false;
+  // 최근 영상을 받아 볼 만한가 (2 unit) — 대박 신생 후보이거나, 누적 평균이 조금이라도 되는 채널
+  const maybeHot = pre.avg >= 20_000 && (stat.videoCount ?? 0) >= 5;
+  if (!o.keepAnyway && !pre.okExceptRecent && !maybeHot) return false;
   const samples = await samplesOf(stat.id, spend);
   const last = samples[0] ? new Date(samples[0].publishedAt) : o.seenAt ?? null;
   const check = rookieCheck({ createdAt: stat.createdAt, videoCount: stat.videoCount, viewCount: stat.viewCount, lastUploadAt: last });
-  if (!o.keepAnyway && (!check.ok || !koreanish(stat, samples.map((v) => v.title)))) return false;
+  const recent = recentPerf(samples);
+  const korean = koreanish(stat, samples.map((v) => v.title));
+  const qualifiedBy = check.ok ? '대박 신생' : recent.ok ? '최근 잘 나옴' : null;
+  if (!o.keepAnyway && (!qualifiedBy || !korean)) return false;
   const format = formatOf(samples);
   const suggestions = await suggestFor(samples, format, o.sourceFolderId ?? null, profiles);
+  if (o.newCategory) suggestions.unshift({ folderId: 'new:' + o.newCategory, name: o.newCategory, score: 0.6, reasons: ['Claude 새 카테고리 제안 검색에서 찾음'] });
   const data = {
     title: stat.title,
     handle: stat.handle,
@@ -295,8 +320,9 @@ async function fill(
     lastUploadAt: last,
     contentFormat: format,
     sampleVideos: samples.slice(0, 8) as object,
-    suggestions: suggestions as object,
-    qualified: check.ok,
+    suggestions: suggestions.slice(0, 3) as object,
+    qualified: !!qualifiedBy,
+    qualifiedBy,
     checkedAt: new Date(),
   };
   await prisma.radarCandidate.upsert({
@@ -322,11 +348,15 @@ export async function runDiscovery(o: { canSpend: (u: number) => boolean; spend:
   if ((mark?.payload as { builtAt?: number } | null)?.builtAt !== builtAt) {
     const old = await prisma.radarCandidate.findMany({
       where: { status: 'new', checkedAt: { not: null } },
-      select: { externalId: true, sampleVideos: true, contentFormat: true, sourceFolderId: true },
+      select: { externalId: true, sampleVideos: true, contentFormat: true, sourceFolderId: true, suggestions: true },
       take: 300,
     });
     await pool(old, 8, async (c) => {
       const sug = await suggestFor((c.sampleVideos as unknown as SampleVideo[]) ?? [], c.contentFormat, c.sourceFolderId, profiles);
+      // Claude 새 카테고리 제안은 말 비교로 다시 만들 수 없으니 그대로 둔다
+      const keep = ((c.suggestions as unknown as Suggestion[]) ?? []).filter((x) => x.folderId.startsWith('new:'));
+      sug.unshift(...keep);
+      sug.splice(3);
       await prisma.radarCandidate.update({ where: { externalId: c.externalId }, data: { suggestions: sug as object } });
     });
     await prisma.trendCache.upsert({
@@ -356,10 +386,11 @@ export async function runDiscovery(o: { canSpend: (u: number) => boolean; spend:
   if (o.search === false) return report;
 
   // 2. 씨앗 — 어디서 본 채널인가
-  const seeds = new Map<string, { source: string; folderId: string | null; seenAt: Date | null }>();
-  const addSeed = (id: string, source: string, folderId: string | null, seenAt: Date | null) => {
+  const seeds = new Map<string, { source: string; folderId: string | null; seenAt: Date | null; newCategory: string | null }>();
+  const addSeed = (id: string, source: string, folderId: string | null, seenAt: Date | null, newCategory: string | null = null) => {
     const s = seeds.get(id);
-    if (!s || (seenAt && (!s.seenAt || seenAt > s.seenAt))) seeds.set(id, { source: s?.source ?? source, folderId: s?.folderId ?? folderId, seenAt });
+    if (!s || (seenAt && (!s.seenAt || seenAt > s.seenAt)))
+      seeds.set(id, { source: s?.source ?? source, folderId: s?.folderId ?? folderId, seenAt, newCategory: s?.newCategory ?? newCategory });
   };
 
   if (left() && o.canSpend(4)) {
@@ -367,10 +398,10 @@ export async function runDiscovery(o: { canSpend: (u: number) => boolean; spend:
     o.spend(4);
   }
 
-  // 검색어: 지금 뜨는 작품 · 팩 돌아가며 (그 팩 대표 말) · 6시간마다 최근 조회수 상위 쇼츠
+  // 검색어: 지금 뜨는 작품 · 팩 돌아가며 (Claude 가 만든 팩별 검색어, 없으면 그 팩 대표 말) · 6시간마다 최근 조회수 상위 쇼츠
   const cur = await prisma.trendCache.findUnique({ where: { key: 'radar:discover-cursor' } }).catch(() => null);
   const cursor = (cur?.payload as { i?: number; genericAt?: number } | null) ?? {};
-  const queries: { q: string; source: string; folderId: string | null; short?: boolean }[] = [];
+  const queries: { q: string; source: string; folderId: string | null; short?: boolean; newCategory?: string }[] = [];
   let genericAt = cursor.genericAt ?? 0;
   if (Date.now() - genericAt > 6 * H) {
     queries.push({ q: '', source: '최근 조회수 상위 쇼츠', folderId: null, short: true });
@@ -381,12 +412,12 @@ export async function runDiscovery(o: { canSpend: (u: number) => boolean; spend:
     WHERE v."publishedAt" > NOW() - INTERVAL '48 hours'
     GROUP BY w.id, w.title ORDER BY SUM(v.views) DESC LIMIT 1`;
   for (const w of hotWorks) queries.push({ q: mainTitle(w.title), source: `검색 「${mainTitle(w.title)}」`, folderId: null });
-  const topical = profiles.filter((p) => p.top.length).sort((a, b) => a.name.localeCompare(b.name));
-  let i = (cursor.i ?? 0) % Math.max(1, topical.length);
-  while (topical.length && queries.length < SEARCHES_PER_RUN) {
-    const p = topical[i];
-    queries.push({ q: p.top[0], source: `${p.name} 검색 「${p.top[0]}」`, folderId: p.id });
-    i = (i + 1) % topical.length;
+  const rotation = await searchRotation(profiles);
+  let i = (cursor.i ?? 0) % Math.max(1, rotation.length);
+  while (rotation.length && queries.length < SEARCHES_PER_RUN) {
+    queries.push(rotation[i]);
+    i = (i + 1) % rotation.length;
+    if (i === ((cursor.i ?? 0) % rotation.length)) break;
   }
   await prisma.trendCache.upsert({
     where: { key: 'radar:discover-cursor' },
@@ -401,7 +432,7 @@ export async function runDiscovery(o: { canSpend: (u: number) => boolean; spend:
         const hits = await searchRecentVideos(q.q, { since, short: q.short });
         o.spend(100);
         report.searches++;
-        for (const h of hits) addSeed(h.channelId, q.source, q.folderId, h.publishedAt);
+        for (const h of hits) addSeed(h.channelId, q.source, q.folderId, h.publishedAt, q.newCategory ?? null);
       } catch (e) {
         if (e instanceof QuotaGoneError) throw e;
       }
@@ -439,10 +470,42 @@ export async function runDiscovery(o: { canSpend: (u: number) => boolean; spend:
     await pool(stats, 6, async (s) => {
       if (!left() || !o.canSpend(2)) return;
       const seed = seeds.get(s.id)!;
-      if (await fill(s, { source: seed.source, sourceFolderId: seed.folderId, seenAt: seed.seenAt }, profiles, o.spend)) report.found++;
+      if (await fill(s, { source: seed.source, sourceFolderId: seed.folderId, seenAt: seed.seenAt, newCategory: seed.newCategory }, profiles, o.spend))
+        report.found++;
     });
   }
   return report;
+}
+
+/**
+ * 돌아가며 쓸 검색어 목록. Claude 계획이 있으면 팩마다 검색어 3개를 섞어(팩 1번째 → 팩 2번째 …) 팩이 고루 돌게,
+ * 새 카테고리 제안 검색어도 끼운다. 계획이 없거나 이틀 넘게 묵었으면 팩마다 TF-IDF 대표 말.
+ */
+async function searchRotation(profiles: Profile[]): Promise<{ q: string; source: string; folderId: string | null; newCategory?: string }[]> {
+  const row = await prisma.trendCache.findUnique({ where: { key: PLAN_KEY } }).catch(() => null);
+  const plan = row?.payload as { packs?: { pack: string; queries: string[] }[]; newCategories?: { name: string; queries: string[] }[] } | undefined;
+  const fresh = row && Date.now() - row.fetchedAt.getTime() < 2 * D;
+  const byName = new Map(profiles.map((p) => [p.name, p.id]));
+  const out: { q: string; source: string; folderId: string | null; newCategory?: string }[] = [];
+  if (fresh && plan?.packs?.length) {
+    const packs = plan.packs.filter((p) => byName.has(p.pack)).sort((a, b) => a.pack.localeCompare(b.pack));
+    const cats = plan.newCategories ?? [];
+    for (let k = 0; k < 3; k++) {
+      for (const p of packs) {
+        const q = p.queries[k];
+        if (q) out.push({ q, source: `${p.pack} 검색 「${q}」`, folderId: byName.get(p.pack)! });
+      }
+      for (const c of cats) {
+        const q = c.queries[k];
+        if (q) out.push({ q, source: `새 카테고리 「${c.name}」 검색 「${q}」`, folderId: null, newCategory: c.name });
+      }
+    }
+    if (out.length) return out;
+  }
+  return profiles
+    .filter((p) => p.top.length)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((p) => ({ q: p.top[0], source: `${p.name} 검색 「${p.top[0]}」`, folderId: p.id }));
 }
 
 /* ───────────── 화면 ───────────── */
@@ -465,6 +528,10 @@ export type CandidateRow = {
   status: string;
   folderId: string | null;
   qualified: boolean;
+  /** 대박 신생 | 최근 잘 나옴 */
+  qualifiedBy: string | null;
+  /** 30일 안 영상 조회수 중앙값 */
+  recentMedian: number | null;
   checked: boolean;
   foundAt: string;
 };
@@ -505,6 +572,8 @@ export async function listCandidates(status: 'new' | 'added' | 'rejected'): Prom
       status: r.status,
       folderId: r.folderId,
       qualified: r.qualified,
+      qualifiedBy: r.qualifiedBy ?? (r.qualified ? '대박 신생' : null),
+      recentMedian: r.checkedAt ? recentPerf((r.sampleVideos as unknown as SampleVideo[]) ?? []).median || null : null,
       checked: !!r.checkedAt,
       foundAt: r.foundAt.toISOString(),
     })),
@@ -518,7 +587,8 @@ export async function acceptCandidate(externalId: string, target: { folderId?: s
   const c = await prisma.radarCandidate.findUnique({ where: { externalId } });
   if (!c) throw new Error('후보를 찾지 못했습니다');
   let folder: { id: string; name: string } | null = null;
-  const newName = target.newFolder?.trim();
+  // Claude 새 카테고리 제안 (folderId 'new:이름') 은 그 이름으로 새 팩
+  const newName = (target.folderId?.startsWith('new:') ? target.folderId.slice(4) : target.newFolder)?.trim();
   if (newName) {
     const max = await prisma.folder.aggregate({ _max: { sortOrder: true } });
     folder = await prisma.folder.upsert({
@@ -589,12 +659,13 @@ export async function restoreCandidate(externalId: string): Promise<void> {
   await prisma.radarCandidate.update({ where: { externalId }, data: { status: 'new', decidedAt: null } });
 }
 
-/** 추천 1순위가 minScore 이상인 새 후보를 모두 그 팩에 */
+/** 기존 팩 추천 1순위가 minScore 이상인 새 후보를 모두 그 팩에 */
 export async function acceptAllSuggested(minScore = 0.3): Promise<number> {
   const rows = await prisma.radarCandidate.findMany({ where: { status: 'new', qualified: true }, select: { externalId: true, suggestions: true } });
   let n = 0;
   for (const r of rows) {
-    const top = ((r.suggestions as unknown as Suggestion[]) ?? [])[0];
+    // 새 팩 제안은 사람이 보고 정한다 — 기존 팩 추천만
+    const top = ((r.suggestions as unknown as Suggestion[]) ?? []).find((x) => !x.folderId.startsWith('new:'));
     if (!top || top.score < minScore) continue;
     await acceptCandidate(r.externalId, { folderId: top.folderId });
     n++;

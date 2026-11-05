@@ -9,21 +9,17 @@
  *  결과는 TrendCache 'radar:brief' 에 남겨 두고 화면이 읽는다. 버튼을 눌러야 새로 만든다 (호출마다 비용).
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '@/lib/db';
 import { googleTrending } from '@/lib/trends/google';
-import { readSecret } from '@/lib/trends/cache';
+import { askClaude, hasClaudeKey, NoClaudeKeyError } from './claude';
 import { STOP_TOKENS } from './discover';
+
+export { NoClaudeKeyError };
 import { categoryOutlook, type PackOutlook } from './outlook';
 import type { PersonCredit } from './match';
 import { AWARD_CALENDAR, getSameSeasonPast, getSchedule } from './tabs';
 import { tmdb } from './tmdb';
 
-const MODEL = 'claude-opus-5-5';
-/** 원/달러 어림 (비용 표시용) */
-const USD_KRW = 1400;
-/** claude-opus-5-5 $/1M 토큰 */
-const PRICE = { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 };
 
 /** 인물 이름처럼 잡히지만 일반 단어인 것 */
 const NOT_PERSON = new Set(['남자', '여자', 'ott', 'yg', 'sm', 'jyp', 'hybe', '지수', '아빠', '엄마', '할머니', '할아버지']);
@@ -182,7 +178,7 @@ async function packHeat(): Promise<BriefPackInput[]> {
 }
 
 /** 뜨는 키워드 — 최근 48시간 해시태그·태그를 조회 증가로 무게 (네 채널 이상), 일주일 전 같은 이틀과 비교 */
-async function hotKeywords(): Promise<BriefInput['keywords']> {
+export async function hotKeywords(): Promise<BriefInput["keywords"]> {
   const rows = await prisma.$queryRaw<{ w: string; g24: number; ch: number; n: number; prev: number }[]>`
     WITH t AS (
       SELECT DISTINCT v.id, v."channelId", COALESCE(v."gain24h", 0) AS g, (v."publishedAt" > NOW() - INTERVAL '48 hours') AS cur,
@@ -627,82 +623,22 @@ export type Brief = {
   costKrw: number;
 };
 
-export class NoClaudeKeyError extends Error {
-  constructor() {
-    super('Claude API 키가 없습니다 — 설정 → API 키에서 「Claude API」를 넣어 주세요');
-    this.name = 'NoClaudeKeyError';
-  }
-}
 
 export async function generateBrief(): Promise<Brief> {
-  const apiKey = await readSecret('ANTHROPIC_API_KEY');
-  if (!apiKey) throw new NoClaudeKeyError();
+  if (!(await hasClaudeKey())) throw new NoClaudeKeyError();
   const input = await gatherBriefInput();
   if (!input.persons.length && !input.works.length && !input.packs.length) throw new Error('분석할 인물·작품이 아직 없습니다 (최근 3일 영상이 모이면 다시)');
 
-  // 워크스페이스에 묶이지 않은 키는 어느 워크스페이스로 부를지 헤더로 알려야 한다
-  const workspaceId = await readSecret('ANTHROPIC_WORKSPACE_ID');
-  const client = new Anthropic({
-    apiKey,
-    timeout: 280_000,
-    maxRetries: 1,
-    ...(workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } } : {}),
-  });
   const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
-  const request = client.beta.messages.create({
-    model: MODEL,
-    max_tokens: 20000,
-    betas: ['server-side-fallback-2026-07-01'],
-    // 안전 분류기가 거절하면 서버가 알맞은 다른 모델로 다시 돌린다
-    fallbacks: 'default',
-    // 결과 모양이 커서 문법 강제(structured outputs)는 쓰지 않고, 스키마를 지시로 주고 받은 JSON 을 직접 검사한다
-    output_config: { effort: 'medium' },
-    system: [{ type: 'text', text: SYSTEM_WITH_SCHEMA, cache_control: { type: 'ephemeral' } }],
-    messages: [
-      {
-        role: 'user',
-        content: `오늘은 ${today}이다. 아래 자료로 종합 분석을 써라. 유망 카테고리 최대 5개, 카테고리 흐름 최대 8개, 키워드 최대 8개, 인물 최대 6명, 작품 최대 5개, 공개 예정 최대 8개.\n\n<자료>\n${JSON.stringify(input)}\n</자료>`,
-      },
-    ],
+  const r = await askClaude({
+    system: SYSTEM_WITH_SCHEMA,
+    user: `오늘은 ${today}이다. 아래 자료로 종합 분석을 써라. 유망 카테고리 최대 5개, 카테고리 흐름 최대 8개, 키워드 최대 8개, 인물 최대 6명, 작품 최대 5개, 공개 예정 최대 8개.\n\n<자료>\n${JSON.stringify(input)}\n</자료>`,
+    maxTokens: 20000,
+    effort: 'medium',
   });
-  let response: Awaited<typeof request>;
-  try {
-    response = await request;
-  } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) throw new Error('Claude API 키가 맞지 않습니다 — 설정 → API 키에서 다시 넣어 주세요');
-    if (e instanceof Anthropic.BadRequestError && /workspace/i.test(e.message)) {
-      throw new Error(
-        workspaceId
-          ? 'Claude 워크스페이스 ID가 맞지 않습니다 — 설정 → API 키의 「Claude 워크스페이스 ID」(wrkspc_…)를 확인해 주세요'
-          : '이 키는 워크스페이스를 정해 줘야 합니다 — 설정 → API 키의 「Claude 워크스페이스 ID」에 wrkspc_… 값을 넣거나, 워크스페이스 안에서 만든 키를 써 주세요'
-      );
-    }
-    if (e instanceof Anthropic.RateLimitError) throw new Error('Claude 호출 한도에 걸렸습니다 — 잠시 뒤 다시 시도해 주세요');
-    throw e;
-  }
-  if (response.stop_reason === 'refusal') throw new Error('Claude 가 이 자료의 분석을 거절했습니다');
-  if (response.stop_reason === 'max_tokens') throw new Error('답이 너무 길어 잘렸습니다 — 다시 시도해 주세요');
-  const text = response.content.map((b) => (b.type === 'text' ? b.text : '')).join('');
-  const result = parseResult(text);
+  const result = parseResult(r.text);
   if (!result) throw new Error('Claude 응답을 읽지 못했습니다 — 다시 시도해 주세요');
-
-  const u = response.usage;
-  const usage = {
-    input: u.input_tokens,
-    output: u.output_tokens,
-    cacheRead: u.cache_read_input_tokens ?? 0,
-    cacheWrite: u.cache_creation_input_tokens ?? 0,
-  };
-  const usd =
-    (usage.input * PRICE.input + usage.output * PRICE.output + usage.cacheRead * PRICE.cacheRead + usage.cacheWrite * PRICE.cacheWrite) / 1_000_000;
-  const brief: Brief = {
-    result,
-    input,
-    generatedAt: new Date().toISOString(),
-    model: response.model,
-    usage,
-    costKrw: Math.round(usd * USD_KRW),
-  };
+  const brief: Brief = { result, input, generatedAt: new Date().toISOString(), model: r.model, usage: r.usage, costKrw: r.costKrw };
   await prisma.trendCache.upsert({
     where: { key: 'radar:brief' },
     create: { key: 'radar:brief', payload: brief as object },
@@ -715,7 +651,7 @@ export async function generateBrief(): Promise<Brief> {
 export async function lastBrief(): Promise<{ brief: Brief | null; hasKey: boolean }> {
   const [row, key] = await Promise.all([
     prisma.trendCache.findUnique({ where: { key: 'radar:brief' } }).catch(() => null),
-    readSecret('ANTHROPIC_API_KEY'),
+    hasClaudeKey(),
   ]);
-  return { brief: (row?.payload as unknown as Brief) ?? null, hasKey: !!key };
+  return { brief: (row?.payload as unknown as Brief) ?? null, hasKey: key };
 }
