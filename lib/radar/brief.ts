@@ -14,7 +14,9 @@ import { jsonSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/json-schema';
 import { prisma } from '@/lib/db';
 import { googleTrending } from '@/lib/trends/google';
 import { readSecret } from '@/lib/trends/cache';
+import { STOP_TOKENS } from './discover';
 import type { PersonCredit } from './match';
+import { AWARD_CALENDAR, getSameSeasonPast, getSchedule } from './tabs';
 import { tmdb } from './tmdb';
 
 const MODEL = 'claude-opus-5-5';
@@ -56,11 +58,33 @@ export type BriefWorkInput = {
   news: NewsItem[];
 };
 
+export type BriefPackInput = {
+  pack: string;
+  channels: number;
+  /** 팩 채널들의 어제 하루 조회수 합 · 그 전날 */
+  dailyViews: number;
+  dailyViewsPrev: number;
+  growthPct: number | null;
+  /** 최근 48시간 새 영상 수 · 그 영상들의 최근 24시간 조회 증가 */
+  newVideos48h: number;
+  gain24h: number;
+  topVideos: { title: string; views: number }[];
+};
+
 export type BriefInput = {
+  today: string;
+  packs: BriefPackInput[];
+  keywords: { word: string; gain24h: number; channels: number; videos: number; videosWeekAgo: number }[];
   persons: BriefPersonInput[];
   works: BriefWorkInput[];
   google: { query: string; volume: number; related: string[] }[];
+  season: { awardsThisMonth: string | null; awardsNextMonth: string | null; pastSameSeason: { title: string; views: number; year: string; pack: string | null }[] };
+  thisWeek: { date: string; title: string; ep: string | null; networks: string[] }[];
+  upcoming: { title: string; platform: string; date: string | null; kind: string }[];
 };
+
+/** 주제가 아니라 규모·성격으로 묶은 팩 — 카테고리 분석에서 뺀다 */
+const META_PACKS = new Set(['넘사', '고래', 'No양산형', '주제 자주 변경', '제외', '대기업', '방송사 채널팩', '뉴스공식', '저작권ㄱㅊ?']);
 
 const KIND: Record<string, string> = {
   kr_drama: '한국 드라마',
@@ -112,6 +136,105 @@ async function similarWorks(mediaType: string, tmdbId: number): Promise<{ title:
   } catch {
     return [];
   }
+}
+
+/** 채널팩 열기 — 어제 하루 조회수(전날 대비)와 최근 48시간 새 영상의 조회 증가 */
+async function packHeat(): Promise<BriefPackInput[]> {
+  const rows = await prisma.$queryRaw<{ folderId: string; name: string; ch: number; d: number | null; dp: number | null; n48: number | null; g24: number | null }[]>`
+    WITH ch AS (
+      SELECT "folderId", COUNT(*)::int AS ch, SUM("dailyViews")::float8 AS d, SUM("dailyViewsPrev")::float8 AS dp
+      FROM "Channel" WHERE "isActive" AND platform = 'YOUTUBE' GROUP BY 1
+    ), v AS (
+      SELECT c."folderId", COUNT(*)::int AS n48, SUM(COALESCE(v."gain24h", 0))::float8 AS g24
+      FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId"
+      WHERE v."publishedAt" > NOW() - INTERVAL '48 hours' GROUP BY 1
+    )
+    SELECT f.id AS "folderId", f.name, ch.ch, ch.d, ch.dp, v.n48, v.g24
+    FROM "Folder" f JOIN ch ON ch."folderId" = f.id LEFT JOIN v ON v."folderId" = f.id
+    WHERE ch.ch >= 5`;
+  const use = rows.filter((r) => !META_PACKS.has(r.name) && !r.name.startsWith('__'));
+  // 오른 팩 + 내린 팩 몇 개 (조회 증가 순 상위 22개 + 전날 대비 가장 많이 빠진 4개)
+  const byGain = [...use].sort((a, b) => (b.g24 ?? 0) - (a.g24 ?? 0)).slice(0, 22);
+  const growth = (r: (typeof use)[number]) => (r.d && r.dp ? r.d / r.dp - 1 : null);
+  const falling = use
+    .filter((r) => !byGain.includes(r) && (r.d ?? 0) > 100_000 && (growth(r) ?? 0) < -0.15)
+    .sort((a, b) => (growth(a) ?? 0) - (growth(b) ?? 0))
+    .slice(0, 4);
+  const pick = [...byGain, ...falling];
+  const tops = await prisma.$queryRaw<{ folderId: string; title: string; views: number }[]>`
+    SELECT "folderId", title, views FROM (
+      SELECT c."folderId", v.title, v.views, ROW_NUMBER() OVER (PARTITION BY c."folderId" ORDER BY v."gain24h" DESC NULLS LAST) AS rn
+      FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId"
+      WHERE v."publishedAt" > NOW() - INTERVAL '48 hours' AND c."folderId" = ANY(${pick.map((p) => p.folderId)}::text[])
+    ) x WHERE rn <= 2`;
+  return pick.map((r) => ({
+    pack: r.name,
+    channels: r.ch,
+    dailyViews: Math.round(r.d ?? 0),
+    dailyViewsPrev: Math.round(r.dp ?? 0),
+    growthPct: growth(r) == null ? null : Math.round(growth(r)! * 100),
+    newVideos48h: r.n48 ?? 0,
+    gain24h: Math.round(r.g24 ?? 0),
+    topVideos: tops.filter((t) => t.folderId === r.folderId).map((t) => ({ title: t.title, views: t.views })),
+  }));
+}
+
+/** 뜨는 키워드 — 최근 48시간 해시태그·태그를 조회 증가로 무게 (네 채널 이상), 일주일 전 같은 이틀과 비교 */
+async function hotKeywords(): Promise<BriefInput['keywords']> {
+  const rows = await prisma.$queryRaw<{ w: string; g24: number; ch: number; n: number; prev: number }[]>`
+    WITH t AS (
+      SELECT DISTINCT v.id, v."channelId", COALESCE(v."gain24h", 0) AS g, (v."publishedAt" > NOW() - INTERVAL '48 hours') AS cur,
+        lower(regexp_replace(tok, '[[:space:][:punct:]]', '', 'g')) AS w
+      FROM "RadarVideo" v,
+        unnest(v.tags || COALESCE((SELECT array_agg(m[1]) FROM regexp_matches(v.title, '#([^\s#]+)', 'g') m), '{}')) tok
+      WHERE v."publishedAt" > NOW() - INTERVAL '48 hours'
+         OR v."publishedAt" BETWEEN NOW() - INTERVAL '9 days' AND NOW() - INTERVAL '7 days'
+    )
+    SELECT w, (SUM(g) FILTER (WHERE cur))::float8 AS g24, (COUNT(DISTINCT "channelId") FILTER (WHERE cur))::int AS ch,
+      (COUNT(*) FILTER (WHERE cur))::int AS n, (COUNT(*) FILTER (WHERE NOT cur))::int AS prev
+    FROM t WHERE length(w) BETWEEN 2 AND 20 AND w !~ '^[0-9]+$'
+    GROUP BY w HAVING COUNT(DISTINCT "channelId") FILTER (WHERE cur) >= 4
+    ORDER BY 2 DESC NULLS LAST LIMIT 120`;
+  return rows
+    .filter((r) => !STOP_TOKENS.has(r.w) && !/^(shorts?|쇼츠|숏츠|short|kpop|kdrama|드라마|영화|예능|유머|웃긴영상|reels?|news|뉴스|funny|viral|fyp|trending|youtube|유튜브)$/.test(r.w))
+    .slice(0, 40)
+    .map((r) => ({ word: r.w, gain24h: Math.round(r.g24 ?? 0), channels: r.ch, videos: r.n, videosWeekAgo: r.prev }));
+}
+
+/** 공개 예정 — 45일 안 한국 드라마·예능, 넷플릭스 시리즈, 한국 개봉 영화 (12시간 캐시) */
+async function upcomingReleases(): Promise<BriefInput['upcoming']> {
+  const day = (d: Date) => new Date(d.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
+  const from = day(new Date(Date.now() - 3 * 86_400_000));
+  const to = day(new Date(Date.now() + 45 * 86_400_000));
+  const key = `radar:upcoming:${day(new Date())}`;
+  const c = await prisma.trendCache.findUnique({ where: { key } }).catch(() => null);
+  if (c && Date.now() - c.fetchedAt.getTime() < 12 * 3_600_000) return c.payload as BriefInput['upcoming'];
+  const safe = <T>(p: Promise<T>, fb: T) => p.catch(() => fb);
+  const [krTv, netflix, krMovie] = await Promise.all([
+    safe(tmdb<{ results?: any[] }>('/discover/tv', { with_origin_country: 'KR', 'first_air_date.gte': from, 'first_air_date.lte': to, sort_by: 'popularity.desc' }), {}),
+    safe(tmdb<{ results?: any[] }>('/discover/tv', { with_networks: '213', 'first_air_date.gte': from, 'first_air_date.lte': to, sort_by: 'popularity.desc' }), {}),
+    safe(tmdb<{ results?: any[] }>('/discover/movie', { region: 'KR', 'primary_release_date.gte': from, 'primary_release_date.lte': to, sort_by: 'popularity.desc', with_release_type: '2|3' }), {}),
+  ]);
+  const tvItems = [...(krTv.results ?? []).slice(0, 18), ...(netflix.results ?? []).slice(0, 12)];
+  const seen = new Set<number>();
+  const tv = tvItems.filter((x) => !seen.has(x.id) && seen.add(x.id));
+  // 방송사·OTT 이름은 상세에서
+  const details = await Promise.all(tv.map((x) => safe(tmdb<{ networks?: { name: string }[]; genres?: { id: number }[] }>(`/tv/${x.id}`), {})));
+  const out: BriefInput['upcoming'] = [
+    ...tv.map((x, i) => {
+      const nets = (details[i].networks ?? []).map((n) => n.name);
+      const variety = (x.genre_ids ?? []).some((g: number) => g === 10764 || g === 10767);
+      return {
+        title: (x.name || '').trim(),
+        platform: nets.join(', ') || ((netflix.results ?? []).some((n: any) => n.id === x.id) ? 'Netflix' : ''),
+        date: x.first_air_date || null,
+        kind: (x.origin_country ?? []).includes('KR') ? (variety ? '한국 예능' : '한국 드라마') : variety ? '해외 예능' : '해외 시리즈',
+      };
+    }),
+    ...(krMovie.results ?? []).slice(0, 10).map((x: any) => ({ title: (x.title || '').trim(), platform: '극장', date: x.release_date || null, kind: x.original_language === 'ko' ? '한국 영화' : '해외 영화' })),
+  ].filter((x) => x.title);
+  await prisma.trendCache.upsert({ where: { key }, create: { key, payload: out }, update: { payload: out, fetchedAt: new Date() } }).catch(() => {});
+  return out;
 }
 
 export async function gatherBriefInput(): Promise<BriefInput> {
@@ -177,6 +300,15 @@ export async function gatherBriefInput(): Promise<BriefInput> {
     : [];
   const creditsBy = new Map(castCredits.map((c) => [c.name, (c.credits as unknown as PersonCredit[]) ?? []]));
 
+  const month = Number(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul', month: 'numeric' }));
+  const [packs, keywords, pastSame, schedule, upcoming] = await Promise.all([
+    packHeat(),
+    hotKeywords(),
+    getSameSeasonPast(15).catch(() => []),
+    getSchedule().catch(() => []),
+    upcomingReleases().catch(() => []),
+  ]);
+
   const [similar, personNews, workNews, google] = await Promise.all([
     Promise.all(works.map((w) => similarWorks(w.mediaType, w.tmdbId))),
     Promise.all(topPersons.map((p) => googleNews(p.name))),
@@ -187,6 +319,20 @@ export async function gatherBriefInput(): Promise<BriefInput> {
   ]);
 
   return {
+    today: new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }),
+    packs,
+    keywords,
+    season: {
+      awardsThisMonth: AWARD_CALENDAR.find((a) => a.month === month)?.names ?? null,
+      awardsNextMonth: AWARD_CALENDAR.find((a) => a.month === (month % 12) + 1)?.names ?? null,
+      pastSameSeason: pastSame.map((p) => ({ title: p.title, views: p.views, year: p.publishedAt.slice(0, 4), pack: p.folder })),
+    },
+    thisWeek: schedule
+      .flatMap((d) => d.items.map((it) => ({ date: d.date, title: it.name, ep: it.nextEp ?? it.lastEp, networks: it.networks, pop: it.popularity })))
+      .sort((a, b) => b.pop - a.pop)
+      .slice(0, 20)
+      .map(({ pop: _pop, ...x }) => x),
+    upcoming,
     persons: topPersons.map((p, i) => ({
       name: p.name,
       channels: p.channels,
@@ -248,9 +394,34 @@ const PICK = {
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['headline', 'persons', 'works', 'googleOpportunities'],
+  required: ['headline', 'categories', 'keywords', 'persons', 'works', 'season', 'upcoming', 'googleOpportunities'],
   properties: {
-    headline: { type: 'string', description: '오늘 판을 한두 문장으로' },
+    headline: { type: 'string', description: '오늘 판을 두세 문장으로 — 어느 카테고리·소재가 왜 뜨나' },
+    categories: {
+      type: 'array',
+      description: '채널팩(카테고리) 흐름 5~8개 — 뜨는 것 위주, 꺼지는 것도 있으면',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['pack', 'trend', 'why', 'angle'],
+        properties: {
+          pack: { type: 'string' },
+          trend: { type: 'string', enum: ['상승', '유지', '하락'] },
+          why: { type: 'string', description: '수치 근거(전날 대비·새 영상 조회 증가)와 원인' },
+          angle: { type: 'string', description: '이 카테고리에서 지금 만들 것' },
+        },
+      },
+    },
+    keywords: {
+      type: 'array',
+      description: '지금 뜨는 키워드 5~8개 — 일주일 전보다 늘어난 것 우선',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['keyword', 'why', 'angle'],
+        properties: { keyword: { type: 'string' }, why: { type: 'string' }, angle: { type: 'string', description: '쇼츠로 어떻게 탈지' } },
+      },
+    },
     persons: {
       type: 'array',
       items: {
@@ -294,6 +465,31 @@ const SCHEMA = {
         },
       },
     },
+    season: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['summary', 'ideas'],
+      properties: {
+        summary: { type: 'string', description: '지금 계절·시기(날씨·명절·시험·연말·시상식 등)가 쇼츠 소재에 주는 영향, 작년 이맘때 터진 것' },
+        ideas: { type: 'array', items: { type: 'string' }, description: '계절 소재 쇼츠 기획 2~4개' },
+      },
+    },
+    upcoming: {
+      type: 'array',
+      description: '미리 준비할 공개 예정·막 시작한 작품 4~8개 (드라마·예능·넷플릭스·영화)',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['title', 'platform', 'when', 'why', 'prep'],
+        properties: {
+          title: { type: 'string' },
+          platform: { type: 'string' },
+          when: { type: 'string', description: '공개일 또는 방영 상황' },
+          why: { type: 'string', description: '왜 뜰 것 같나 (출연진·장르·화제성)' },
+          prep: { type: 'string', description: '지금 미리 준비할 것 (출연진 전작 클립·예고편 반응 등)' },
+        },
+      },
+    },
     googleOpportunities: {
       type: 'array',
       description: '구글 급상승인데 우리 유튜브 데이터엔 아직 약한 소재 3~6개 — 선점 기회',
@@ -308,11 +504,19 @@ const SCHEMA = {
 } as const;
 
 const SYSTEM = `너는 한국 유튜브 쇼츠 채널 운영자를 돕는 트렌드 분석가다. 운영자는 드라마·영화·예능 클립, 연예 이슈, 시니어 타깃 쇼츠를 만든다.
-입력은 세 가지 자료다: (1) 감시 중인 유튜브 채널 수만 곳의 최근 3일 수치 — 인물·작품별 채널 수, 영상 수, 최근 24시간 조회 증가, 상위 영상 제목 (2) 구글 급상승 검색어(최근 24시간) (3) 구글 뉴스 최근 기사 제목, 그리고 TMDB 출연작·추천작.
+입력 자료:
+(1) 감시 중인 유튜브 채널 수만 곳(채널팩=카테고리별)의 수치 — 팩별 어제 하루 조회수와 전날 대비, 최근 48시간 새 영상의 조회 증가, 뜨는 해시태그(일주일 전 같은 이틀과 비교), 인물·작품별 채널 수·영상 수·24시간 조회 증가·상위 영상 제목
+(2) 구글 급상승 검색어(최근 24시간)와 구글 뉴스 최근 기사 제목
+(3) TMDB 출연작·추천작, 이번 주 방영 편성, 45일 안 공개 예정작(한국 드라마·예능, 넷플릭스 시리즈, 개봉 영화)
+(4) 오늘 날짜, 이번 달·다음 달 시상식, 작년 이맘때 터진 영상(조회 100만+)
 
 할 일:
+- 카테고리(채널팩) 흐름: 어느 팩이 뜨고 꺼지는지 수치로 짚고 원인과 지금 만들 것을 낸다.
+- 키워드: 일주일 전보다 확 늘어난 해시태그 위주로 왜 뜨는지와 탈 방법.
 - 인물마다 왜 지금 뜨는지 기사·구글·유튜브 근거를 엮어 설명하고, 이 인물로 같이 탈 작품(출연작·화제작)과 쇼츠 기획을 낸다.
 - 작품마다 왜 뜨는지, 결이 맞는 다른 작품(장르·정서·소재가 닮은 것), 같은 배우의 다른 작품, 쇼츠 기획을 낸다.
+- 계절: 오늘 날짜 기준 시기(날씨·명절·수능·연말·시상식 등)와 작년 이맘때 터진 영상을 엮어 계절 소재를 낸다.
+- 공개 예정: 곧 공개되거나 막 시작한 작품 중 뜰 것을 골라, 지금 미리 준비할 것을 낸다.
 - 구글 급상승 중 유튜브 데이터에 아직 약한 소재를 골라 선점 기회로 낸다.
 
 규칙:
@@ -325,6 +529,10 @@ const SYSTEM = `너는 한국 유튜브 쇼츠 채널 운영자를 돕는 트렌
 
 export type BriefResult = {
   headline: string;
+  categories: { pack: string; trend: string; why: string; angle: string }[];
+  keywords: { keyword: string; why: string; angle: string }[];
+  season: { summary: string; ideas: string[] };
+  upcoming: { title: string; platform: string; when: string; why: string; prep: string }[];
   persons: { name: string; heat: string; why: string; evidence: string[]; relatedWorks: { title: string; reason: string }[]; ideas: string[]; caution: string }[];
   works: {
     title: string;
@@ -358,13 +566,13 @@ export async function generateBrief(): Promise<Brief> {
   const apiKey = await readSecret('ANTHROPIC_API_KEY');
   if (!apiKey) throw new NoClaudeKeyError();
   const input = await gatherBriefInput();
-  if (!input.persons.length && !input.works.length) throw new Error('분석할 인물·작품이 아직 없습니다 (최근 3일 영상이 모이면 다시)');
+  if (!input.persons.length && !input.works.length && !input.packs.length) throw new Error('분석할 인물·작품이 아직 없습니다 (최근 3일 영상이 모이면 다시)');
 
   const client = new Anthropic({ apiKey, timeout: 280_000, maxRetries: 1 });
   const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
   const response = await client.beta.messages.parse({
     model: MODEL,
-    max_tokens: 16000,
+    max_tokens: 20000,
     betas: ['server-side-fallback-2026-07-01'],
     // 안전 분류기가 거절하면 서버가 알맞은 다른 모델로 다시 돌린다
     fallbacks: 'default',
@@ -373,7 +581,7 @@ export async function generateBrief(): Promise<Brief> {
     messages: [
       {
         role: 'user',
-        content: `오늘은 ${today}이다. 아래 자료로 브리핑을 써라. 인물은 최대 8명, 작품은 최대 6개.\n\n<자료>\n${JSON.stringify(input)}\n</자료>`,
+        content: `오늘은 ${today}이다. 아래 자료로 종합 분석을 써라. 카테고리 최대 8개, 키워드 최대 8개, 인물 최대 6명, 작품 최대 5개, 공개 예정 최대 8개.\n\n<자료>\n${JSON.stringify(input)}\n</자료>`,
       },
     ],
   });

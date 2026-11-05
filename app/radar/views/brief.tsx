@@ -9,7 +9,7 @@ import { Chip, Empty, ago, short } from './parts';
  * 버튼을 눌러야 새로 만든다 (한 번에 1~3분, Claude 비용). 마지막 결과는 저장해 두고 다시 연다.
  */
 
-const HEAT_TONE: Record<string, 'red' | 'amber' | 'plain'> = { 상승: 'red', 정점: 'amber', '식는 중': 'plain' };
+const HEAT_TONE: Record<string, 'red' | 'amber' | 'plain' | 'green'> = { 상승: 'red', 정점: 'amber', '식는 중': 'plain', 유지: 'amber', 하락: 'plain' };
 
 export function BriefView() {
   const [brief, setBrief] = useState<Brief | null>(null);
@@ -55,9 +55,9 @@ export function BriefView() {
     <>
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[26px] font-extrabold tracking-[-0.04em]">AI 브리핑</h1>
+          <h1 className="text-[26px] font-extrabold tracking-[-0.04em]">AI 종합 분석</h1>
           <p className="mt-1 text-[13px] font-semibold text-muted-foreground">
-            지금 트래픽 타는 인물·작품 — 왜 뜨나, 같이 탈 작품, 결 맞는 작품·같은 배우, 오늘 찍을 쇼츠. 유튜브 수치 · 구글 급상승 · 기사 · TMDB 를 Claude 가 엮습니다.
+            뜨는 카테고리·키워드·인물·작품, 계절, 공개 예정작 — 채널팩 조회수 · 구글 급상승 · 기사 · TMDB · 편성을 Claude 가 엮어 오늘 찍을 쇼츠까지.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -87,7 +87,7 @@ export function BriefView() {
       )}
       {busy && (
         <div className="card-surface mb-3 rounded-xl border px-4 py-2.5 text-[13px] font-semibold text-muted-foreground">
-          유튜브 수치·구글 급상승·기사·TMDB 를 모아 Claude 에게 보내는 중입니다. 1~3분 걸립니다.
+          채널팩 조회수·키워드·구글 급상승·기사·TMDB·편성을 모아 Claude 에게 보내는 중입니다. 2~4분 걸립니다.
         </div>
       )}
       {err && (
@@ -176,6 +176,56 @@ function BriefBody({ brief }: { brief: Brief }) {
     <>
       <div className="card-surface theme-fade mb-4 rounded-[22px] px-5 py-4 text-[15px] font-bold leading-relaxed">{result.headline}</div>
 
+      {(result.categories ?? []).length > 0 && (
+        <Section title="카테고리 흐름">
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            {result.categories.map((c) => {
+              const src = (input.packs ?? []).find((p) => p.pack === c.pack);
+              return (
+                <Card key={c.pack}>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[15px] font-extrabold">{c.pack}</span>
+                    <Chip tone={HEAT_TONE[c.trend] ?? 'plain'}>{c.trend}</Chip>
+                    {src && (
+                      <span className="num text-[11.5px] font-semibold text-[color:var(--text-faint)]">
+                        하루 {short(src.dailyViews)}
+                        {src.growthPct != null && ` (${src.growthPct > 0 ? '+' : ''}${src.growthPct}%)`} · 새 영상 {src.newVideos48h}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-[12.5px] font-semibold leading-snug">{c.why}</p>
+                  <p className="mt-1 text-[12.5px] text-muted-foreground">→ {c.angle}</p>
+                </Card>
+              );
+            })}
+          </div>
+        </Section>
+      )}
+
+      {(result.keywords ?? []).length > 0 && (
+        <Section title="뜨는 키워드">
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+            {result.keywords.map((k) => {
+              const src = (input.keywords ?? []).find((x) => x.word === k.keyword.replace(/^#/, '').toLowerCase().replace(/[\s\p{P}\p{S}]/gu, ''));
+              return (
+                <Card key={k.keyword}>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[14px] font-extrabold">#{k.keyword.replace(/^#/, '')}</span>
+                    {src && (
+                      <span className="num text-[11.5px] font-semibold text-[color:var(--text-faint)]">
+                        영상 {src.videos} (일주일 전 {src.videosWeekAgo}) · 채널 {src.channels}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[12.5px] font-semibold leading-snug">{k.why}</p>
+                  <p className="mt-1 text-[12.5px] text-muted-foreground">→ {k.angle}</p>
+                </Card>
+              );
+            })}
+          </div>
+        </Section>
+      )}
+
       <Section title="뜨는 인물">
         <div className="grid gap-2.5 lg:grid-cols-2">
           {result.persons.map((p) => {
@@ -251,6 +301,46 @@ function BriefBody({ brief }: { brief: Brief }) {
           })}
         </div>
       </Section>
+
+      {result.season && (
+        <Section title="계절·시기">
+          <Card>
+            <p className="text-[13px] font-semibold leading-relaxed">{result.season.summary}</p>
+            <Ideas items={result.season.ideas} />
+            {(input.season?.pastSameSeason ?? []).length > 0 && (
+              <details className="mt-2 text-[12px]">
+                <summary className="cursor-pointer font-bold text-muted-foreground">작년 이맘때 터진 영상 {input.season.pastSameSeason.length}개</summary>
+                <ul className="mt-1 space-y-0.5">
+                  {input.season.pastSameSeason.map((p, i) => (
+                    <li key={i} className="truncate">
+                      {p.year} · {short(p.views)} · {p.title}
+                      {p.pack && <span className="text-[color:var(--text-faint)]"> · {p.pack}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </Card>
+        </Section>
+      )}
+
+      {(result.upcoming ?? []).length > 0 && (
+        <Section title="공개 예정 — 미리 준비">
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            {result.upcoming.map((u, i) => (
+              <Card key={i}>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[15px] font-extrabold">{u.title}</span>
+                  {u.platform && <Chip>{u.platform}</Chip>}
+                  <span className="text-[11.5px] font-semibold text-[color:var(--text-faint)]">{u.when}</span>
+                </div>
+                <p className="mt-1.5 text-[12.5px] font-semibold leading-snug">{u.why}</p>
+                <p className="mt-1 text-[12.5px] text-muted-foreground">준비 → {u.prep}</p>
+              </Card>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {result.googleOpportunities.length > 0 && (
         <Section title="구글 급상승 — 선점 기회">
