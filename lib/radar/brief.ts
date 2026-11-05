@@ -10,7 +10,6 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { jsonSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/json-schema';
 import { prisma } from '@/lib/db';
 import { googleTrending } from '@/lib/trends/google';
 import { readSecret } from '@/lib/trends/cache';
@@ -549,6 +548,56 @@ const SYSTEM = `너는 한국 유튜브 쇼츠 채널 운영자를 돕는 트렌
 - 쇼츠 기획은 운영자가 오늘 바로 만들 수 있게 구체적으로: 훅 제목 한 줄 + 쓸 장면·자료.
 - 모든 글은 한국어, 짧고 단정하게.`;
 
+const SYSTEM_WITH_SCHEMA = `${SYSTEM}
+
+출력: 아래 JSON 스키마를 따르는 JSON 객체 하나만 쓴다. 코드 블록·설명 문장 없이 { 로 시작해 } 로 끝낸다. 모든 필드를 채우고, 없으면 빈 배열이나 빈 문자열.
+${JSON.stringify(SCHEMA)}`;
+
+const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v));
+const arr = <T>(v: unknown, f: (x: any) => T): T[] => (Array.isArray(v) ? v.filter((x) => x && typeof x === 'object' || typeof x === 'string').map(f) : []);
+
+/** Claude 가 쓴 JSON 을 읽어 빠진 필드는 빈 값으로 채운다 */
+export function parseResult(text: string): BriefResult | null {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  let j: any;
+  try {
+    j = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+  if (!j || typeof j !== 'object') return null;
+  const pick = (x: any) => ({ title: str(x?.title), reason: str(x?.reason) });
+  return {
+    headline: str(j.headline),
+    promising: arr(j.promising, (x) => ({ pack: str(x.pack), verdict: str(x.verdict), why: str(x.why), entry: str(x.entry), risk: str(x.risk) })),
+    categories: arr(j.categories, (x) => ({ pack: str(x.pack), trend: str(x.trend), why: str(x.why), angle: str(x.angle) })),
+    keywords: arr(j.keywords, (x) => ({ keyword: str(x.keyword), why: str(x.why), angle: str(x.angle) })),
+    season: { summary: str(j.season?.summary), ideas: arr(j.season?.ideas, str) },
+    upcoming: arr(j.upcoming, (x) => ({ title: str(x.title), platform: str(x.platform), when: str(x.when), why: str(x.why), prep: str(x.prep) })),
+    persons: arr(j.persons, (x) => ({
+      name: str(x.name),
+      heat: str(x.heat),
+      why: str(x.why),
+      evidence: arr(x.evidence, str),
+      relatedWorks: arr(x.relatedWorks, pick),
+      ideas: arr(x.ideas, str),
+      caution: str(x.caution),
+    })),
+    works: arr(j.works, (x) => ({
+      title: str(x.title),
+      why: str(x.why),
+      evidence: arr(x.evidence, str),
+      sameTone: arr(x.sameTone, pick),
+      sameActor: arr(x.sameActor, (y) => ({ actor: str(y?.actor), title: str(y?.title), reason: str(y?.reason) })),
+      ideas: arr(x.ideas, str),
+      caution: str(x.caution),
+    })),
+    googleOpportunities: arr(j.googleOpportunities, (x) => ({ query: str(x.query), angle: str(x.angle) })),
+  };
+}
+
 export type BriefResult = {
   headline: string;
   promising: { pack: string; verdict: string; why: string; entry: string; risk: string }[];
@@ -600,14 +649,15 @@ export async function generateBrief(): Promise<Brief> {
     ...(workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } } : {}),
   });
   const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
-  const request = client.beta.messages.parse({
+  const request = client.beta.messages.create({
     model: MODEL,
     max_tokens: 20000,
     betas: ['server-side-fallback-2026-07-01'],
     // 안전 분류기가 거절하면 서버가 알맞은 다른 모델로 다시 돌린다
     fallbacks: 'default',
-    output_config: { effort: 'medium', format: jsonSchemaOutputFormat(SCHEMA) },
-    system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
+    // 결과 모양이 커서 문법 강제(structured outputs)는 쓰지 않고, 스키마를 지시로 주고 받은 JSON 을 직접 검사한다
+    output_config: { effort: 'medium' },
+    system: [{ type: 'text', text: SYSTEM_WITH_SCHEMA, cache_control: { type: 'ephemeral' } }],
     messages: [
       {
         role: 'user',
@@ -632,8 +682,9 @@ export async function generateBrief(): Promise<Brief> {
   }
   if (response.stop_reason === 'refusal') throw new Error('Claude 가 이 자료의 분석을 거절했습니다');
   if (response.stop_reason === 'max_tokens') throw new Error('답이 너무 길어 잘렸습니다 — 다시 시도해 주세요');
-  const result = response.parsed_output as unknown as BriefResult | null;
-  if (!result) throw new Error('Claude 응답을 읽지 못했습니다');
+  const text = response.content.map((b) => (b.type === 'text' ? b.text : '')).join('');
+  const result = parseResult(text);
+  if (!result) throw new Error('Claude 응답을 읽지 못했습니다 — 다시 시도해 주세요');
 
   const u = response.usage;
   const usage = {
