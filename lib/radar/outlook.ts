@@ -12,6 +12,10 @@
  *             비율 지표는 팩끼리 순위(0~1), 조회 크기(채널 성과·공급 대비)는 로그 척도(0~1).
  *             공급 대비는 옛 영상 조회가 섞여 새 채널 기회를 부풀리므로 낮게. 새 채널 관점의 핵심은 채널 성과와 신생 성공률.
  *             표본(최근 영상 2개+ 채널 수)이 적은 팩은 50점 쪽으로 당긴다.
+ *
+ * 한국 시장 기준: 기본은 외국어 채널을 빼고 계산한다 (점수 · 잘 나온 채널 · 대박 신생 모두).
+ *  한국어 채널 = 채널 이름에 한글이 있거나, 수집한 영상 제목 중 한글이 든 비율 30%+.
+ *  foreign: true 면 외국어 채널까지 넣어 계산.
  */
 
 import { prisma } from '@/lib/db';
@@ -41,7 +45,10 @@ export type ChannelHighlight = {
 
 export type PackOutlook = {
   pack: string;
+  /** 계산에 넣은 채널 수 (한국어만 보기면 한국어 채널) */
   channels: number;
+  /** 이 팩의 외국어 채널 수 (한국어만 보기면 계산에서 뺀 수) */
+  foreignChannels: number;
   /** 최근 7일 영상을 올린 채널 */
   activeChannels: number;
   dailyViews: number;
@@ -86,7 +93,11 @@ type Row = {
   med: number | null;
   young: boolean;
   rookie: boolean;
+  kr: boolean;
 };
+
+/** 한국어 채널 판별 — 영상 제목 중 한글이 든 비율 */
+const KO_TITLE_RATIO = 0.3;
 
 const median = (xs: number[]) => {
   if (!xs.length) return null;
@@ -110,12 +121,12 @@ function highlight(r: Row): ChannelHighlight {
   };
 }
 
-export async function categoryOutlook(): Promise<PackOutlook[]> {
-  const key = 'radar:outlook:v3';
+export async function categoryOutlook(o: { foreign?: boolean } = {}): Promise<PackOutlook[]> {
+  const key = o.foreign ? 'radar:outlook:v4:all' : 'radar:outlook:v4:kr';
   const c = await prisma.trendCache.findUnique({ where: { key } }).catch(() => null);
   if (c && Date.now() - c.fetchedAt.getTime() < 3_600_000) return c.payload as unknown as PackOutlook[];
 
-  const [rows, folders] = await Promise.all([
+  const [all, folders] = await Promise.all([
     prisma.$queryRaw<Row[]>`
       WITH c AS (
         SELECT c.id, c."externalId", c."displayName" AS name, c."subscriberCount" AS subs, c."folderId", c."channelCreatedAt" AS created,
@@ -136,24 +147,32 @@ export async function categoryOutlook(): Promise<PackOutlook[]> {
         FROM "RadarVideo" v
         WHERE v."publishedAt" BETWEEN NOW() - INTERVAL '7 days' AND NOW() - INTERVAL '24 hours'
         GROUP BY 1
+      ), lang AS (
+        SELECT v."channelId", AVG((v.title ~ '[가-힣]')::int)::float8 AS ko FROM "RadarVideo" v GROUP BY 1
       )
       SELECT g.id, g."externalId", g.name, g.subs, g."folderId", g.created, g.fmt, g.d, g.rd, g.bd, g.wide, rv.nv, rv.med,
         (g.created > NOW() - INTERVAL '365 days') IS TRUE AS young,
         (g.created > NOW() - INTERVAL '365 days' AND g."videoCount" BETWEEN 1 AND 400
-          AND g."totalViewCount" / NULLIF(g."videoCount", 0) >= 1000000 AND g."lastUploadAt" > NOW() - INTERVAL '30 days') IS TRUE AS rookie
-      FROM g LEFT JOIN rv ON rv."channelId" = g.id`,
+          AND g."totalViewCount" / NULLIF(g."videoCount", 0) >= 1000000 AND g."lastUploadAt" > NOW() - INTERVAL '30 days') IS TRUE AS rookie,
+        (g.name ~ '[가-힣]' OR lang.ko >= ${KO_TITLE_RATIO}) IS TRUE AS kr
+      FROM g LEFT JOIN rv ON rv."channelId" = g.id LEFT JOIN lang ON lang."channelId" = g.id`,
     prisma.folder.findMany({ select: { id: true, name: true } }),
   ]);
 
   const nameOf = new Map(folders.map((f) => [f.id, f.name]));
   const byPack = new Map<string, Row[]>();
-  for (const r of rows) {
+  const foreignBy = new Map<string, number>();
+  for (const r of all) {
     const n = nameOf.get(r.folderId);
     if (!n || n.startsWith('__') || META_PACKS.has(n)) continue;
+    if (!r.kr) foreignBy.set(n, (foreignBy.get(n) ?? 0) + 1);
+    if (!o.foreign && !r.kr) continue;
     const list = byPack.get(n) ?? [];
     list.push(r);
     byPack.set(n, list);
   }
+  // 시장 기준값(시장 오름세 · 신생 성공률 사전값)도 같은 범위의 채널로
+  const rows = o.foreign ? all : all.filter((r) => r.kr);
 
   // 시장 전체(비교 가능한 모든 채널)의 증가율 중앙값 — 팩 오름세는 이것 대비로 본다.
   // 수집 기간·요일·유튜브 집계 지연처럼 모든 팩에 같이 걸리는 효과를 빼기 위해
@@ -188,6 +207,7 @@ export async function categoryOutlook(): Promise<PackOutlook[]> {
     packs.push({
       pack,
       channels: list.length,
+      foreignChannels: foreignBy.get(pack) ?? 0,
       activeChannels: recent.length,
       dailyViews: Math.round(daily),
       growthPct: growth == null ? null : Math.round((Math.exp(growth) - 1) * 100),
