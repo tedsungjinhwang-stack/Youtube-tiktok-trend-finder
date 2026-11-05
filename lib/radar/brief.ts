@@ -591,9 +591,16 @@ export async function generateBrief(): Promise<Brief> {
   const input = await gatherBriefInput();
   if (!input.persons.length && !input.works.length && !input.packs.length) throw new Error('분석할 인물·작품이 아직 없습니다 (최근 3일 영상이 모이면 다시)');
 
-  const client = new Anthropic({ apiKey, timeout: 280_000, maxRetries: 1 });
+  // 워크스페이스에 묶이지 않은 키는 어느 워크스페이스로 부를지 헤더로 알려야 한다
+  const workspaceId = await readSecret('ANTHROPIC_WORKSPACE_ID');
+  const client = new Anthropic({
+    apiKey,
+    timeout: 280_000,
+    maxRetries: 1,
+    ...(workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } } : {}),
+  });
   const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
-  const response = await client.beta.messages.parse({
+  const request = client.beta.messages.parse({
     model: MODEL,
     max_tokens: 20000,
     betas: ['server-side-fallback-2026-07-01'],
@@ -608,6 +615,21 @@ export async function generateBrief(): Promise<Brief> {
       },
     ],
   });
+  let response: Awaited<typeof request>;
+  try {
+    response = await request;
+  } catch (e) {
+    if (e instanceof Anthropic.AuthenticationError) throw new Error('Claude API 키가 맞지 않습니다 — 설정 → API 키에서 다시 넣어 주세요');
+    if (e instanceof Anthropic.BadRequestError && /workspace/i.test(e.message)) {
+      throw new Error(
+        workspaceId
+          ? 'Claude 워크스페이스 ID가 맞지 않습니다 — 설정 → API 키의 「Claude 워크스페이스 ID」(wrkspc_…)를 확인해 주세요'
+          : '이 키는 워크스페이스를 정해 줘야 합니다 — 설정 → API 키의 「Claude 워크스페이스 ID」에 wrkspc_… 값을 넣거나, 워크스페이스 안에서 만든 키를 써 주세요'
+      );
+    }
+    if (e instanceof Anthropic.RateLimitError) throw new Error('Claude 호출 한도에 걸렸습니다 — 잠시 뒤 다시 시도해 주세요');
+    throw e;
+  }
   if (response.stop_reason === 'refusal') throw new Error('Claude 가 이 자료의 분석을 거절했습니다');
   if (response.stop_reason === 'max_tokens') throw new Error('답이 너무 길어 잘렸습니다 — 다시 시도해 주세요');
   const result = response.parsed_output as unknown as BriefResult | null;

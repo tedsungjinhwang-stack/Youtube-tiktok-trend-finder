@@ -20,6 +20,7 @@ export type CredService =
   | 'NAVER_DEV_CLIENT_ID'
   | 'NAVER_DEV_CLIENT_SECRET'
   | 'ANTHROPIC_API_KEY'
+  | 'ANTHROPIC_WORKSPACE_ID'
   | 'NEXT_PUBLIC_SUPABASE_URL'
   | 'NEXT_PUBLIC_SUPABASE_ANON_KEY'
   | 'SUPABASE_SERVICE_ROLE_KEY'
@@ -72,6 +73,12 @@ export const CRED_META: Record<
   ANTHROPIC_API_KEY: {
     label: 'Claude API',
     description: '꿀통레이더 AI 브리핑 — console.anthropic.com → API Keys 에서 만든 키 (sk-ant-…). 분석 버튼을 누를 때만 쓴다',
+    editable: true,
+  },
+  ANTHROPIC_WORKSPACE_ID: {
+    label: 'Claude 워크스페이스 ID',
+    description:
+      '선택 — 키가 워크스페이스에 묶이지 않은 키라 「anthropic-workspace-id」를 요구할 때만. console.anthropic.com → Settings → Workspaces 에서 쓸 워크스페이스를 열면 나오는 wrkspc_… 값',
     editable: true,
   },
   GOOGLE_TRENDS_PROXY: {
