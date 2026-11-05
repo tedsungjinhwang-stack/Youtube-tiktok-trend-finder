@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Brief, BriefInput } from '@/lib/radar/brief';
+import type { PackOutlook } from '@/lib/radar/outlook';
 import { Chip, Empty, ago, short } from './parts';
 
 /**
@@ -96,12 +97,100 @@ export function BriefView() {
         </div>
       )}
 
+      <OutlookBoard />
+
       {!brief ? (
         <Empty>{hasKey === null ? '불러오는 중…' : '아직 브리핑이 없습니다. 「지금 분석」을 누르세요.'}</Empty>
       ) : (
         <BriefBody brief={brief} />
       )}
     </>
+  );
+}
+
+type SortKey = 'score' | 'weekGrowthPct' | 'medianViews' | 'hit100kPct' | 'youngSharePct' | 'top3SharePct' | 'dailyViews';
+const COLS: { key: SortKey; label: string; title: string }[] = [
+  { key: 'score', label: '기회', title: '오름세 25 · 영상당 조회 25 · 10만+ 비율 20 · 신생 비중 20 · 열린 판 10 (팩끼리 순위로)' },
+  { key: 'dailyViews', label: '하루 조회', title: '팩 채널들의 하루 조회수 합 (최근 3일 평균)' },
+  { key: 'weekGrowthPct', label: '1주 전 대비', title: '최근 3일 평균 vs 7~10일 전 3일 평균' },
+  { key: 'medianViews', label: '영상당 중앙값', title: '최근 7일 새 영상(1일 이상 된 것) 조회수 중앙값' },
+  { key: 'hit100kPct', label: '10만+', title: '최근 7일 새 영상 중 10만 회 넘은 비율' },
+  { key: 'youngSharePct', label: '신생 비중', title: '개설 1년 이내 채널이 팩 조회에서 차지하는 비중' },
+  { key: 'top3SharePct', label: '상위3 쏠림', title: '상위 3채널이 팩 조회에서 차지하는 비중 — 낮을수록 열린 판' },
+];
+
+/** 카테고리 기회판 — AI 없이 계산 (1시간마다 새로) */
+function OutlookBoard() {
+  const [rows, setRows] = useState<PackOutlook[] | null>(null);
+  const [sort, setSort] = useState<SortKey>('score');
+  const [all, setAll] = useState(false);
+  useEffect(() => {
+    fetch('/api/radar/outlook')
+      .then((r) => r.json())
+      .then((d: { ok: boolean; rows?: PackOutlook[] }) => setRows(d.rows ?? []))
+      .catch(() => setRows([]));
+  }, []);
+  if (!rows?.length) return null;
+  const sorted = [...rows].sort((a, b) => (sort === 'top3SharePct' ? a[sort] - b[sort] : ((b[sort] ?? -1e9) as number) - ((a[sort] ?? -1e9) as number)));
+  const shown = all ? sorted : sorted.slice(0, 15);
+  return (
+    <Section title="카테고리 기회판">
+      <div className="card-surface theme-fade overflow-x-auto rounded-[18px]">
+        <table className="w-full min-w-[760px] text-[12.5px]">
+          <thead>
+            <tr className="text-left text-[11.5px] font-extrabold text-[color:var(--text-faint)]">
+              <th className="px-3 py-2">카테고리</th>
+              {COLS.map((c) => (
+                <th key={c.key} className="px-2 py-2 text-right">
+                  <button title={c.title} onClick={() => setSort(c.key)} className={sort === c.key ? 'text-foreground' : 'hover:text-foreground'}>
+                    {c.label}
+                    {sort === c.key ? ' ▾' : ''}
+                  </button>
+                </th>
+              ))}
+              <th className="px-2 py-2 text-right">대박 신생</th>
+            </tr>
+          </thead>
+          <tbody className="num font-semibold">
+            {shown.map((r) => (
+              <tr key={r.pack} className="border-t" style={{ borderColor: 'var(--chip)' }}>
+                <td className="px-3 py-1.5 font-bold">
+                  {r.pack}
+                  <span className="ml-1 text-[11px] font-semibold text-[color:var(--text-faint)]">
+                    {r.channels}곳 · 쇼츠 {r.shortsPct}%
+                  </span>
+                </td>
+                <td className="px-2 py-1.5 text-right">
+                  <span
+                    className="inline-block min-w-[34px] rounded-md px-1.5 text-center font-extrabold"
+                    style={r.score >= 70 ? { background: 'var(--accent-solid)', color: 'var(--on-accent, #fff)' } : { background: 'var(--chip)' }}
+                  >
+                    {r.score}
+                  </span>
+                </td>
+                <td className="px-2 py-1.5 text-right">{short(r.dailyViews)}</td>
+                <td className="px-2 py-1.5 text-right" style={{ color: (r.weekGrowthPct ?? 0) > 0 ? 'var(--red)' : (r.weekGrowthPct ?? 0) < 0 ? 'var(--text-faint)' : undefined }}>
+                  {r.weekGrowthPct == null ? '—' : `${r.weekGrowthPct > 0 ? '+' : ''}${r.weekGrowthPct}%`}
+                </td>
+                <td className="px-2 py-1.5 text-right">{short(r.medianViews)}</td>
+                <td className="px-2 py-1.5 text-right">{r.hit100kPct}%</td>
+                <td className="px-2 py-1.5 text-right">{r.youngSharePct}%</td>
+                <td className="px-2 py-1.5 text-right">{r.top3SharePct}%</td>
+                <td className="px-2 py-1.5 text-right">{r.rookies || ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {rows.length > 15 && (
+          <button onClick={() => setAll(!all)} className="w-full py-2 text-[12.5px] font-bold text-muted-foreground hover:text-foreground">
+            {all ? '접기' : `전체 ${rows.length}개 보기`}
+          </button>
+        )}
+      </div>
+      <p className="mt-1.5 text-[11.5px] font-semibold text-[color:var(--text-faint)]">
+        기회 점수 = 오름세(1주 전 대비) 25 · 영상당 조회 중앙값 25 · 10만+ 비율 20 · 신생 채널 조회 비중 20 · 상위 3채널 쏠림 낮음 10. 머리글을 누르면 그 기준으로 정렬.
+      </p>
+    </Section>
   );
 }
 
@@ -175,6 +264,32 @@ function BriefBody({ brief }: { brief: Brief }) {
   return (
     <>
       <div className="card-surface theme-fade mb-4 rounded-[22px] px-5 py-4 text-[15px] font-bold leading-relaxed">{result.headline}</div>
+
+      {(result.promising ?? []).length > 0 && (
+        <Section title="유망 카테고리 — 지금 들어갈 곳">
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            {result.promising.map((c) => {
+              const src = (input.outlook ?? []).find((p) => p.pack === c.pack);
+              return (
+                <Card key={c.pack}>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[15px] font-extrabold">{c.pack}</span>
+                    <Chip tone={c.verdict === '강력 추천' ? 'red' : c.verdict === '추천' ? 'amber' : 'plain'}>{c.verdict}</Chip>
+                    {src && <span className="num text-[11.5px] font-semibold text-[color:var(--text-faint)]">기회 {src.score}</span>}
+                  </div>
+                  <p className="mt-1.5 text-[12.5px] font-semibold leading-snug">{c.why}</p>
+                  <p className="mt-1 text-[12.5px] text-muted-foreground">진입 → {c.entry}</p>
+                  {c.risk && (
+                    <p className="mt-1 text-[12px] font-semibold" style={{ color: 'var(--amber)' }}>
+                      위험 — {c.risk}
+                    </p>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        </Section>
+      )}
 
       {(result.categories ?? []).length > 0 && (
         <Section title="카테고리 흐름">

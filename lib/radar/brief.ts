@@ -15,6 +15,7 @@ import { prisma } from '@/lib/db';
 import { googleTrending } from '@/lib/trends/google';
 import { readSecret } from '@/lib/trends/cache';
 import { STOP_TOKENS } from './discover';
+import { categoryOutlook, type PackOutlook } from './outlook';
 import type { PersonCredit } from './match';
 import { AWARD_CALENDAR, getSameSeasonPast, getSchedule } from './tabs';
 import { tmdb } from './tmdb';
@@ -74,6 +75,8 @@ export type BriefPackInput = {
 export type BriefInput = {
   today: string;
   packs: BriefPackInput[];
+  /** 카테고리 기회판 — 1주 흐름·영상당 조회·신생 성공·쏠림으로 매긴 기회 점수 (상위·하위) */
+  outlook: PackOutlook[];
   keywords: { word: string; gain24h: number; channels: number; videos: number; videosWeekAgo: number }[];
   persons: BriefPersonInput[];
   works: BriefWorkInput[];
@@ -301,7 +304,8 @@ export async function gatherBriefInput(): Promise<BriefInput> {
   const creditsBy = new Map(castCredits.map((c) => [c.name, (c.credits as unknown as PersonCredit[]) ?? []]));
 
   const month = Number(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul', month: 'numeric' }));
-  const [packs, keywords, pastSame, schedule, upcoming] = await Promise.all([
+  const [outlookAll, packs, keywords, pastSame, schedule, upcoming] = await Promise.all([
+    categoryOutlook().catch(() => [] as PackOutlook[]),
     packHeat(),
     hotKeywords(),
     getSameSeasonPast(15).catch(() => []),
@@ -321,6 +325,7 @@ export async function gatherBriefInput(): Promise<BriefInput> {
   return {
     today: new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }),
     packs,
+    outlook: [...outlookAll.slice(0, 20), ...outlookAll.slice(-5)].filter((x, i, a) => a.indexOf(x) === i),
     keywords,
     season: {
       awardsThisMonth: AWARD_CALENDAR.find((a) => a.month === month)?.names ?? null,
@@ -394,9 +399,25 @@ const PICK = {
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['headline', 'categories', 'keywords', 'persons', 'works', 'season', 'upcoming', 'googleOpportunities'],
+  required: ['headline', 'promising', 'categories', 'keywords', 'persons', 'works', 'season', 'upcoming', 'googleOpportunities'],
   properties: {
     headline: { type: 'string', description: '오늘 판을 두세 문장으로 — 어느 카테고리·소재가 왜 뜨나' },
+    promising: {
+      type: 'array',
+      description: '지금 들어가기 유망한 카테고리 3~5개 — 기회판(outlook) 점수와 근거를 보고, 수요가 오르는데 영상당 조회가 좋고 신생도 먹히며 쏠림이 덜한 곳',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['pack', 'verdict', 'why', 'entry', 'risk'],
+        properties: {
+          pack: { type: 'string' },
+          verdict: { type: 'string', enum: ['강력 추천', '추천', '지켜보기'] },
+          why: { type: 'string', description: '수치 근거: 1주 흐름 · 영상당 중앙값 · 10만+ 비율 · 신생 비중 · 상위 3채널 쏠림' },
+          entry: { type: 'string', description: '새 채널로 들어간다면 어떤 결·포맷으로 (예: 쇼츠, 소재, 업로드 빈도)' },
+          risk: { type: 'string', description: '저작권·포화·일시 유행 등 위험' },
+        },
+      },
+    },
     categories: {
       type: 'array',
       description: '채널팩(카테고리) 흐름 5~8개 — 뜨는 것 위주, 꺼지는 것도 있으면',
@@ -511,6 +532,7 @@ const SYSTEM = `너는 한국 유튜브 쇼츠 채널 운영자를 돕는 트렌
 (4) 오늘 날짜, 이번 달·다음 달 시상식, 작년 이맘때 터진 영상(조회 100만+)
 
 할 일:
+- 유망 카테고리: 기회판(outlook)을 보고 지금 들어가기 좋은 카테고리를 고른다. 점수만 따르지 말고 수요 흐름(weekGrowthPct), 영상당 조회(medianViews), 10만+ 비율, 신생 비중(youngSharePct)·대박 신생 수, 상위 3채널 쏠림(top3SharePct)을 함께 따져, 새로 들어가는 채널이 먹힐 곳인지 판단한다. 저작권 위험이 큰 짜집기류는 risk 에 적는다.
 - 카테고리(채널팩) 흐름: 어느 팩이 뜨고 꺼지는지 수치로 짚고 원인과 지금 만들 것을 낸다.
 - 키워드: 일주일 전보다 확 늘어난 해시태그 위주로 왜 뜨는지와 탈 방법.
 - 인물마다 왜 지금 뜨는지 기사·구글·유튜브 근거를 엮어 설명하고, 이 인물로 같이 탈 작품(출연작·화제작)과 쇼츠 기획을 낸다.
@@ -529,6 +551,7 @@ const SYSTEM = `너는 한국 유튜브 쇼츠 채널 운영자를 돕는 트렌
 
 export type BriefResult = {
   headline: string;
+  promising: { pack: string; verdict: string; why: string; entry: string; risk: string }[];
   categories: { pack: string; trend: string; why: string; angle: string }[];
   keywords: { keyword: string; why: string; angle: string }[];
   season: { summary: string; ideas: string[] };
@@ -581,7 +604,7 @@ export async function generateBrief(): Promise<Brief> {
     messages: [
       {
         role: 'user',
-        content: `오늘은 ${today}이다. 아래 자료로 종합 분석을 써라. 카테고리 최대 8개, 키워드 최대 8개, 인물 최대 6명, 작품 최대 5개, 공개 예정 최대 8개.\n\n<자료>\n${JSON.stringify(input)}\n</자료>`,
+        content: `오늘은 ${today}이다. 아래 자료로 종합 분석을 써라. 유망 카테고리 최대 5개, 카테고리 흐름 최대 8개, 키워드 최대 8개, 인물 최대 6명, 작품 최대 5개, 공개 예정 최대 8개.\n\n<자료>\n${JSON.stringify(input)}\n</자료>`,
       },
     ],
   });
