@@ -17,7 +17,7 @@ import { Chip, Empty, FORMAT_LABEL, VideoThumb, ago, channelAge, short } from '.
 
 /**
  * 신규 발굴 — 아직 채널팩에 없는 '대박 신생' · '최근 잘 나옴' 채널.
- * Claude 가 하루 한 번 팩마다 검색어를 만들고(새 카테고리도 제안), 수집기가 2시간마다 그 검색어·인기 급상승·추천 채널에서 찾아
+ * Claude 가 주 1회 팩마다 검색어를 만들고(새 카테고리도 제안), 수집기가 하루 한 번 그 검색어·인기 급상승·추천 채널에서 찾아
  * 기준을 넘은 것만 팩 추천과 함께 올린다.
  * 「넣기」를 누르면 그 팩 채널이 되고 다음 수집부터 매시간 잰다.
  */
@@ -87,9 +87,7 @@ export function RookiesView() {
       <div className="mb-3">
         <h1 className="text-[26px] font-extrabold tracking-[-0.04em]">신규 발굴</h1>
         <p className="mt-1 text-[13px] font-semibold text-muted-foreground">
-          아직 채널팩에 없는 한국어 채널 중 <b>대박 신생</b>(개설 1년 이내 · 영상 400개 이하 · 영상당 평균 100만 회+ · 30일 안에 업로드) 또는{' '}
-          <b>최근 잘 나옴</b>(30일 안 영상 3개+ · 조회수 중앙값 5만 회+ · 14일 안에 업로드). Claude 가 하루 한 번 팩마다 만든 검색어로 2시간마다
-          유튜브를 찾고, 인기 급상승·추천 채널도 봅니다.
+          아직 팩에 없는 한국어 채널 중 <b>대박 신생</b>·<b>최근 잘 나옴</b>만 — 하루 한 번 찾습니다.
         </p>
       </div>
 
@@ -164,7 +162,7 @@ export function RookiesView() {
       ) : data.rows.length === 0 ? (
         <Empty>
           {tab === 'new'
-            ? '아직 새로 찾은 채널이 없습니다. 수집기가 2시간마다 찾아 올립니다.'
+            ? '아직 새로 찾은 채널이 없습니다. 수집기가 하루 한 번 찾아 올립니다.'
             : tab === 'added'
               ? '아직 팩에 넣은 채널이 없습니다.'
               : '제외한 채널이 없습니다.'}
@@ -234,7 +232,16 @@ function CandidateCard({ r, folders, onDone }: { r: CandidateRow; folders: { id:
             </a>
             {r.contentFormat && <Chip>{FORMAT_LABEL[r.contentFormat] ?? r.contentFormat}</Chip>}
             {r.qualified ? (
-              <Chip tone={r.qualifiedBy === '최근 잘 나옴' ? 'brand' : 'green'}>{r.qualifiedBy ?? '대박 신생'}</Chip>
+              <Chip
+                tone={r.qualifiedBy === '최근 잘 나옴' ? 'brand' : 'green'}
+                title={
+                  r.qualifiedBy === '최근 잘 나옴'
+                    ? '최근 잘 나옴: 30일 안 영상 3개+ · 조회수 중앙값 5만+ · 14일 안 업로드'
+                    : '대박 신생: 개설 1년 이내 · 영상 400개 이하 · 영상당 평균 100만+ · 30일 안 업로드'
+                }
+              >
+                {r.qualifiedBy ?? '대박 신생'}
+              </Chip>
             ) : r.checked ? (
               <Chip tone="amber">기준 밖</Chip>
             ) : (
@@ -480,10 +487,10 @@ function PlanView() {
           {plan ? (
             <>
               {ago(plan.generatedAt)} 만듦 · 팩 {plan.packs.length}곳 · 새 카테고리 {plan.newCategories.length}개 · 비용 약 {plan.costKrw.toLocaleString()}원
-              {age > 2 * 24 * 3600_000 && <span style={{ color: 'var(--amber)' }}> · 이틀 넘게 묵어 수집기는 팩 대표 말로 찾는 중</span>}
+              {age > 8 * 24 * 3600_000 && <span style={{ color: 'var(--amber)' }}> · 8일 넘게 묵어 수집기는 팩 대표 말로 찾는 중</span>}
             </>
           ) : loaded ? (
-            '아직 만든 검색어가 없습니다 — 수집기는 팩마다 최근 영상의 대표 말로 찾는 중입니다. 매일 새벽에 자동으로 만듭니다.'
+            '아직 만든 검색어가 없습니다 — 수집기는 팩마다 최근 영상의 대표 말로 찾는 중입니다. 매주 월요일 새벽에 자동으로 만듭니다.'
           ) : (
             '불러오는 중…'
           )}
@@ -526,7 +533,7 @@ function PlanView() {
         <div className="card-surface theme-fade overflow-hidden rounded-[22px]">
           <div className="px-5 pt-4 text-[15px] font-extrabold">팩별 검색어</div>
           <p className="px-5 pt-1 text-[12px] font-semibold text-muted-foreground">
-            수집기가 2시간마다 8개씩 돌아가며 최근 7일 영상을 조회수 순으로 찾습니다.
+            수집기가 하루 한 번 8개씩 돌아가며 최근 7일 영상을 조회수 순으로 찾습니다.
           </p>
           <div className="mt-2 divide-y" style={{ borderColor: 'var(--chip)' }}>
             {plan.packs.map((p) => (
