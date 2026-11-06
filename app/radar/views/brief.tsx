@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { Brief, BriefInput } from '@/lib/radar/brief';
 import type { ChannelHighlight, PackOutlook } from '@/lib/radar/outlook';
 import { Chip, Empty, ago, short } from './parts';
+import { runJob, sinceStart, waitForJob, type JobState } from './job';
 
 /**
  * AI 브리핑 — 뜨는 인물·작품을 Claude 가 유튜브 수치·구글 급상승·기사·TMDB 로 엮어 분석한다.
@@ -18,38 +19,57 @@ export function BriefView() {
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [err, setErr] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState<number>(0);
+
+  // 분석은 서버에서 백그라운드로 돈다 — 화면은 끝났는지 몇 초마다 묻기만 (연결이 끊겨도 결과는 남는다)
+  const pick = (d: { brief?: Brief | null }) => d.brief ?? null;
+  const follow = async (p: Promise<Brief>) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      setBrief(await p);
+    } catch (e) {
+      if ((e as Error).message !== 'cancelled') setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
+    let alive = true;
     fetch('/api/radar/brief')
       .then((r) => r.json())
-      .then((d: { brief: Brief | null; hasKey: boolean }) => {
+      .then((d: { brief: Brief | null; hasKey: boolean; job?: JobState | null }) => {
+        if (!alive) return;
         setBrief(d.brief);
         setHasKey(d.hasKey);
+        // 다른 탭·기기에서 시작한 분석이 아직 돌고 있으면 이어서 기다린다
+        if (d.job?.status === 'running') {
+          setStartedAt(Date.now() - sinceStart(d.job) * 1000);
+          follow(waitForJob('/api/radar/brief', pick, () => alive));
+        } else if (d.job?.status === 'error' && d.job.finishedAt && Date.now() - new Date(d.job.finishedAt).getTime() < 15 * 60_000) {
+          setErr(`지난 분석이 실패했습니다 — ${d.job.error ?? ''}`);
+        }
       })
-      .catch((e) => setErr((e as Error).message));
+      .catch((e) => alive && setErr((e as Error).message));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 화면을 열 때 한 번
   }, []);
 
   useEffect(() => {
     if (!busy) return;
-    const t0 = Date.now();
-    const id = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
+    const tick = () => setElapsed(Math.round((Date.now() - (startedAt || Date.now())) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [busy]);
+  }, [busy, startedAt]);
 
-  const run = async () => {
-    setBusy(true);
+  const run = () => {
+    setStartedAt(Date.now());
     setElapsed(0);
-    setErr(null);
-    try {
-      const r = await fetch('/api/radar/brief', { method: 'POST' });
-      const d = (await r.json().catch(() => null)) as { ok: boolean; brief?: Brief; error?: string } | null;
-      if (!d?.ok || !d.brief) throw new Error(d?.error ?? `분석 실패 (HTTP ${r.status})`);
-      setBrief(d.brief);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    follow(runJob('/api/radar/brief', pick));
   };
 
   return (
@@ -88,7 +108,8 @@ export function BriefView() {
       )}
       {busy && (
         <div className="card-surface mb-3 rounded-xl border px-4 py-2.5 text-[13px] font-semibold text-muted-foreground">
-          채널팩 조회수·키워드·구글 급상승·기사·TMDB·편성을 모아 Claude 에게 보내는 중입니다. 2~4분 걸립니다.
+          채널팩 조회수·키워드·구글 급상승·기사·TMDB·편성을 모아 Claude 에게 보내는 중입니다. 2~4분 걸립니다. 서버에서 계속 돌기 때문에
+          화면을 닫거나 다른 탭으로 가도 됩니다 — 돌아오면 결과가 있습니다.
         </div>
       )}
       {err && (

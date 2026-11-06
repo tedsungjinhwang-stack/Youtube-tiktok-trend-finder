@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Insight, InsightItem, InsightKind } from '@/lib/radar/insight';
 import { Chip, ago } from './parts';
+import { runJob, sinceStart, waitForJob, type JobState } from './job';
 
 /**
  * 탭별 AI 분석 패널 — 그 탭 데이터로 Claude 가 판정·근거·만드는 법·제목 예시·이어서 볼 것을 낸다.
@@ -46,19 +47,46 @@ export function AiInsight({
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [err, setErr] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState(0);
+  const url = `/api/radar/insight?${key}`;
+  // 분석 도중 기간·분류를 바꾸면 이전 범위의 결과를 이 화면에 붙이지 않게
+  const keyRef = useRef(key);
+  keyRef.current = key;
+  // 분석은 서버에서 백그라운드로 돈다 — 끝났는지 몇 초마다 묻기만 (연결이 끊겨도 결과는 남는다)
+  const pick = (d: { insight?: Insight | null }) => d.insight ?? null;
+  const follow = async (p: Promise<Insight>, alive: () => boolean) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const ins = await p;
+      if (!alive()) return;
+      setInsight(ins);
+      setOpen(true);
+      onResult?.(ins);
+    } catch (e) {
+      if (alive() && (e as Error).message !== 'cancelled') setErr((e as Error).message);
+    } finally {
+      if (alive()) setBusy(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
     setLoaded(false);
     setErr(null);
-    fetch(`/api/radar/insight?${key}`)
+    setBusy(false);
+    fetch(url)
       .then((r) => r.json())
-      .then((d: { ok: boolean; insight?: Insight | null; hasKey?: boolean; scopeLabel?: string }) => {
+      .then((d: { ok: boolean; insight?: Insight | null; hasKey?: boolean; scopeLabel?: string; job?: JobState | null }) => {
         if (!alive) return;
         setInsight(d.insight ?? null);
         setHasKey(d.hasKey !== false);
         setLabel(d.scopeLabel ?? '');
         onResult?.(d.insight ?? null);
+        if (d.job?.status === 'running') {
+          setStartedAt(Date.now() - sinceStart(d.job) * 1000);
+          follow(waitForJob(url, pick, () => alive), () => alive);
+        }
       })
       .catch(() => alive && setInsight(null))
       .finally(() => alive && setLoaded(true));
@@ -70,27 +98,17 @@ export function AiInsight({
 
   useEffect(() => {
     if (!busy) return;
-    const t0 = Date.now();
-    const id = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
+    const tick = () => setElapsed(Math.round((Date.now() - (startedAt || Date.now())) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [busy]);
+  }, [busy, startedAt]);
 
-  const run = async () => {
-    setBusy(true);
+  const run = () => {
+    setStartedAt(Date.now());
     setElapsed(0);
-    setErr(null);
-    try {
-      const r = await fetch(`/api/radar/insight?${key}`, { method: 'POST' });
-      const d = (await r.json().catch(() => null)) as { ok: boolean; insight?: Insight; error?: string } | null;
-      if (!d?.ok || !d.insight) throw new Error(d?.error ?? `분석 실패 (HTTP ${r.status})`);
-      setInsight(d.insight);
-      setOpen(true);
-      onResult?.(d.insight);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    const myKey = key;
+    follow(runJob(url, pick), () => keyRef.current === myKey);
   };
 
   const stale = insight && Date.now() - new Date(insight.generatedAt).getTime() > STALE_MS;

@@ -1,21 +1,21 @@
 import { NextResponse } from 'next/server';
-import { generateBrief, lastBrief, NoClaudeKeyError } from '@/lib/radar/brief';
+import { generateBrief, lastBrief } from '@/lib/radar/brief';
+import { hasClaudeKey, NoClaudeKeyError } from '@/lib/radar/claude';
+import { jobState, startJob } from '@/lib/radar/jobs';
 
 export const dynamic = 'force-dynamic';
-// Claude 분석이 1~3분 걸린다
+// Claude 분석이 1~4분 — 백그라운드(waitUntil)로 이어서 돈다
 export const maxDuration = 300;
 
-/** 마지막 브리핑 */
+/** 마지막 브리핑 · 키가 있나 · 지금 분석 중인가 */
 export async function GET() {
-  return NextResponse.json(await lastBrief());
+  const [last, job] = await Promise.all([lastBrief(), jobState('brief')]);
+  return NextResponse.json({ ...last, job });
 }
 
-/** 새 브리핑 만들기 (호출마다 Claude 비용) */
+/** 새 브리핑 시작 (호출마다 Claude 비용) — 바로 돌려주고, 화면이 GET 으로 끝났는지 묻는다 */
 export async function POST() {
-  try {
-    return NextResponse.json({ ok: true, brief: await generateBrief() });
-  } catch (e) {
-    const status = e instanceof NoClaudeKeyError ? 400 : 500;
-    return NextResponse.json({ ok: false, error: (e as Error).message }, { status });
-  }
+  if (!(await hasClaudeKey())) return NextResponse.json({ ok: false, error: new NoClaudeKeyError().message }, { status: 400 });
+  const r = await startJob('brief', generateBrief);
+  return NextResponse.json({ ok: true, ...r });
 }
