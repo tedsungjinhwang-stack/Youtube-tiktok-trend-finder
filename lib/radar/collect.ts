@@ -67,6 +67,9 @@ export type CollectReport = {
   /** 신규 발굴 (하루 한 번) */
   discover?: DiscoverReport;
   discoverError?: string;
+  /** 새 영상 묶음 저장이 실패해 하나씩 넣은 경우 — 첫 오류 · 못 넣은 영상 수 */
+  insertError?: string;
+  videosSkipped?: number;
   /** 구글 급상승 RSS 기록 수 · 실패 이유 */
   googleRss?: number;
   googleRssError?: string;
@@ -466,8 +469,20 @@ async function stepUploadScan(
           checkedAt: new Date(),
         }));
       if (rows.length) {
-        const r = await prisma.radarVideo.createMany({ data: rows, skipDuplicates: true });
-        report.newVideos += r.count;
+        try {
+          const r = await prisma.radarVideo.createMany({ data: rows, skipDuplicates: true });
+          report.newVideos += r.count;
+        } catch (e) {
+          // 묶음에 이상한 영상 하나가 섞여도 나머지는 넣고 수집을 이어 간다 (예전엔 매시간 여기서 통째로 멈췄다)
+          report.insertError ??= (e as Error).message.replace(/\s+/g, ' ').slice(-160);
+          for (const row of rows) {
+            try {
+              report.newVideos += (await prisma.radarVideo.createMany({ data: [row], skipDuplicates: true })).count;
+            } catch {
+              report.videosSkipped = (report.videosSkipped ?? 0) + 1;
+            }
+          }
+        }
       }
     }
 

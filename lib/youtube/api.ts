@@ -97,8 +97,8 @@ export async function fetchChannelStats(ids: string[]): Promise<YtChannelStat[]>
       const st = it.statistics ?? {};
       out.push({
         id: it.id,
-        title: it.snippet?.title ?? null,
-        handle: it.snippet?.customUrl ?? null,
+        title: it.snippet?.title != null ? clean(it.snippet.title) : null,
+        handle: it.snippet?.customUrl != null ? clean(it.snippet.customUrl) : null,
         country: it.snippet?.country ?? null,
         thumbnailUrl: it.snippet?.thumbnails?.default?.url ?? null,
         createdAt: it.snippet?.publishedAt ? new Date(it.snippet.publishedAt) : null,
@@ -259,12 +259,21 @@ export function descriptionTags(desc: string): string[] {
   // "출처: tvN 닥터X", "영상 출처 - 넷플릭스 스캔들" — 괄호가 없으면 줄 끝까지(30자)
   for (const m of desc.matchAll(/(?:출처|원작|source)\s*[:：\-]\s*([^\n]{2,40})/gi)) {
     const line = m[1].replace(/https?:\/\/\S+/g, '').trim();
-    if (line && !/[「『〈<《'"“‘]/.test(line)) out.push(line.slice(0, 30));
+    // 글자 단위로 자른다 (UTF-16 으로 자르면 이모지가 반쪽이 된다)
+    if (line && !/[「『〈<《'"“‘]/.test(line)) out.push([...line].slice(0, 30).join(''));
   }
-  return [...new Set(out.map((t) => t.trim()).filter(Boolean))].slice(0, 20);
+  return [...new Set(out.map((t) => clean(t).trim()).filter(Boolean))].slice(0, 20);
 }
 
 const INT_MAX = 2_147_483_647;
+
+/**
+ * DB 에 넣을 수 있는 글자로 — 짝 없는 서로게이트(이모지가 반으로 잘린 것)와 NUL 을 뺀다.
+ * 하나라도 섞이면 Prisma 가 묶음 저장 전체를 'unexpected end of hex escape' 로 거절해 수집이 멈춘다 (2026-11).
+ */
+export function clean(s: string): string {
+  return s.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|\u0000/g, '');
+}
 
 /** 영상 상세 — 50개씩 묶어 부른다. 삭제·비공개 영상은 결과에서 빠진다 */
 export async function fetchVideos(ids: string[], withSnippet = true): Promise<YtVideo[]> {
@@ -279,7 +288,7 @@ export async function fetchVideos(ids: string[], withSnippet = true): Promise<Yt
       const dur = parseIsoDurationSeconds(it.contentDetails?.duration ?? '');
       const sn = it.snippet ?? {};
       const st = it.statistics ?? {};
-      const title: string = sn.title ?? '';
+      const title: string = clean(sn.title ?? '');
       const hashtags = (title.match(/#[^\s#]+/g) ?? []).map((h: string) => h.slice(1));
       out.push({
         id: it.id,
@@ -293,7 +302,7 @@ export async function fetchVideos(ids: string[], withSnippet = true): Promise<Yt
         views: Math.min(INT_MAX, Number(st.viewCount ?? 0)),
         likes: st.likeCount != null ? Math.min(INT_MAX, Number(st.likeCount)) : null,
         comments: st.commentCount != null ? Math.min(INT_MAX, Number(st.commentCount)) : null,
-        tags: [...new Set([...hashtags, ...((sn.tags as string[] | undefined) ?? [])])].slice(0, 30),
+        tags: [...new Set([...hashtags, ...((sn.tags as string[] | undefined) ?? []).map(clean)])].filter(Boolean).slice(0, 30),
         descTags: withSnippet ? descriptionTags(sn.description ?? '') : null,
         upcoming: sn.liveBroadcastContent === 'upcoming',
       });
