@@ -1,12 +1,12 @@
 /**
  * 꿀통레이더 신규 발굴 — 아직 채널팩에 없는 '대박 신생' 채널을 찾아 팩을 추천한다.
  *
- *  찾는 곳 (2시간마다, 수집기 안에서):
+ *  찾는 곳 (하루 한 번, 수집기 안에서):
  *   - 유튜브 검색(100 unit): 지금 뜨는 작품 · 채널팩마다 돌아가며 그 팩의 대표 말 · 최근 조회수 높은 쇼츠
  *   - 한국 인기 급상승 영상(4 unit) · 지금 터지는 채널이 걸어 둔 「추천 채널」(채널당 1 unit)
  *  남기는 기준 (pint 「대박 신생」과 같다): 개설 1년 이내 · 영상 400개 이하 · 영상당 평균 100만+ · 30일 안에 업로드
  *  또는 「최근 잘 나옴」: 30일 안 영상 3개+ · 그 영상 조회수 중앙값 5만+ · 14일 안에 업로드 (오래된 채널이어도)
- *  검색어는 Claude 가 하루 한 번 팩마다 만든 것(packPlan.ts) — 없으면 팩마다 TF-IDF 대표 말
+ *  검색어는 Claude 가 주 1회 팩마다 만든 것(packPlan.ts) — 없으면 팩마다 TF-IDF 대표 말
  *  팩 추천 (AI 없이): 그 채널 최근 영상의 말(제목·태그)이 어느 팩 영상들과 겹치나 + 작품 종류 + 쇼츠/롱폼 + 어느 팩 검색에서 찾았나
  */
 
@@ -30,10 +30,10 @@ const D = 24 * H;
 /** pint 「대박 신생」 기준 */
 export const ROOKIE = { maxAgeDays: 365, maxVideos: 400, minAvgViews: 1_000_000, uploadWithinDays: 30 };
 /** 발굴은 이만큼마다 */
-export const DISCOVER_EVERY_MS = 2 * H;
+export const DISCOVER_EVERY_MS = 24 * H;
 /** 「최근 잘 나옴」 기준 — 나이와 상관없이 요즘 영상이 잘 나오는 채널 */
 export const HOT_RECENT = { withinDays: 30, minVideos: 3, minMedianViews: 50_000, uploadWithinDays: 14 };
-/** 한 번에 검색 몇 번 (100 unit 씩) — 2시간마다 8번 = 하루 약 9,600 unit */
+/** 한 번에 검색 몇 번 (100 unit 씩) — 하루 한 번 8번 = 하루 약 800 unit */
 const SEARCHES_PER_RUN = 8;
 /** Claude 팩별 검색어 계획 (packPlan.ts 가 쓴다 — 서로 부르지 않게 키만 공유) */
 const PLAN_KEY = 'radar:pack-plan';
@@ -337,7 +337,7 @@ async function fill(
 
 export type DiscoverReport = { searches: number; seeds: number; checked: number; found: number; enriched: number };
 
-/** search=false 면 직접 넣었거나 pint 목록에서 온 후보만 채운다 (검색 없이 — 2시간을 기다리지 않게 매번) */
+/** search=false 면 직접 넣었거나 pint 목록에서 온 후보만 채운다 (검색 없이 — 하루를 기다리지 않게 매번) */
 export async function runDiscovery(o: { canSpend: (u: number) => boolean; spend: (u: number) => void; deadline: number; search?: boolean }): Promise<DiscoverReport> {
   const report: DiscoverReport = { searches: 0, seeds: 0, checked: 0, found: 0, enriched: 0 };
   const left = () => Date.now() < o.deadline;
@@ -403,7 +403,7 @@ export async function runDiscovery(o: { canSpend: (u: number) => boolean; spend:
   const cursor = (cur?.payload as { i?: number; genericAt?: number } | null) ?? {};
   const queries: { q: string; source: string; folderId: string | null; short?: boolean; newCategory?: string }[] = [];
   let genericAt = cursor.genericAt ?? 0;
-  if (Date.now() - genericAt > 6 * H) {
+  if (Date.now() - genericAt > 20 * H) {
     queries.push({ q: '', source: '최근 조회수 상위 쇼츠', folderId: null, short: true });
     genericAt = Date.now();
   }
@@ -479,12 +479,12 @@ export async function runDiscovery(o: { canSpend: (u: number) => boolean; spend:
 
 /**
  * 돌아가며 쓸 검색어 목록. Claude 계획이 있으면 팩마다 검색어 3개를 섞어(팩 1번째 → 팩 2번째 …) 팩이 고루 돌게,
- * 새 카테고리 제안 검색어도 끼운다. 계획이 없거나 이틀 넘게 묵었으면 팩마다 TF-IDF 대표 말.
+ * 새 카테고리 제안 검색어도 끼운다. 계획이 없거나 8일 넘게 묵었으면 팩마다 TF-IDF 대표 말.
  */
 async function searchRotation(profiles: Profile[]): Promise<{ q: string; source: string; folderId: string | null; newCategory?: string }[]> {
   const row = await prisma.trendCache.findUnique({ where: { key: PLAN_KEY } }).catch(() => null);
   const plan = row?.payload as { packs?: { pack: string; queries: string[] }[]; newCategories?: { name: string; queries: string[] }[] } | undefined;
-  const fresh = row && Date.now() - row.fetchedAt.getTime() < 2 * D;
+  const fresh = row && Date.now() - row.fetchedAt.getTime() < 8 * D;
   const byName = new Map(profiles.map((p) => [p.name, p.id]));
   const out: { q: string; source: string; folderId: string | null; newCategory?: string }[] = [];
   if (fresh && plan?.packs?.length) {
