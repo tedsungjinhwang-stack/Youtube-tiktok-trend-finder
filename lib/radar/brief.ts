@@ -633,9 +633,11 @@ export async function generateBrief(): Promise<Brief> {
   const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
   const r = await askClaude({
     system: SYSTEM_WITH_SCHEMA,
-    user: `오늘은 ${today}이다. 아래 자료로 종합 분석을 써라. 유망 카테고리 최대 5개, 카테고리 흐름 최대 8개, 키워드 최대 8개, 인물 최대 6명, 작품 최대 5개, 공개 예정 최대 8개.\n\n<자료>\n${JSON.stringify(input)}\n</자료>`,
-    maxTokens: 20000,
-    effort: 'medium',
+    // 답이 2만 토큰 한도를 넘어 잘리던 문제(11/6) — 항목 수를 조금 줄이고, 한도는 넉넉히 · 생각은 짧게(함수 300초 안에 끝나게)
+    user: `오늘은 ${today}이다. 아래 자료로 종합 분석을 써라. 유망 카테고리 최대 5개, 카테고리 흐름 최대 6개, 키워드 최대 6개, 인물 최대 5명, 작품 최대 4개, 공개 예정 최대 6개. 각 글은 짧게.\n\n<자료>\n${JSON.stringify(input)}\n</자료>`,
+    maxTokens: 32000,
+    effort: 'low',
+    timeoutMs: 270_000,
   });
   const result = parseResult(r.text);
   if (!result) throw new Error('Claude 응답을 읽지 못했습니다 — 다시 시도해 주세요');
