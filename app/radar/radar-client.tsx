@@ -23,6 +23,8 @@ import { RookiesView } from './views/rookies';
 import { BriefView } from './views/brief';
 import { WatchlistView } from './views/watchlist';
 import { radarDataAction } from './actions';
+import { AiInsight, ItemCard } from './views/insight';
+import type { Insight, InsightItem } from '@/lib/radar/insight';
 
 /**
  * 꿀통레이더 — 경쟁 채널 쇼츠를 감시해서
@@ -188,7 +190,7 @@ function RelatedCard({ r }: { r: RelatedWork }) {
 
 /* ───────────────────────── 뜨는 작품 카드 ───────────────────────── */
 
-function RisingCard({ w, periodLabel }: { w: RisingWork; periodLabel: string }) {
+function RisingCard({ w, periodLabel, ai }: { w: RisingWork; periodLabel: string; ai?: InsightItem }) {
   const [open, setOpen] = useState(false);
   const byCat = useMemo(() => {
     const m = new Map<WorkCategory, { title: string; year: string }[]>();
@@ -228,6 +230,12 @@ function RisingCard({ w, periodLabel }: { w: RisingWork; periodLabel: string }) 
           <Metric label="다루는 채널" value={`${w.channels}곳`} />
         </div>
       </div>
+      {ai && (
+        <div className="mx-[22px] mt-3 rounded-[14px] px-3.5 py-2.5" style={{ background: 'var(--chip)' }}>
+          <div className="mb-1 text-[11.5px] font-extrabold text-[color:var(--text-faint)]">AI 판정</div>
+          <ItemCard it={ai} compact />
+        </div>
+      )}
 
       {/* 본문: 뜬 쇼츠 | 이어서 볼 연관작 */}
       <div className="grid gap-4 px-[22px] pb-4 pt-4 md:grid-cols-[150px_minmax(0,1fr)]">
@@ -295,7 +303,7 @@ function RisingCard({ w, periodLabel }: { w: RisingWork; periodLabel: string }) 
 
 /* ───────────────────────── 피해야 할 픽 ───────────────────────── */
 
-function CrowdedList({ rows }: { rows: CrowdedWork[] }) {
+function CrowdedList({ rows, ai }: { rows: CrowdedWork[]; ai?: Map<string, InsightItem> }) {
   return (
     <section className="card-surface theme-fade overflow-hidden rounded-[22px]">
       <div className="flex items-center justify-between px-[22px] py-3.5">
@@ -311,6 +319,7 @@ function CrowdedList({ rows }: { rows: CrowdedWork[] }) {
                 <span className="truncate text-[14px] font-bold">{r.title}</span>
                 <Chip tone="red">과밀</Chip>
               </div>
+              {ai?.get(r.key)?.why && <div className="mt-0.5 text-[12px] font-semibold text-muted-foreground">AI — {ai.get(r.key)!.why}</div>}
               <div className="mt-0.5">
                 <WorkTags w={r} />
               </div>
@@ -551,6 +560,13 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
   const [period, setPeriod] = useState<'24h' | '3d' | '7d'>('3d');
   const [data, setData] = useState(initial);
   const [loading, setLoading] = useState(false);
+  // AI 분석의 작품별 판정 (작품 key → 판정) — 카드에 붙인다
+  const [aiByRef, setAiByRef] = useState<Map<string, InsightItem>>(new Map());
+  const onInsight = (ins: Insight | null) => {
+    const m = new Map<string, InsightItem>();
+    for (const sec of ins?.result.sections ?? []) for (const it of sec.items) if (it.ref && !m.has(it.ref)) m.set(it.ref, it);
+    setAiByRef(m);
+  };
   // 기간을 바꾸면 그 기간으로 다시 계산 (처음 3일은 서버가 미리 계산해 줌)
   useEffect(() => {
     if (period === '3d' && data === initial) return;
@@ -635,7 +651,7 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
         ) : view === 'speed' ? (
           <SpeedView />
         ) : (
-          <HotView preset={HOT_PRESETS[view] ?? HOT_DEFAULT} onWatchlist={() => setView('watchlist')} />
+          <HotView preset={HOT_PRESETS[view] ?? HOT_DEFAULT} presetKey={HOT_PRESETS[view] ? view : 'hot'} onWatchlist={() => setView('watchlist')} />
         )
       ) : (
       <>
@@ -694,6 +710,14 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
         <PlannedView it={current} />
       ) : (
       <>
+      {!data.sample && (
+        <AiInsight
+          kind="rising"
+          query={{ period, cats: navCats ?? (cat === 'all' ? [] : [cat]) }}
+          what="뜨는 작품마다 지금 탈지·어떤 장면으로 만들지·제목 예시·이어서 탈 연관 꿀통과 빈자리, 피할 작품을 Claude가 판정합니다 (기사·결 맞는 작품 포함)."
+          onResult={onInsight}
+        />
+      )}
       <div className="mb-2 flex items-baseline gap-2 px-1">
         <h2 className="text-[18px] font-extrabold tracking-[-0.03em]">{current?.category ? `${current.label} · ` : ''}막 뜨는 작품 · 연관 꿀통</h2>
         <span className="text-[12px] font-semibold text-[color:var(--text-faint)]">최근 {periodLabel} 감시 채널에서 조회가 튄 작품 순</span>
@@ -706,12 +730,12 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
               : '이 분류에는 뜨는 작품이 없습니다'}
           </p>
         ) : (
-          rising.map((w) => <RisingCard key={w.key} w={w} periodLabel={periodLabel} />)
+          rising.map((w) => <RisingCard key={w.key} w={w} periodLabel={periodLabel} ai={aiByRef.get(w.key)} />)
         )}
       </div>
 
       <div className="grid gap-3 xl:grid-cols-2">
-        <CrowdedList rows={crowded} />
+        <CrowdedList rows={crowded} ai={aiByRef} />
         <UnmatchedList rows={data.unmatched} />
       </div>
       </>

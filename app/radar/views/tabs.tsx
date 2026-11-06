@@ -17,6 +17,7 @@ import {
   tonesAction,
 } from '../actions';
 import { Chip, Empty, VideoThumb, ago, short } from './parts';
+import { AiInsight } from './insight';
 
 /**
  * 꿀통레이더 나머지 탭 — 진입 성적표 · 인물선점 · 결 지도 · 편성표 · 시즌·오픈 · 황금키워드 · 속도전 · 시상식 · 홈.
@@ -132,6 +133,9 @@ export function EntryView() {
   return (
     <>
       <Header title="진입 성적표" sub="최근 14일 안에 감시 채널에서 새로 다뤄지기 시작한 작품 — 첫 쇼츠 성적으로 지금 들어가도 되는지" />
+      {data && data.length > 0 && (
+        <AiInsight kind="entry" what="새로 다뤄지기 시작한 작품마다 지금 들어갈지·지켜볼지·피할지와 먹힌 장면, 제목 예시를 Claude가 판정합니다." />
+      )}
       <Loading data={data} err={err} empty={(d) => d.length === 0}>
         {(rows) => (
           <div className="grid gap-2.5 lg:grid-cols-2">
@@ -173,6 +177,9 @@ export function PersonView() {
   return (
     <>
       <Header title="인물선점" sub="출연작 쇼츠 조회가 막 늘기 시작한 배우 — 최근 7일 vs 그 전 7일, 아직 아무도 안 만든 출연작까지" />
+      {data && data.length > 0 && (
+        <AiInsight kind="person" what="뜨는 배우마다 왜 뜨는지(기사 포함), 선점할 출연작, 만들 장면과 제목 예시를 Claude가 정리합니다. 동명이인·근거 약한 인물은 따로 걸러 냅니다." />
+      )}
       <Loading data={data} err={err} empty={(d) => d.length === 0}>
         {(rows) => (
           <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
@@ -367,6 +374,9 @@ export function GoldenView() {
   return (
     <>
       <Header title="황금키워드" sub="네이버 검색은 많은데 감시 채널 쇼츠는 적은 작품·배우 — 검색수 ÷ (최근 7일 쇼츠 수 + 1)" />
+      {data && data.rows.some((r) => r.volume != null) && (
+        <AiInsight kind="golden" what="검색 수요가 진짜인 키워드와 일반 단어·동명이인으로 부풀은 착시 키워드를 가르고, 검색하는 사람이 궁금해할 쇼츠와 제목 예시를 Claude가 냅니다." />
+      )}
       <Loading data={data} err={err} empty={(d) => d.rows.length === 0}>
         {(d) => (
           <>

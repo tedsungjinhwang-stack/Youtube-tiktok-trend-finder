@@ -6,6 +6,7 @@ import { hotVideosAction, watchFoldersByNameAction } from '../actions';
 import type { HotResult, HotSort, HotVideo, HotWindow } from '@/lib/radar/queries';
 import { WorkChip } from './fix';
 import { Chip, Empty, StatusLine, Toggle, VideoThumb, ago, short } from './parts';
+import { AiInsight } from './insight';
 
 /**
  * 터진 영상 — 감시 채널의 최근 영상 중 지금 조회가 빠르게 느는 것.
@@ -36,7 +37,7 @@ export const HOT_DEFAULT: HotPreset = {
   subtitle: '감시 채널 전체에서 지금 조회가 빠르게 느는 영상 — 남들보다 먼저 보고 선점',
 };
 
-export function HotView({ preset = HOT_DEFAULT, onWatchlist }: { preset?: HotPreset; onWatchlist: () => void }) {
+export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }: { preset?: HotPreset; presetKey?: string; onWatchlist: () => void }) {
   const [format, setFormat] = useState<'shorts' | 'long'>(preset.format ?? 'shorts');
   const [win, setWin] = useState<HotWindow>(preset.window ?? 1);
   const [sort, setSort] = useState<HotSort>(preset.sort ?? 'rising');
@@ -144,6 +145,14 @@ export function HotView({ preset = HOT_DEFAULT, onWatchlist }: { preset?: HotPre
           </div>
         )}
       </div>
+
+      {data && data.items.length > 0 && (
+        <AiInsight
+          kind="hot"
+          query={{ preset: presetKey, title: preset.title, format, window: win, folders: preset.folders }}
+          what={`지금 ${win}시간 동안 터진 ${format === 'long' ? '롱폼' : '쇼츠'}에서 제목·소재·포맷 패턴과 지금 올라탈 소재, 제목 예시를 Claude가 뽑습니다.`}
+        />
+      )}
 
       {err ? (
         <Empty>불러오지 못했습니다 — {err}</Empty>

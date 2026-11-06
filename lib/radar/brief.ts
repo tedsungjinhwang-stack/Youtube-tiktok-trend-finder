@@ -94,7 +94,7 @@ const KIND: Record<string, string> = {
 };
 
 /** 구글 뉴스 RSS — 최근 3일 기사 제목 (키 없이) */
-async function googleNews(q: string, n = 5): Promise<NewsItem[]> {
+export async function googleNews(q: string, n = 5): Promise<NewsItem[]> {
   try {
     const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:3d')}&hl=ko&gl=KR&ceid=KR:ko`;
     const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
@@ -119,7 +119,7 @@ async function googleNews(q: string, n = 5): Promise<NewsItem[]> {
 }
 
 /** TMDB 추천(비슷한 작품) — 3일 캐시 */
-async function similarWorks(mediaType: string, tmdbId: number): Promise<{ title: string; year: string | null }[]> {
+export async function similarWorks(mediaType: string, tmdbId: number): Promise<{ title: string; year: string | null }[]> {
   const key = `tmdb:rec:${mediaType}:${tmdbId}`;
   const c = await prisma.trendCache.findUnique({ where: { key } }).catch(() => null);
   if (c && Date.now() - c.fetchedAt.getTime() < 3 * 86_400_000) return c.payload as { title: string; year: string | null }[];
