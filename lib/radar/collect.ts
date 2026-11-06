@@ -32,7 +32,7 @@ import {
 import { resetStaleQuotas } from '@/lib/youtube/keyManager';
 import { monitorPlan, UNITS_PER_WATCHED_CHANNEL, type MonitorPlan } from './budget';
 import { learnAliases } from './learn';
-import { discoveryDue, markDiscovered, runDiscovery, type DiscoverReport } from './discover';
+import { discoveryDue, markDiscovered, refreshSuggestions, runDiscovery, type DiscoverReport } from './discover';
 import { fetchPersons, fetchWorkDetails, matchVideos, seedWorks } from './match';
 import { getSchedule, getSeason } from './tabs';
 import { refreshGoogleRssHistory } from '@/lib/trends/google';
@@ -187,26 +187,13 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
         report.discoverError = (e as Error).message.slice(0, 200);
       }
     }
-    report.maintenance = await stepDailyMaintenance();
+    // 하루 한 번 정비 · 6시간마다 별칭 배우기는 무거워서 따로 (runRadarMaintenance — /api/cron/radar-maint, 5분 한도)
     // 작품 인식 — TMDB (유튜브 할당량 안 씀). 실패해도 다른 단계는 계속
     // 작품 찾기가 시간을 다 쓰면 상세·출연작을 못 받아서, 각자 몫을 따로 둔다.
     // 전체 채널을 매시간 재면서 새 영상이 시간당 만 개 넘게 들어와, 작품 찾기 몫을 넉넉히 (새 영상 찾기는 27초까지)
     const m = phase(37_000).until;
     const m2 = phase(41_000).until;
     try {
-      // 6시간마다: 같이 붙는 해시태그로 별칭 배우기 · 작품과 상관없는 채널에서만 나오는 짧은 별칭 막기
-      const lm = await prisma.trendCache.findUnique({ where: { key: 'radar:learn' } }).catch(() => null);
-      if (!lm || Date.now() - lm.fetchedAt.getTime() > 6 * H) {
-        const lr = await learnAliases();
-        report.aliasesLearned = lr.learned;
-        report.aliasesBlocked = lr.blocked;
-        report.aliasesForgotten = lr.forgotten;
-        await prisma.trendCache.upsert({
-          where: { key: 'radar:learn' },
-          create: { key: 'radar:learn', payload: lr },
-          update: { payload: lr, fetchedAt: new Date() },
-        });
-      }
       const r = await matchVideos(m);
       report.videosMatched = r.matched;
       report.worksDetailed = await fetchWorkDetails(m2);
@@ -245,6 +232,53 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
     })
     .catch(() => {});
   return report;
+}
+
+/* ───────────── 정비 (따로 — 5분 한도) ───────────── */
+
+export type MaintenanceReport = {
+  ms: number;
+  /** 하루 한 번 정비(채널 평소 조회 · 쇼츠/롱폼 · 35일 지난 영상 지우기)를 했나 */
+  daily: boolean;
+  aliases: { learned: number; blocked: number; forgotten: number } | null;
+  resuggested: number;
+  errors: string[];
+};
+
+/**
+ * 수집기(60초) 안에서 돌리면 시간을 넘기는 일 — 하루 한 번 정비, 6시간마다 별칭 배우기, 팩 말 · 후보 추천 다시 계산.
+ * pg_cron 이 2시간마다 /api/cron/radar-maint 로 부른다. 할 때가 아닌 건 바로 건너뛴다.
+ * (예전엔 수집기 안에 있어서, 이틀 밀린 뒤엔 매번 60초를 넘겨 수집 기록도 못 남겼다)
+ */
+export async function runRadarMaintenance(): Promise<MaintenanceReport> {
+  const t0 = Date.now();
+  const out: MaintenanceReport = { ms: 0, daily: false, aliases: null, resuggested: 0, errors: [] };
+  const step = async (name: string, fn: () => Promise<void>) => {
+    try {
+      await fn();
+    } catch (e) {
+      out.errors.push(`${name}: ${(e as Error).message.replace(/\s+/g, ' ').slice(0, 160)}`);
+    }
+  };
+  await step('daily', async () => {
+    out.daily = await stepDailyMaintenance();
+  });
+  await step('learn', async () => {
+    // 6시간마다: 같이 붙는 해시태그로 별칭 배우기 · 작품과 상관없는 채널에서만 나오는 짧은 별칭 막기
+    const lm = await prisma.trendCache.findUnique({ where: { key: 'radar:learn' } }).catch(() => null);
+    if (lm && Date.now() - lm.fetchedAt.getTime() <= 6 * H) return;
+    const lr = await learnAliases();
+    out.aliases = { learned: lr.learned, blocked: lr.blocked, forgotten: lr.forgotten };
+    await prisma.trendCache.upsert({ where: { key: 'radar:learn' }, create: { key: 'radar:learn', payload: lr }, update: { payload: lr, fetchedAt: new Date() } });
+  });
+  await step('suggest', async () => {
+    out.resuggested = (await refreshSuggestions(t0 + 240_000)).resuggested;
+  });
+  out.ms = Date.now() - t0;
+  await prisma.trendCache
+    .upsert({ where: { key: 'radar:last-maint' }, create: { key: 'radar:last-maint', payload: out as object }, update: { payload: out as object, fetchedAt: new Date() } })
+    .catch(() => {});
+  return out;
 }
 
 /* ───────────── 1. 채널 통계 ───────────── */
