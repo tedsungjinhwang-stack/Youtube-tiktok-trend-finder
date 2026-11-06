@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { Pill } from '../../trends/ui';
 import type { CandidateList, CandidateRow, RookieRow } from '@/lib/radar/discover';
 import type { PackPlan } from '@/lib/radar/packPlan';
+import { runJob, sinceStart, waitForJob, type JobState } from './job';
 import {
   acceptAllSuggestedAction,
   acceptCandidateAction,
@@ -442,40 +443,56 @@ function PlanView() {
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [startedAt, setStartedAt] = useState(0);
   const [err, setErr] = useState<string | null>(null);
 
+  // 서버에서 백그라운드로 만든다 — 끝났는지 몇 초마다 묻기만
+  const pick = (d: { plan?: PackPlan | null }) => d.plan ?? null;
+  const follow = async (p: Promise<PackPlan>) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      setPlan(await p);
+    } catch (e) {
+      if ((e as Error).message !== 'cancelled') setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   useEffect(() => {
+    let alive = true;
     fetch('/api/radar/pack-plan')
       .then((r) => r.json())
-      .then((d: { plan: PackPlan | null; hasKey: boolean }) => {
+      .then((d: { plan: PackPlan | null; hasKey: boolean; job?: JobState | null }) => {
+        if (!alive) return;
         setPlan(d.plan);
         setHasKey(d.hasKey);
+        if (d.job?.status === 'running') {
+          setStartedAt(Date.now() - sinceStart(d.job) * 1000);
+          follow(waitForJob('/api/radar/pack-plan', pick, () => alive));
+        }
       })
-      .catch((e) => setErr((e as Error).message))
-      .finally(() => setLoaded(true));
+      .catch((e) => alive && setErr((e as Error).message))
+      .finally(() => alive && setLoaded(true));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 화면을 열 때 한 번
   }, []);
 
   useEffect(() => {
     if (!busy) return;
-    const t0 = Date.now();
-    const id = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
+    const tick = () => setElapsed(Math.round((Date.now() - (startedAt || Date.now())) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [busy]);
+  }, [busy, startedAt]);
 
-  const run = async () => {
-    setBusy(true);
+  const run = () => {
+    setStartedAt(Date.now());
     setElapsed(0);
-    setErr(null);
-    try {
-      const r = await fetch('/api/radar/pack-plan', { method: 'POST' });
-      const d = (await r.json().catch(() => null)) as { ok: boolean; plan?: PackPlan; error?: string } | null;
-      if (!d?.ok || !d.plan) throw new Error(d?.error ?? `만들지 못했습니다 (HTTP ${r.status})`);
-      setPlan(d.plan);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    follow(runJob('/api/radar/pack-plan', pick));
   };
 
   const age = plan ? Date.now() - new Date(plan.generatedAt).getTime() : 0;

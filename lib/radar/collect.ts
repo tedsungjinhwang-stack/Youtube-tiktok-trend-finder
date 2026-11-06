@@ -176,12 +176,13 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
     await stepUploadScan(report, p3, tierB(p3), spend);
     // 신규 발굴 — 하루 한 번 6초. 검색이 100 unit 씩이라 관심 목록 몫을 먼저 떼어 둔 뒤 남는 할당량으로.
     // 직접 넣었거나 pint 목록에서 온 후보는 기다리지 않고 매번 채운다
+    // 하루 한 번 유튜브 검색 발굴은 정비 작업(5분)에서 — 여기 6초로는 검색만 하고 채널 확인을 못 했다.
+    // 여기서는 직접 넣었거나 pint 목록에서 온 후보만 (기다리지 않게 매번)
     const due = await discoveryDue();
-    if (due.search || due.pending) {
+    if (due.pending) {
       const pd = phase(33_000);
       try {
-        report.discover = await runDiscovery({ canSpend: tierB(pd.canSpend), spend, deadline: pd.until, search: due.search });
-        if (due.search) await markDiscovered(report.discover);
+        report.discover = await runDiscovery({ canSpend: tierB(pd.canSpend), spend, deadline: pd.until, search: false });
       } catch (e) {
         if (e instanceof QuotaGoneError) throw e;
         report.discoverError = (e as Error).message.slice(0, 200);
@@ -242,11 +243,13 @@ export type MaintenanceReport = {
   daily: boolean;
   aliases: { learned: number; blocked: number; forgotten: number } | null;
   resuggested: number;
+  /** 하루 한 번 유튜브 검색 발굴 (할 때가 됐을 때만) */
+  discover?: DiscoverReport;
   errors: string[];
 };
 
 /**
- * 수집기(60초) 안에서 돌리면 시간을 넘기는 일 — 하루 한 번 정비, 6시간마다 별칭 배우기, 팩 말 · 후보 추천 다시 계산.
+ * 수집기(60초) 안에서 돌리면 시간을 넘기는 일 — 하루 한 번 정비, 6시간마다 별칭 배우기, 팩 말 · 후보 추천 다시 계산, 하루 한 번 신규 발굴 검색.
  * pg_cron 이 2시간마다 /api/cron/radar-maint 로 부른다. 할 때가 아닌 건 바로 건너뛴다.
  * (예전엔 수집기 안에 있어서, 이틀 밀린 뒤엔 매번 60초를 넘겨 수집 기록도 못 남겼다)
  */
@@ -272,7 +275,24 @@ export async function runRadarMaintenance(): Promise<MaintenanceReport> {
     await prisma.trendCache.upsert({ where: { key: 'radar:learn' }, create: { key: 'radar:learn', payload: lr }, update: { payload: lr, fetchedAt: new Date() } });
   });
   await step('suggest', async () => {
-    out.resuggested = (await refreshSuggestions(t0 + 240_000)).resuggested;
+    out.resuggested = (await refreshSuggestions(t0 + 180_000)).resuggested;
+  });
+  await step('discover', async () => {
+    // 하루 한 번 — 검색 8번 · 인기 급상승 · 추천 채널 → 처음 보는 채널 통계 · 최근 영상 확인 (함수 한도 300초 안에서)
+    const due = await discoveryDue();
+    if (!due.search || Date.now() > t0 + 200_000) return;
+    let left = (await remainingQuota()) ?? 0;
+    const reserve = RESERVE_UNITS + (await watchedNeedForRestOfDay());
+    const rep = await runDiscovery({
+      canSpend: (u) => left - u >= reserve,
+      spend: (u) => {
+        left -= u;
+      },
+      deadline: t0 + 270_000,
+      search: true,
+    });
+    out.discover = rep;
+    await markDiscovered(rep);
   });
   out.ms = Date.now() - t0;
   await prisma.trendCache
