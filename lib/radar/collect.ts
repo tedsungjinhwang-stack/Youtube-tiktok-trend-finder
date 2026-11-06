@@ -35,6 +35,7 @@ import { learnAliases } from './learn';
 import { discoveryDue, markDiscovered, runDiscovery, type DiscoverReport } from './discover';
 import { fetchPersons, fetchWorkDetails, matchVideos, seedWorks } from './match';
 import { getSchedule, getSeason } from './tabs';
+import { refreshGoogleRssHistory } from '@/lib/trends/google';
 
 /** 다른 기능(키워드 검색 등)이 쓸 몫으로 남겨 두는 할당량 */
 const RESERVE_UNITS = 1500;
@@ -66,6 +67,9 @@ export type CollectReport = {
   /** 신규 발굴 (2시간마다) */
   discover?: DiscoverReport;
   discoverError?: string;
+  /** 구글 급상승 RSS 기록 수 · 실패 이유 */
+  googleRss?: number;
+  googleRssError?: string;
   stoppedBy: string | null;
 };
 
@@ -215,6 +219,14 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
     }
     // 과거 트래픽도 감시 몫(관심 목록)을 떼어 둔 뒤 남는 할당량으로
     await stepArchive(report, tierB(phase(46_000).canSpend), spend, plan);
+    // 구글 급상승 공개 RSS — 지금 목록만 주므로 매시간 받아 쌓아 둔다 (트렌드 탭 · AI 분석이 24시간·7일 범위로 꺼내 씀)
+    if (Date.now() < deadline - 2_000) {
+      try {
+        report.googleRss = (await refreshGoogleRssHistory()).length;
+      } catch (e) {
+        report.googleRssError = (e as Error).message.slice(0, 120);
+      }
+    }
   } catch (e) {
     if (e instanceof QuotaGoneError) report.stoppedBy = 'quota';
     else throw e;

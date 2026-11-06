@@ -37,6 +37,8 @@ type ShortData = {
   total: number;
   matched: number;
   fetchedAt: string;
+  /** rss = 구글이 내부 호출을 막아 공개 RSS 기록으로 대신 (분야 구분 없음) */
+  source?: 'google' | 'rss';
   naverEnabled: boolean;
 };
 type LongData = { top: Related[]; rising: Related[]; fetchedAt: string; naverEnabled: boolean };
@@ -210,7 +212,9 @@ export function NowSection({ onAnalyze }: { onAnalyze: (q: string) => void }) {
             fetchedAt={shortData?.fetchedAt}
             note={
               shortData
-                ? `최근 ${periodLabel} 급상승 ${shortData.matched}건 중 구글 검색량 상위 ${items.length}개 · 구글 검색량은 대략치(하한)`
+                ? shortData.source === 'rss'
+                  ? `구글이 분야별 급상승을 막아 공개 급상승 목록(매시간 쌓은 기록, 분야 구분 없음)으로 보여 줍니다 · 최근 ${periodLabel} ${shortData.matched}건 · 검색량은 대략치(하한)`
+                  : `최근 ${periodLabel} 급상승 ${shortData.matched}건 중 구글 검색량 상위 ${items.length}개 · 구글 검색량은 대략치(하한)`
                 : undefined
             }
           />

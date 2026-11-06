@@ -371,9 +371,10 @@ export async function gatherBriefInput(): Promise<BriefInput> {
       tmdbSimilar: similar[i],
       news: workNews[i],
     })),
-    google: (google as { query: string; volume: number; related: string[] }[])
+    // RSS 로 받으면 같이 찾은 말 대신 관련 기사 제목이 있다 — 그걸 related 에 넣어 왜 뜨는지 알 수 있게
+    google: (google as { query: string; volume: number; related: string[]; news?: { title: string }[] }[])
       .slice(0, 30)
-      .map((g) => ({ query: g.query, volume: g.volume, related: g.related.slice(0, 4) })),
+      .map((g) => ({ query: g.query, volume: g.volume, related: (g.related.length ? g.related : (g.news ?? []).map((n) => n.title)).slice(0, 4) })),
   };
 }
 

@@ -20,7 +20,9 @@ export async function GET(req: Request) {
     const { data, fetchedAt } = await googleTrending(hours);
     const counts: Record<number, number> = {};
     for (const it of data) for (const c of it.categories) counts[c] = (counts[c] ?? 0) + 1;
-    const filtered = cat === null ? data : data.filter((it) => it.categories.includes(cat));
+    // 구글이 내부 호출을 막아 공개 RSS 로 받은 경우 — 분야 번호가 없어 분야로 거르지 않는다
+    const rss = data.length > 0 && data.every((it) => !it.categories.length);
+    const filtered = cat === null || rss ? data : data.filter((it) => it.categories.includes(cat));
     const top = filtered.slice(0, limit);
     const { map, enabled } = await getVolumes(top.map((t) => t.query));
     return NextResponse.json({
@@ -31,6 +33,7 @@ export async function GET(req: Request) {
         matched: filtered.length,
         counts,
         fetchedAt,
+        source: rss ? 'rss' : 'google',
         naverEnabled: enabled,
         items: top.map((t) => ({ ...t, naver: map[volumeKey(t.query)] ?? null })),
       },

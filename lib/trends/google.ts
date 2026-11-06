@@ -2,7 +2,10 @@
  * 구글 트렌드 (한국).
  *
  * 1) 급상승 검색어 — 최근 24시간·7일. 구글 트렌드 'Trending now' 화면이 쓰는 내부 호출(i0OFE).
- *    서버에서 바로 열리고, 대략적인 검색량(10만+ 등)과 분야 번호를 준다. 7일이 최대.
+ *    대략적인 검색량(10만+ 등)과 분야 번호를 준다. 7일이 최대.
+ *    2026-11 부터 구글이 이 호출을 거절(PERMISSION_DENIED)해서, 실패하면 구글이 공개로 주는
+ *    급상승 RSS(trending/rss?geo=KR — 상위 10개 남짓 · 대략 검색량 · 관련 기사, 분야 번호 없음)로 대신한다.
+ *    RSS 는 지금 목록만 주므로 수집기가 매시간 받아 8일치를 쌓아 두고, 24시간·7일 범위는 그 기록에서 꺼낸다.
  * 2) 기간 조회 — 1달·3달 인기/급상승 검색어 (explore → relatedsearches).
  *    서버·클라우드 IP 는 구글이 429 로 막아서 GOOGLE_TRENDS_PROXY 를 거쳐야 한다.
  *
@@ -10,6 +13,7 @@
  */
 import { fetch as ufetch, ProxyAgent, type Dispatcher } from 'undici';
 import { socksDispatcher } from 'fetch-socks';
+import { prisma } from '@/lib/db';
 import { cached, readSecret, scrubSecrets } from './cache';
 
 export { TRENDING_CATEGORIES, TRENDING_TO_EXPLORE } from './categories';
@@ -31,6 +35,10 @@ export type TrendingItem = {
   categories: number[];
   /** 같이 검색된 말 */
   related: string[];
+  /** RSS 로 받은 것 — 관련 기사 (분야 번호 없음) */
+  news?: { title: string; source: string; url: string }[];
+  /** RSS 기록: 마지막으로 목록에 보인 시각 */
+  lastSeen?: string;
 };
 
 function parseTrending(raw: string): TrendingItem[] {
@@ -68,7 +76,7 @@ function parseTrending(raw: string): TrendingItem[] {
   return [...byQuery.values()].sort((a, b) => b.volume - a.volume);
 }
 
-async function fetchTrending(hours: number): Promise<TrendingItem[]> {
+async function fetchTrendingInternal(hours: number): Promise<TrendingItem[]> {
   const freq = JSON.stringify([[['i0OFE', JSON.stringify([null, null, 'KR', 0, 'ko', hours, 1]), null, 'generic']]]);
   const res = await fetch('https://trends.google.com/_/TrendsUi/data/batchexecute?rpcids=i0OFE&hl=ko&rt=c', {
     method: 'POST',
@@ -78,6 +86,110 @@ async function fetchTrending(hours: number): Promise<TrendingItem[]> {
   });
   if (!res.ok) throw new Error(`구글 급상승 HTTP ${res.status}`);
   return parseTrending(await res.text());
+}
+
+/* ── 공개 RSS (대체) ── */
+
+const RSS_HISTORY_KEY = 'google-rss-history:KR';
+const RSS_KEEP_MS = 8 * 24 * 3600_000;
+
+const xmlText = (s: string) =>
+  s
+    .replace(/<!\[CDATA\[|\]\]>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .trim();
+const tagOf = (s: string, t: string) => xmlText(s.match(new RegExp(`<${t}[^>]*>([\\s\\S]*?)</${t}>`))?.[1] ?? '');
+
+/** '1000+' · '2만+' · '5천+' → 하한 숫자 */
+export function parseTraffic(v: string): number {
+  const m = v.replace(/[,\s]/g, '').match(/^([\d.]+)(만|천|k|K|m|M)?/);
+  if (!m) return 0;
+  const n = parseFloat(m[1]);
+  const mult = m[2] === '만' ? 10_000 : m[2] === '천' || m[2] === 'k' || m[2] === 'K' ? 1_000 : m[2] === 'm' || m[2] === 'M' ? 1_000_000 : 1;
+  return Math.round(n * mult);
+}
+
+export function parseTrendingRss(xml: string): TrendingItem[] {
+  return xml
+    .split('<item>')
+    .slice(1)
+    .map((raw) => {
+      const item = raw.split('</item>')[0];
+      const news = item
+        .split('<ht:news_item>')
+        .slice(1)
+        .map((n) => ({ title: tagOf(n, 'ht:news_item_title'), source: tagOf(n, 'ht:news_item_source'), url: tagOf(n, 'ht:news_item_url') }))
+        .filter((n) => n.title)
+        .slice(0, 3);
+      const pub = Date.parse(tagOf(item, 'pubDate'));
+      return {
+        query: tagOf(item, 'title'),
+        volume: parseTraffic(tagOf(item, 'ht:approx_traffic')),
+        growth: null,
+        startedAt: Number.isFinite(pub) ? new Date(pub).toISOString() : null,
+        active: true,
+        categories: [],
+        related: [],
+        news,
+      };
+    })
+    .filter((i) => i.query);
+}
+
+async function fetchTrendingRss(): Promise<TrendingItem[]> {
+  const res = await fetch('https://trends.google.com/trending/rss?geo=KR', {
+    headers: { 'User-Agent': UA },
+    cache: 'no-store',
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`구글 급상승 RSS HTTP ${res.status}`);
+  const items = parseTrendingRss(await res.text());
+  if (!items.length) throw new Error('구글 급상승 RSS 가 비었습니다');
+  return items;
+}
+
+/** RSS 를 받아 기록에 합친다 (같은 검색어는 검색량 큰 값 · 처음 시작 · 마지막 본 시각). 수집기가 매시간 부른다 */
+export async function refreshGoogleRssHistory(): Promise<TrendingItem[]> {
+  const fresh = await fetchTrendingRss();
+  const row = await prisma.trendCache.findUnique({ where: { key: RSS_HISTORY_KEY } }).catch(() => null);
+  const now = new Date().toISOString();
+  const byKey = new Map<string, TrendingItem>();
+  for (const it of (row?.payload as unknown as TrendingItem[]) ?? []) byKey.set(it.query.replace(/\s+/g, '').toLowerCase(), { ...it, active: false });
+  for (const it of fresh) {
+    const k = it.query.replace(/\s+/g, '').toLowerCase();
+    const prev = byKey.get(k);
+    byKey.set(k, {
+      ...it,
+      volume: Math.max(it.volume, prev?.volume ?? 0),
+      startedAt: prev?.startedAt && it.startedAt ? (prev.startedAt < it.startedAt ? prev.startedAt : it.startedAt) : (prev?.startedAt ?? it.startedAt),
+      news: it.news?.length ? it.news : prev?.news,
+      active: true,
+      lastSeen: now,
+    });
+  }
+  const cutoff = Date.now() - RSS_KEEP_MS;
+  const list = [...byKey.values()].filter((i) => new Date(i.lastSeen ?? i.startedAt ?? 0).getTime() >= cutoff);
+  await prisma.trendCache
+    .upsert({ where: { key: RSS_HISTORY_KEY }, create: { key: RSS_HISTORY_KEY, payload: list as object }, update: { payload: list as object, fetchedAt: new Date() } })
+    .catch(() => {});
+  return list;
+}
+
+/** 내부 호출이 막히면 RSS 기록에서 최근 hours 시간 안에 보인 것 */
+async function fetchTrending(hours: number): Promise<TrendingItem[]> {
+  try {
+    return await fetchTrendingInternal(hours);
+  } catch {
+    const list = await refreshGoogleRssHistory();
+    const since = Date.now() - hours * 3600_000;
+    return list
+      .filter((i) => new Date(i.lastSeen ?? i.startedAt ?? 0).getTime() >= since)
+      .sort((a, b) => Number(b.active) - Number(a.active) || b.volume - a.volume);
+  }
 }
 
 export const TRENDING_HOURS = [4, 24, 48, 168] as const;
