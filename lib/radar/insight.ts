@@ -329,7 +329,8 @@ export async function generateInsight(kind: InsightKind, raw: InsightParams): Pr
   const r = await askClaude({
     system: BASE,
     user: `오늘은 ${today}이다.\n${TASK[kind]}\n\n<자료>\n${JSON.stringify(input)}\n</자료>`,
-    maxTokens: 14000,
+    maxTokens: 24000,
+    timeoutMs: 270_000,
     effort: EFFORT[kind],
   });
   const result = parseInsight(r.text);
