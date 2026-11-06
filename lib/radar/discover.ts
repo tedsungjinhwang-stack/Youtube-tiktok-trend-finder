@@ -333,6 +333,43 @@ async function fill(
   return true;
 }
 
+/* ───────────── 팩 말 · 추천 다시 계산 ───────────── */
+
+/**
+ * 팩 말(하루 한 번)을 새로 계산했으면 새로 찾음 후보의 추천도 다시 (저장해 둔 최근 영상으로 — 유튜브 안 씀).
+ * 무거워서 정비 작업(/api/cron/radar-maint, 5분)이 먼저 해 둔다. 수집기 안에서는 deadline 까지만 하고 다음에 잇는다.
+ */
+export async function refreshSuggestions(deadline = Number.POSITIVE_INFINITY): Promise<{ profiles: Profile[]; builtAt: number; resuggested: number }> {
+  const { profiles, builtAt } = await folderProfiles();
+  const mark = await prisma.trendCache.findUnique({ where: { key: 'radar:resuggest' } }).catch(() => null);
+  if ((mark?.payload as { builtAt?: number } | null)?.builtAt === builtAt) return { profiles, builtAt, resuggested: 0 };
+  const old = await prisma.radarCandidate.findMany({
+    where: { status: 'new', checkedAt: { not: null } },
+    select: { externalId: true, sampleVideos: true, contentFormat: true, sourceFolderId: true, suggestions: true },
+    take: 300,
+  });
+  let done = 0;
+  await pool(old, 8, async (c) => {
+    if (Date.now() > deadline) return;
+    const sug = await suggestFor((c.sampleVideos as unknown as SampleVideo[]) ?? [], c.contentFormat, c.sourceFolderId, profiles);
+    // Claude 새 카테고리 제안은 말 비교로 다시 만들 수 없으니 그대로 둔다
+    const keep = ((c.suggestions as unknown as Suggestion[]) ?? []).filter((x) => x.folderId.startsWith('new:'));
+    sug.unshift(...keep);
+    sug.splice(3);
+    await prisma.radarCandidate.update({ where: { externalId: c.externalId }, data: { suggestions: sug as object } });
+    done++;
+  });
+  // 다 했을 때만 표시 — 시간이 모자라 멈췄으면 다음에 다시
+  if (done === old.length) {
+    await prisma.trendCache.upsert({
+      where: { key: 'radar:resuggest' },
+      create: { key: 'radar:resuggest', payload: { builtAt } },
+      update: { payload: { builtAt }, fetchedAt: new Date() },
+    });
+  }
+  return { profiles, builtAt, resuggested: done };
+}
+
 /* ───────────── 발굴 (수집기가 부른다) ───────────── */
 
 export type DiscoverReport = { searches: number; seeds: number; checked: number; found: number; enriched: number };
@@ -341,30 +378,8 @@ export type DiscoverReport = { searches: number; seeds: number; checked: number;
 export async function runDiscovery(o: { canSpend: (u: number) => boolean; spend: (u: number) => void; deadline: number; search?: boolean }): Promise<DiscoverReport> {
   const report: DiscoverReport = { searches: 0, seeds: 0, checked: 0, found: 0, enriched: 0 };
   const left = () => Date.now() < o.deadline;
-  const { profiles, builtAt } = await folderProfiles();
-
-  // 0. 팩 말을 새로 계산했으면 새로 찾음 후보의 추천도 다시 (저장해 둔 최근 영상으로 — 유튜브 안 씀)
-  const mark = await prisma.trendCache.findUnique({ where: { key: 'radar:resuggest' } }).catch(() => null);
-  if ((mark?.payload as { builtAt?: number } | null)?.builtAt !== builtAt) {
-    const old = await prisma.radarCandidate.findMany({
-      where: { status: 'new', checkedAt: { not: null } },
-      select: { externalId: true, sampleVideos: true, contentFormat: true, sourceFolderId: true, suggestions: true },
-      take: 300,
-    });
-    await pool(old, 8, async (c) => {
-      const sug = await suggestFor((c.sampleVideos as unknown as SampleVideo[]) ?? [], c.contentFormat, c.sourceFolderId, profiles);
-      // Claude 새 카테고리 제안은 말 비교로 다시 만들 수 없으니 그대로 둔다
-      const keep = ((c.suggestions as unknown as Suggestion[]) ?? []).filter((x) => x.folderId.startsWith('new:'));
-      sug.unshift(...keep);
-      sug.splice(3);
-      await prisma.radarCandidate.update({ where: { externalId: c.externalId }, data: { suggestions: sug as object } });
-    });
-    await prisma.trendCache.upsert({
-      where: { key: 'radar:resuggest' },
-      create: { key: 'radar:resuggest', payload: { builtAt } },
-      update: { payload: { builtAt }, fetchedAt: new Date() },
-    });
-  }
+  // 0. 팩 말 · 후보 추천 다시 계산 (보통은 정비 작업이 먼저 해 둬서 바로 끝난다)
+  const { profiles } = await refreshSuggestions(o.deadline);
 
   // 1. 직접 넣었거나 pint 목록에서 온 후보 중 아직 통계를 안 받은 것 — 여섯 곳씩 동시에
   const pending = await prisma.radarCandidate.findMany({ where: { status: 'new', checkedAt: null }, take: 50 });
