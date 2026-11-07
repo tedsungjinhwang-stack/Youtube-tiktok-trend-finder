@@ -17,7 +17,15 @@ type CastMember = { id: number; name: string; order: number };
 /** 쇼츠 썸네일 — 세로 원본 (화면에서 없으면 작은 걸로 바꾼다) */
 const shortThumb = (id: string) => `https://i.ytimg.com/vi/${id}/oardefault.jpg`;
 
-type VideoRow = { id: string; title: string; views: number; publishedAt: Date; channel: string; workId: string | null };
+type VideoRow = { id: string; title: string; views: number; publishedAt: Date; channel: string; workId: string | null; tags?: string[]; durationSec?: number | null };
+
+const median = (xs: number[]) => {
+  if (!xs.length) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return Math.round(s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2);
+};
+const norm = (t: string) => t.toLowerCase().replace(/\s+/g, '');
 
 function clip(v: VideoRow): ShortClip {
   return { videoId: v.id, title: v.title, channel: v.channel, views: v.views, publishedAt: v.publishedAt.toISOString(), thumb: shortThumb(v.id) };
@@ -63,7 +71,7 @@ export async function getRadarData(period: WorksPeriod): Promise<RadarData> {
   // 뜨는 작품의 기간 안 쇼츠 (대표 쇼츠)
   const recentVideos = workIds.length
     ? await prisma.$queryRaw<VideoRow[]>`
-        SELECT v.id, v.title, v.views, v."publishedAt", COALESCE(c."displayName", c."externalId") AS channel, v."workId"
+        SELECT v.id, v.title, v.views, v."publishedAt", COALESCE(c."displayName", c."externalId") AS channel, v."workId", v.tags, v."durationSec"
         FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId"
         WHERE v."workId" = ANY(${workIds}::text[]) AND v."publishedAt" > ${start}
         ORDER BY v.views DESC`
@@ -165,6 +173,19 @@ export async function getRadarData(period: WorksPeriod): Promise<RadarData> {
     }
     related.sort((a, b) => Number(isHoneyPot(b)) - Number(isHoneyPot(a)) || b.maxViews - a.maxViews);
     unmeasured.sort((a, b) => b.popularity - a.popularity);
+    // 길이별 성적 · 인물 핀셋 (이 작품의 기간 안 영상으로)
+    const mine = recentVideos.filter((v) => v.workId === id);
+    const dur = (v: VideoRow) => v.durationSec ?? 0;
+    const shortV = mine.filter((v) => dur(v) > 0 && dur(v) <= 60).map((v) => v.views);
+    const midV = mine.filter((v) => dur(v) > 60 && dur(v) <= 180).map((v) => v.views);
+    const pinset = cast
+      .map((m) => {
+        const key = norm(m.name);
+        if (key.length < 2) return null;
+        const hit = mine.filter((v) => norm(v.title).includes(key) || (v.tags ?? []).some((t) => norm(t).includes(key)));
+        return { name: m.name, videos: hit.length, median: median(hit.map((v) => v.views)) };
+      })
+      .filter((p): p is { name: string; videos: number; median: number } => !!p);
     rising.push({
       key: id,
       title: w.title,
@@ -182,6 +203,8 @@ export async function getRadarData(period: WorksPeriod): Promise<RadarData> {
       topShort: clip(top),
       related: related.slice(0, 8),
       unmeasured: unmeasured.slice(0, 8).map((c) => ({ title: c.title, year: c.year ?? '', category: c.category as WorkCategory })),
+      format: { short: { n: shortV.length, median: median(shortV) }, mid: { n: midV.length, median: median(midV) } },
+      pinset,
     });
   }
 
