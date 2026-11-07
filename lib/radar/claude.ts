@@ -28,7 +28,8 @@ export type ClaudeUsage = { input: number; output: number; cacheRead: number; ca
 /** 시스템 지시 + 사용자 글 → 텍스트, 쓴 토큰, 원화 비용. 오류는 알아듣게 바꿔 던진다 */
 export async function askClaude(o: {
   system: string;
-  user: string;
+  /** 글 하나, 또는 이미지·글 블록 (썸네일 분류) */
+  user: string | Anthropic.Beta.BetaContentBlockParam[];
   maxTokens: number;
   effort: 'low' | 'medium' | 'high';
   timeoutMs?: number;

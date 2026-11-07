@@ -1,0 +1,5 @@
+-- 쇼츠 화면 구성(템플릿) — 썸네일을 Claude 가 분류
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "layout" TEXT;
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "layoutTags" TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "layoutAt" TIMESTAMP(3);
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "layoutVideoId" TEXT;
