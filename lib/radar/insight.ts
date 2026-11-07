@@ -262,7 +262,7 @@ ${PLAYBOOK_RULES}
 const TASK: Record<InsightKind, string> = {
   rising: `화면: 「막 뜨는 작품 · 연관 꿀통」. 자료: 기간 안에 감시 채널에서 조회가 튄 작품(works — 상위 쇼츠 제목, 출연진, 첫 방송·최근 회차·다음 회차 날짜(방영 중이면 다음 회차 전에 올릴 것을 how 에), 연관작 related(honeyPot=조회 30만+ · 채널 2곳 이하), 출연진의 아직 아무도 안 만든 작품 unmeasured, 최근 기사 news, TMDB 비슷한 작품 similar)과 여러 채널이 몰린 작품(crowded).
 섹션 3개를 이 순서·이름으로:
-1) "지금 탈 작품" — works 각각 (최대 8개). spike=true(쇼츠 1편·채널 1곳만 터짐)면 반짝일 수 있다고 watch. 채널이 많고 평균이 떨어지면 watch/avoid. how 는 상위 쇼츠 제목에서 먹힌 장면·소재와 topClips 의 layout(화면 구성: insta 인스타형 · titlebar 제목바형 · full 풀화면 · split 위아래 분할 등, 아직 분류 안 됐으면 null)·sec(길이)으로 먹힌 형식을 짚고, 차별화 하나를 고른다 (잘 나온 영상들이 다 같은 구성이면 다른 구성으로 바꾸는 것도 차별화):
+1) "지금 탈 작품" — works 각각 (최대 8개). spike=true(쇼츠 1편·채널 1곳만 터짐)면 반짝일 수 있다고 watch. 채널이 많고 평균이 떨어지면 watch/avoid. how 는 상위 쇼츠 제목에서 먹힌 장면·소재와 topClips 의 layout(화면 구성: insta 인스타형(흰 배경 캡션) · titlebar 일반형(검은 제목바) · full 풀화면 · split 위아래 분할 등, 아직 분류 안 됐으면 null)·sec(길이)으로 먹힌 형식을 짚고, 차별화 하나를 고른다 (잘 나온 영상들이 다 같은 구성이면 다른 구성으로 바꾸는 것도 차별화):
    - 채널이 많으면(경쟁 셈) pinset 에서 영상은 적은데 조회 중앙값이 좋은 출연자 한 명을 핀셋으로 (예: "OOO 한 명만 — 영상 3편뿐인데 중앙값 40만").
    - format 에서 미드폼(mid) 중앙값이 59초 이하(short)보다 1.5배 넘게 높으면 미드폼(1~3분)을 권한다 (표본 수도 같이).
    picks 에는 이 작품을 타고 이어서 만들 작품 2~4개 — related 중 honeyPot 우선, unmeasured(빈자리), similar(결 맞는 작품) 순으로 이유와 함께.

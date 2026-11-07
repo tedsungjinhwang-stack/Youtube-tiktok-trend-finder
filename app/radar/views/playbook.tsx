@@ -40,7 +40,7 @@ function H2({ title, sub }: { title: string; sub: string }) {
 const fmtLabel = (sec: number | null) => (sec == null ? '' : sec <= 60 ? '숏폼' : sec <= 180 ? '미드폼' : '롱폼');
 const LAYOUT_LABEL: Record<string, string> = {
   insta: '인스타형',
-  titlebar: '제목바형',
+  titlebar: '일반형 제목바',
   full: '풀화면',
   split: '위아래 분할',
   text: '글·캡처형',
@@ -191,7 +191,7 @@ function TemplateSection({ pb }: { pb: Playbook }) {
   if (!list.length) {
     return pb.layoutClassified != null ? (
       <section className="mb-4">
-        <H2 title="템플릿 신호" sub="팩마다 잘 나가는 채널의 쇼츠 썸네일을 Claude 가 보고 화면 구성(인스타형·제목바형·풀화면·위아래 분할 등)을 분류하는 중입니다 — 2시간마다 조금씩 채워집니다." />
+        <H2 title="템플릿 신호" sub="팩마다 잘 나가는 채널의 쇼츠 썸네일을 Claude 가 보고 화면 구성(인스타형·일반형 제목바·풀화면·위아래 분할 등)을 분류하는 중입니다 — 2시간마다 조금씩 채워집니다." />
       </section>
     ) : null;
   }
