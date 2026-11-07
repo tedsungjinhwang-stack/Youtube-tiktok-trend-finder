@@ -36,6 +36,7 @@ import { discoveryDue, markDiscovered, refreshSuggestions, runDiscovery, type Di
 import { fetchPersons, fetchWorkDetails, matchVideos, seedWorks } from './match';
 import { getSchedule, getSeason } from './tabs';
 import { refreshGoogleRssHistory } from '@/lib/trends/google';
+import { runLayoutClassify } from './layout';
 
 /** 다른 기능(키워드 검색 등)이 쓸 몫으로 남겨 두는 할당량 */
 const RESERVE_UNITS = 1500;
@@ -245,6 +246,8 @@ export type MaintenanceReport = {
   resuggested: number;
   /** 하루 한 번 유튜브 검색 발굴 (할 때가 됐을 때만) */
   discover?: DiscoverReport;
+  /** 쇼츠 화면 구성 분류 — 이번에 분류한 채널 · 비용 · 남은 대상 */
+  layout?: { classified: number; costKrw: number; left: number };
   errors: string[];
 };
 
@@ -293,6 +296,11 @@ export async function runRadarMaintenance(): Promise<MaintenanceReport> {
     });
     out.discover = rep;
     await markDiscovered(rep);
+  });
+  await step('layout', async () => {
+    // 남은 시간 동안 썸네일로 화면 구성 분류 (한 번에 최대 120곳, 다 하면 30일 뒤에 다시)
+    if (Date.now() > t0 + 190_000) return;
+    out.layout = await runLayoutClassify({ deadline: t0 + 285_000, max: 120 });
   });
   out.ms = Date.now() - t0;
   await prisma.trendCache

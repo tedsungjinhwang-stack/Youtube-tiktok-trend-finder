@@ -89,6 +89,12 @@ model Channel {
   baselineMedian    Int?
   /// 최근 4주 주당 업로드 수
   weeklyUploads     Float?
+  /// 쇼츠 화면 구성 (썸네일을 Claude 가 분류) — insta | titlebar | full | split | text | talk | ai | ranking | other
+  layout            String?
+  /// 구성 요소 — 댓글카드 · 큰자막 · 출처표기 · 작품명 · 반응컷
+  layoutTags        String[]     @default([])
+  layoutAt          DateTime?
+  layoutVideoId     String?
   radarVideos       RadarVideo[]
 
   @@unique([platform, externalId])

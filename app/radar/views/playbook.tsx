@@ -38,6 +38,17 @@ function H2({ title, sub }: { title: string; sub: string }) {
 }
 
 const fmtLabel = (sec: number | null) => (sec == null ? '' : sec <= 60 ? '숏폼' : sec <= 180 ? '미드폼' : '롱폼');
+const LAYOUT_LABEL: Record<string, string> = {
+  insta: '인스타형',
+  titlebar: '제목바형',
+  full: '풀화면',
+  split: '위아래 분할',
+  text: '글·캡처형',
+  talk: '인물 토크형',
+  ai: 'AI 이미지',
+  ranking: '랭킹형',
+  other: '기타',
+};
 
 /** AI 종합 분석 화면 — 양산형 레이더 · 형식 신호 · 부활 후보 */
 export function PlaybookBoard() {
@@ -106,6 +117,16 @@ export function PlaybookBoard() {
                       )}
                     </td>
                     <td className="px-2 py-1.5 text-[11.5px]">
+                      {m.layout && (
+                        <div className="mb-0.5 flex flex-wrap gap-1">
+                          <Chip tone="brand" title="잘 나온 쇼츠 썸네일로 본 화면 구성">
+                            {LAYOUT_LABEL[m.layout] ?? m.layout}
+                          </Chip>
+                          {(m.layoutTags ?? []).map((t) => (
+                            <Chip key={t}>{t}</Chip>
+                          ))}
+                        </div>
+                      )}
                       숏 {m.shortPct}%{m.midPct > 0 && <> · 미드 {m.midPct}%</>}
                       {m.longPct > 0 && <> · 롱 {m.longPct}%</>}
                     </td>
@@ -157,8 +178,52 @@ export function PlaybookBoard() {
         </section>
       )}
 
+      <TemplateSection pb={pb} />
+
       <RevivalSection list={pb.revival} />
     </>
+  );
+}
+
+/** 템플릿 신호 — 팩 안 화면 구성별 채널 수 · 채널 성과 */
+function TemplateSection({ pb }: { pb: Playbook }) {
+  const list = (pb.templates ?? []).filter((t) => t.classified >= 5);
+  if (!list.length) {
+    return pb.layoutClassified != null ? (
+      <section className="mb-4">
+        <H2 title="템플릿 신호" sub="팩마다 잘 나가는 채널의 쇼츠 썸네일을 Claude 가 보고 화면 구성(인스타형·제목바형·풀화면·위아래 분할 등)을 분류하는 중입니다 — 2시간마다 조금씩 채워집니다." />
+      </section>
+    ) : null;
+  }
+  const strong = list.filter((t) => t.best && t.best.ratio >= 1.3);
+  const rest = list.filter((t) => !(t.best && t.best.ratio >= 1.3));
+  return (
+    <section className="mb-4">
+      <H2
+        title="템플릿 신호 — 팩마다 잘 나오는 화면 구성"
+        sub={`잘 나가는 채널의 쇼츠 썸네일을 Claude 가 보고 분류 (지금 ${pb.layoutClassified}곳, 2시간마다 늘어남). 채널 성과 = 최근 영상 조회 중앙값. 채널 3곳+ 인 구성끼리 비교`}
+      />
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {[...strong, ...rest].slice(0, 12).map((t) => (
+          <div key={t.pack} className="card-surface theme-fade rounded-[16px] px-4 py-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="truncate text-[14px] font-extrabold">{t.pack}</span>
+              {t.best && t.best.ratio >= 1.3 && <Chip tone="brand">{t.best.label} {t.best.ratio}배</Chip>}
+              <span className="ml-auto text-[11px] font-semibold text-[color:var(--text-faint)]">{t.classified}곳</span>
+            </div>
+            <ul className="num mt-1.5 space-y-0.5 text-[12px] font-semibold">
+              {t.layouts.slice(0, 4).map((l) => (
+                <li key={l.layout} className="flex items-baseline gap-2">
+                  <span className="min-w-[72px]">{l.label}</span>
+                  <span className="text-muted-foreground">{l.channels}곳</span>
+                  <span className="ml-auto">{short(l.medianViews)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

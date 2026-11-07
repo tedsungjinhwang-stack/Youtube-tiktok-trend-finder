@@ -11,6 +11,7 @@
 
 import { prisma } from '@/lib/db';
 import { CATEGORY_LABEL, type WorkCategory } from './types';
+import { LAYOUTS, type LayoutKey } from './layout';
 
 const H = 3_600_000;
 /** 규모·성격으로 묶은 팩 — 벤치마킹 대상에서 뺀다 */
@@ -38,6 +39,18 @@ export type MassChannel = {
   midPct: number;
   longPct: number;
   top: { id: string; title: string; views: number; durationSec: number | null } | null;
+  /** 화면 구성 (썸네일 분류 — 아직 안 했으면 null) */
+  layout: string | null;
+  layoutTags: string[];
+};
+
+/** 템플릿 신호 — 팩 안에서 화면 구성별 채널 수와 채널 성과(최근 영상 중앙값의 중앙값) */
+export type TemplateSignal = {
+  pack: string;
+  classified: number;
+  layouts: { layout: string; label: string; channels: number; medianViews: number }[];
+  /** 채널 3곳+ 인 구성 중 가장 잘 나오는 것 · 나머지 구성 대비 배수 */
+  best: { layout: string; label: string; ratio: number } | null;
 };
 
 export type FormatSignal = {
@@ -66,15 +79,23 @@ export type RevivalWork = {
   top: { id: string; title: string; views: number; channel: string } | null;
 };
 
-export type Playbook = { generatedAt: string; mass: MassChannel[]; formats: FormatSignal[]; revival: RevivalWork[] };
+export type Playbook = {
+  generatedAt: string;
+  mass: MassChannel[];
+  formats: FormatSignal[];
+  revival: RevivalWork[];
+  templates: TemplateSignal[];
+  /** 화면 구성을 분류한 채널 수 (정비 작업이 조금씩 늘린다) */
+  layoutClassified: number;
+};
 
-const KEY = 'radar:playbook:v1';
+const KEY = 'radar:playbook:v2';
 
 export async function getPlaybook(): Promise<Playbook> {
   const c = await prisma.trendCache.findUnique({ where: { key: KEY } }).catch(() => null);
   if (c && Date.now() - c.fetchedAt.getTime() < H) return c.payload as unknown as Playbook;
-  const [mass, formats, revival] = await Promise.all([massRadar(), formatSignals(), revivalWorks()]);
-  const out: Playbook = { generatedAt: new Date().toISOString(), mass, formats, revival };
+  const [mass, formats, revival, tpl] = await Promise.all([massRadar(), formatSignals(), revivalWorks(), templateSignals()]);
+  const out: Playbook = { generatedAt: new Date().toISOString(), mass, formats, revival, templates: tpl.signals, layoutClassified: tpl.classified };
   await prisma.trendCache.upsert({ where: { key: KEY }, create: { key: KEY, payload: out as object }, update: { payload: out as object, fetchedAt: new Date() } }).catch(() => {});
   return out;
 }
@@ -92,6 +113,8 @@ async function massRadar(): Promise<MassChannel[]> {
       subs: number | null;
       created: Date | null;
       daily: bigint | null;
+      layout: string | null;
+      layoutTags: string[];
     }[]
   >`
     WITH lang AS (
@@ -101,7 +124,7 @@ async function massRadar(): Promise<MassChannel[]> {
       WHERE c."isActive" AND c.platform = 'YOUTUBE' AND COALESCE(c."subscriberCount", 0) <= ${MASS_MAX_SUBS}::int
     )
     SELECT c.id, c."externalId", c."displayName" AS name, c."thumbnailUrl", f.name AS pack, c."subscriberCount" AS subs,
-      c."channelCreatedAt" AS created,
+      c."channelCreatedAt" AS created, c.layout, c."layoutTags",
       CASE WHEN c.n >= 4 THEN (
         SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY GREATEST(d, 0))
         FROM unnest(ARRAY[c."viewHistory"[c.n] - c."viewHistory"[c.n-1], c."viewHistory"[c.n-1] - c."viewHistory"[c.n-2], c."viewHistory"[c.n-2] - c."viewHistory"[c.n-3]]) d
@@ -152,8 +175,49 @@ async function massRadar(): Promise<MassChannel[]> {
       midPct: pct('m'),
       longPct: pct('l'),
       top: top ? { id: top.id, title: top.title, views: top.views, durationSec: top.durationSec } : null,
+      layout: r.layout,
+      layoutTags: r.layoutTags ?? [],
     };
   });
+}
+
+/* ───────────── 템플릿 신호 ───────────── */
+
+async function templateSignals(): Promise<{ signals: TemplateSignal[]; classified: number }> {
+  const rows = await prisma.$queryRaw<{ pack: string; layout: string; channels: number; med: number | null }[]>`
+    WITH perf AS (
+      SELECT "channelId", percentile_cont(0.5) WITHIN GROUP (ORDER BY views)::float8 AS med
+      FROM "RadarVideo" WHERE "publishedAt" BETWEEN NOW() - INTERVAL '14 days' AND NOW() - INTERVAL '1 day'
+      GROUP BY 1 HAVING COUNT(*) >= 3
+    )
+    SELECT f.name AS pack, c.layout, COUNT(*)::int AS channels,
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY perf.med)::float8 AS med
+    FROM "Channel" c JOIN "Folder" f ON f.id = c."folderId" JOIN perf ON perf."channelId" = c.id
+    WHERE c."isActive" AND c.layout IS NOT NULL AND f.name <> ALL(${META_PACKS}::text[])
+    GROUP BY 1, 2`;
+  const byPack = new Map<string, typeof rows>();
+  for (const r of rows) byPack.set(r.pack, [...(byPack.get(r.pack) ?? []), r]);
+  const signals: TemplateSignal[] = [];
+  let classified = 0;
+  for (const [pack, list] of byPack) {
+    const total = list.reduce((a, r) => a + r.channels, 0);
+    classified += total;
+    const layouts = list
+      .map((r) => ({ layout: r.layout, label: LAYOUTS[r.layout as LayoutKey] ?? r.layout, channels: r.channels, medianViews: Math.round(r.med ?? 0) }))
+      .sort((a, b) => b.channels - a.channels);
+    // 채널 3곳+ 인 구성끼리 비교 — 가장 잘 나오는 구성이 나머지(채널 수 가중 중앙값의 평균)보다 몇 배인가
+    const solid = layouts.filter((l) => l.channels >= 3 && l.medianViews > 0);
+    let best: TemplateSignal['best'] = null;
+    if (solid.length >= 2) {
+      const top = [...solid].sort((a, b) => b.medianViews - a.medianViews)[0];
+      const rest = solid.filter((l) => l !== top);
+      const restMed = rest.reduce((a, l) => a + l.medianViews * l.channels, 0) / rest.reduce((a, l) => a + l.channels, 0);
+      if (restMed > 0) best = { layout: top.layout, label: top.label, ratio: Math.round((top.medianViews / restMed) * 10) / 10 };
+    }
+    signals.push({ pack, classified: total, layouts, best });
+  }
+  signals.sort((a, b) => (b.best?.ratio ?? 0) - (a.best?.ratio ?? 0));
+  return { signals, classified };
 }
 
 function quantile(xs: number[], q: number): number | null {
