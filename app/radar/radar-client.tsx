@@ -24,6 +24,7 @@ import { BriefView } from './views/brief';
 import { WatchlistView } from './views/watchlist';
 import { radarDataAction } from './actions';
 import { AiInsight, ItemCard } from './views/insight';
+import { RevivalSection, usePlaybook } from './views/playbook';
 import type { Insight, InsightItem } from '@/lib/radar/insight';
 
 /**
@@ -230,6 +231,7 @@ function RisingCard({ w, periodLabel, ai }: { w: RisingWork; periodLabel: string
           <Metric label="다루는 채널" value={`${w.channels}곳`} />
         </div>
       </div>
+      <WorkSignals w={w} />
       {ai && (
         <div className="mx-[22px] mt-3 rounded-[14px] px-3.5 py-2.5" style={{ background: 'var(--chip)' }}>
           <div className="mb-1 text-[11.5px] font-extrabold text-[color:var(--text-faint)]">AI 판정</div>
@@ -302,6 +304,45 @@ function RisingCard({ w, periodLabel, ai }: { w: RisingWork; periodLabel: string
 }
 
 /* ───────────────────────── 피해야 할 픽 ───────────────────────── */
+
+/** 차별화 근거 — 길이별 성적(구성) · 인물 핀셋(덜 다뤄졌는데 잘 나오는 출연자) */
+function WorkSignals({ w }: { w: RisingWork }) {
+  const f = w.format;
+  const midWins = f && f.mid.n >= 2 && f.short.n >= 2 && f.mid.median >= f.short.median * 1.5;
+  // 핀셋 후보: 영상이 있는 출연자 중 '조회 중앙값 ÷ 영상 수'가 좋은 순 — 적게 다뤄졌는데 잘 나오는 사람
+  const pins = (w.pinset ?? []).filter((p) => p.videos > 0).sort((a, b) => b.median / Math.sqrt(b.videos) - a.median / Math.sqrt(a.videos));
+  const untouched = (w.pinset ?? []).filter((p) => p.videos === 0).map((p) => p.name);
+  if (!pins.length && !untouched.length && !(f && (f.short.n || f.mid.n))) return null;
+  return (
+    <div className="mx-[22px] mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] font-semibold text-muted-foreground">
+      {f && (f.short.n > 0 || f.mid.n > 0) && (
+        <span className="num" title="이 작품 영상의 길이별 조회 중앙값 — 미드폼이 확 잘 나오면 구성 차별화 근거">
+          59초 이하 {f.short.n ? `${short(f.short.median)} (${f.short.n}편)` : '없음'} · 미드폼 {f.mid.n ? `${short(f.mid.median)} (${f.mid.n}편)` : '없음'}
+          {midWins && (
+            <span className="ml-1.5">
+              <Chip tone="brand">미드폼이 잘 나옴</Chip>
+            </span>
+          )}
+        </span>
+      )}
+      {pins.length > 0 && (
+        <span className="flex flex-wrap items-center gap-1" title="출연자 이름이 제목·태그에 나온 영상 수 · 조회 중앙값 — 적게 다뤄졌는데 잘 나오는 사람이 핀셋 후보">
+          <span className="font-extrabold text-foreground">인물 핀셋</span>
+          {pins.slice(0, 4).map((p, i) => (
+            <Chip key={p.name} tone={i === 0 ? 'green' : 'plain'}>
+              {p.name} {p.videos}편 · {short(p.median)}
+            </Chip>
+          ))}
+        </span>
+      )}
+      {untouched.length > 0 && (
+        <span title="이 작품 영상 제목·태그에 아직 한 번도 안 나온 출연자 — 아무도 안 판 각도">
+          아무도 안 다룬 출연자 {untouched.slice(0, 3).join(' · ')}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function CrowdedList({ rows, ai }: { rows: CrowdedWork[]; ai?: Map<string, InsightItem> }) {
   return (
@@ -560,6 +601,8 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
   const [period, setPeriod] = useState<'24h' | '3d' | '7d'>('3d');
   const [data, setData] = useState(initial);
   const [loading, setLoading] = useState(false);
+  // 부활 후보 작품 (AI 없이 계산 — 1시간 캐시)
+  const playbook = usePlaybook();
   // AI 분석의 작품별 판정 (작품 key → 판정) — 카드에 붙인다
   const [aiByRef, setAiByRef] = useState<Map<string, InsightItem>>(new Map());
   const onInsight = (ins: Insight | null) => {
@@ -733,6 +776,8 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
           rising.map((w) => <RisingCard key={w.key} w={w} periodLabel={periodLabel} ai={aiByRef.get(w.key)} />)
         )}
       </div>
+
+      <RevivalSection list={playbook?.revival ?? []} cats={navCats ?? (cat === 'all' ? null : [cat])} />
 
       <div className="grid gap-3 xl:grid-cols-2">
         <CrowdedList rows={crowded} ai={aiByRef} />

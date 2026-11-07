@@ -5,6 +5,7 @@ import type { Brief, BriefInput } from '@/lib/radar/brief';
 import type { ChannelHighlight, PackOutlook } from '@/lib/radar/outlook';
 import { Chip, Empty, ago, short } from './parts';
 import { runJob, sinceStart, waitForJob, type JobState } from './job';
+import { PlaybookAi, PlaybookBoard } from './playbook';
 
 /**
  * AI 브리핑 — 뜨는 인물·작품을 Claude 가 유튜브 수치·구글 급상승·기사·TMDB 로 엮어 분석한다.
@@ -119,6 +120,7 @@ export function BriefView() {
       )}
 
       <OutlookBoard />
+      <PlaybookBoard />
 
       {!brief ? (
         <Empty>{hasKey === null ? '불러오는 중…' : '아직 브리핑이 없습니다. 「지금 분석」을 누르세요.'}</Empty>
@@ -372,6 +374,8 @@ function BriefBody({ brief }: { brief: Brief }) {
   return (
     <>
       <div className="card-surface theme-fade mb-4 rounded-[22px] px-5 py-4 text-[15px] font-bold leading-relaxed">{result.headline}</div>
+
+      {result.playbook && <PlaybookAi pb={result.playbook} />}
 
       {(result.promising ?? []).length > 0 && (
         <Section title="유망 카테고리 — 지금 들어갈 곳">

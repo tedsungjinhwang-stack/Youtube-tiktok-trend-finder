@@ -16,6 +16,7 @@ import { STOP_TOKENS } from './discover';
 
 export { NoClaudeKeyError };
 import { categoryOutlook, type PackOutlook } from './outlook';
+import { getPlaybook, PLAYBOOK_RULES } from './playbook';
 import type { PersonCredit } from './match';
 import { AWARD_CALENDAR, getSameSeasonPast, getSchedule } from './tabs';
 import { tmdb } from './tmdb';
@@ -79,6 +80,12 @@ export type BriefInput = {
   season: { awardsThisMonth: string | null; awardsNextMonth: string | null; pastSameSeason: { title: string; views: number; year: string; pack: string | null }[] };
   thisWeek: { date: string; title: string; ep: string | null; networks: string[] }[];
   upcoming: { title: string; platform: string; date: string | null; kind: string }[];
+  /** 플레이북 — 양산형 채널(구독 8만 이하) 하루 조회 상위 · 미드폼이 잘 나오는 팩 · 부활 후보 작품 */
+  playbook?: {
+    mass: { channel: string; pack: string; subscribers: number | null; dailyViews: number; medianViews: number | null; floorTrendPct: number | null; midPct: number; top: string | null }[];
+    formats: { pack: string; shortMedian: number; midMedian: number; midVsShort: number; midChannels: number }[];
+    revival: { title: string; category: string; pastMax: number; past300k: number; recentChannels: number }[];
+  };
 };
 
 /** 주제가 아니라 규모·성격으로 묶은 팩 — 카테고리 분석에서 뺀다 */
@@ -299,13 +306,14 @@ export async function gatherBriefInput(): Promise<BriefInput> {
   const creditsBy = new Map(castCredits.map((c) => [c.name, (c.credits as unknown as PersonCredit[]) ?? []]));
 
   const month = Number(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul', month: 'numeric' }));
-  const [outlookAll, packs, keywords, pastSame, schedule, upcoming] = await Promise.all([
+  const [outlookAll, packs, keywords, pastSame, schedule, upcoming, pb] = await Promise.all([
     categoryOutlook().catch(() => [] as PackOutlook[]),
     packHeat(),
     hotKeywords(),
     getSameSeasonPast(15).catch(() => []),
     getSchedule().catch(() => []),
     upcomingReleases().catch(() => []),
+    getPlaybook().catch(() => null),
   ]);
 
   const [similar, personNews, workNews, google] = await Promise.all([
@@ -321,6 +329,22 @@ export async function gatherBriefInput(): Promise<BriefInput> {
     today: new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }),
     packs,
     outlook: [...outlookAll.slice(0, 20), ...outlookAll.slice(-5)].filter((x, i, a) => a.indexOf(x) === i),
+    playbook: pb
+      ? {
+          mass: pb.mass.slice(0, 15).map((m) => ({
+            channel: m.name,
+            pack: m.pack,
+            subscribers: m.subscribers,
+            dailyViews: m.dailyViews,
+            medianViews: m.medianViews,
+            floorTrendPct: m.floorTrendPct,
+            midPct: m.midPct,
+            top: m.top?.title.slice(0, 70) ?? null,
+          })),
+          formats: pb.formats.slice(0, 8).map((f) => ({ pack: f.pack, shortMedian: f.short.median, midMedian: f.mid.median, midVsShort: f.midVsShort, midChannels: f.mid.channels })),
+          revival: pb.revival.slice(0, 12).map((r) => ({ title: r.title, category: r.categoryLabel, pastMax: r.pastMax, past300k: r.past300k, recentChannels: r.recentChannels })),
+        }
+      : undefined,
     keywords,
     season: {
       awardsThisMonth: AWARD_CALENDAR.find((a) => a.month === month)?.names ?? null,
@@ -395,9 +419,63 @@ const PICK = {
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['headline', 'promising', 'categories', 'keywords', 'persons', 'works', 'season', 'upcoming', 'googleOpportunities'],
+  required: ['headline', 'playbook', 'promising', 'categories', 'keywords', 'persons', 'works', 'season', 'upcoming', 'googleOpportunities'],
   properties: {
     headline: { type: 'string', description: '오늘 판을 두세 문장으로 — 어느 카테고리·소재가 왜 뜨나' },
+    playbook: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['benchmarks', 'formatPlays', 'revivals', 'switchOut'],
+      description: '플레이북 — 잘되는 자리에서 형식·구성만 가져와 하나만 바꾸기',
+      properties: {
+        benchmarks: {
+          type: 'array',
+          description: '형식·구성을 가져올 양산형 채널 3~5개 (자료 playbook.mass 에서 — 같은 팩에 여럿이면 하나만)',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['channel', 'pack', 'copy', 'change', 'evidence'],
+            properties: {
+              channel: { type: 'string' },
+              pack: { type: 'string' },
+              copy: { type: 'string', description: '가져올 형식·구성 (길이·템플릿·소재 출처·흐름) — 대표 영상 제목으로 추정' },
+              change: { type: 'string', description: '바꿀 한 가지 (템플릿 / 소재의 결 / 구성 / 타깃 핀셋 / 해외 방식) — 구체적으로' },
+              evidence: { type: 'string', description: '진입 근거 수치 (하루 조회 · 최근 영상 중앙값 · 바닥 추세 · 구독자)' },
+            },
+          },
+        },
+        formatPlays: {
+          type: 'array',
+          description: '구성 차별화 0~3개 — 미드폼(1~3분)이 59초 이하보다 확 잘 나오는 팩 (자료 playbook.formats)',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['pack', 'insight'],
+            properties: { pack: { type: 'string' }, insight: { type: 'string', description: '수치와 함께, 어떻게 만들지 한 문장' } },
+          },
+        },
+        revivals: {
+          type: 'array',
+          description: '부활 작품 0~5개 — 최근 한 달 안에 크게 터졌는데 지금 거의 아무도 안 하는 작품 (자료 playbook.revival). 일반 단어로 잘못 묶인 듯한 건 뺀다',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['title', 'why', 'angle'],
+            properties: { title: { type: 'string' }, why: { type: 'string', description: '그때 수치 · 지금 경쟁' }, angle: { type: 'string', description: '어떤 장면·구성으로' } },
+          },
+        },
+        switchOut: {
+          type: 'array',
+          description: '수명이 다해 가는 카테고리 0~3개 — 기회판 하위·오름세 꺾인 곳, 그리고 갈아탈 곳',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['pack', 'why', 'switchTo'],
+            properties: { pack: { type: 'string' }, why: { type: 'string' }, switchTo: { type: 'string' } },
+          },
+        },
+      },
+    },
     promising: {
       type: 'array',
       description: '지금 들어가기 유망한 카테고리 3~5개 — 기회판(outlook) 점수와 근거를 보고, 수요가 오르는데 영상당 조회가 좋고 신생도 먹히며 쏠림이 덜한 곳',
@@ -536,6 +614,9 @@ const SYSTEM = `너는 한국 유튜브 쇼츠 채널 운영자를 돕는 트렌
 - 계절: 오늘 날짜 기준 시기(날씨·명절·수능·연말·시상식 등)와 작년 이맘때 터진 영상을 엮어 계절 소재를 낸다.
 - 공개 예정: 곧 공개되거나 막 시작한 작품 중 뜰 것을 골라, 지금 미리 준비할 것을 낸다.
 - 구글 급상승 중 유튜브 데이터에 아직 약한 소재를 골라 선점 기회로 낸다.
+- 플레이북: playbook.mass(구독 8만 이하 양산형 채널 — 지금 알고리즘이 밀어주는 자리)에서 형식·구성을 가져올 채널과 바꿀 한 가지, playbook.formats 로 구성 차별화(미드폼), playbook.revival 로 부활 작품, 기회판 하위·꺾인 카테고리로 갈아탈 곳을 낸다.
+
+${PLAYBOOK_RULES}
 
 규칙:
 - 사실(사건·수치·날짜)은 입력 자료에 있는 것만 쓴다. 기사에 없는 사건을 지어내지 않는다. 확신이 없으면 "기사로 확인 필요"라고 쓴다.
@@ -566,8 +647,15 @@ export function parseResult(text: string): BriefResult | null {
   }
   if (!j || typeof j !== 'object') return null;
   const pick = (x: any) => ({ title: str(x?.title), reason: str(x?.reason) });
+  const pb = j.playbook && typeof j.playbook === 'object' ? j.playbook : {};
   return {
     headline: str(j.headline),
+    playbook: {
+      benchmarks: arr(pb.benchmarks, (x) => ({ channel: str(x.channel), pack: str(x.pack), copy: str(x.copy), change: str(x.change), evidence: str(x.evidence) })),
+      formatPlays: arr(pb.formatPlays, (x) => ({ pack: str(x.pack), insight: str(x.insight) })),
+      revivals: arr(pb.revivals, (x) => ({ title: str(x.title), why: str(x.why), angle: str(x.angle) })),
+      switchOut: arr(pb.switchOut, (x) => ({ pack: str(x.pack), why: str(x.why), switchTo: str(x.switchTo) })),
+    },
     promising: arr(j.promising, (x) => ({ pack: str(x.pack), verdict: str(x.verdict), why: str(x.why), entry: str(x.entry), risk: str(x.risk) })),
     categories: arr(j.categories, (x) => ({ pack: str(x.pack), trend: str(x.trend), why: str(x.why), angle: str(x.angle) })),
     keywords: arr(j.keywords, (x) => ({ keyword: str(x.keyword), why: str(x.why), angle: str(x.angle) })),
@@ -597,6 +685,13 @@ export function parseResult(text: string): BriefResult | null {
 
 export type BriefResult = {
   headline: string;
+  /** 플레이북 — 예전 분석엔 없을 수 있다 */
+  playbook?: {
+    benchmarks: { channel: string; pack: string; copy: string; change: string; evidence: string }[];
+    formatPlays: { pack: string; insight: string }[];
+    revivals: { title: string; why: string; angle: string }[];
+    switchOut: { pack: string; why: string; switchTo: string }[];
+  };
   promising: { pack: string; verdict: string; why: string; entry: string; risk: string }[];
   categories: { pack: string; trend: string; why: string; angle: string }[];
   keywords: { keyword: string; why: string; angle: string }[];
@@ -634,7 +729,7 @@ export async function generateBrief(): Promise<Brief> {
   const r = await askClaude({
     system: SYSTEM_WITH_SCHEMA,
     // 답이 2만 토큰 한도를 넘어 잘리던 문제(11/6) — 항목 수를 조금 줄이고, 한도는 넉넉히 · 생각은 짧게(함수 300초 안에 끝나게)
-    user: `오늘은 ${today}이다. 아래 자료로 종합 분석을 써라. 유망 카테고리 최대 5개, 카테고리 흐름 최대 6개, 키워드 최대 6개, 인물 최대 5명, 작품 최대 4개, 공개 예정 최대 6개. 각 글은 짧게.\n\n<자료>\n${JSON.stringify(input)}\n</자료>`,
+    user: `오늘은 ${today}이다. 아래 자료로 종합 분석을 써라. 플레이북 벤치마킹 최대 5개 · 구성 차별화 최대 3개 · 부활 작품 최대 5개 · 갈아탈 카테고리 최대 3개, 유망 카테고리 최대 5개, 카테고리 흐름 최대 6개, 키워드 최대 6개, 인물 최대 5명, 작품 최대 4개, 공개 예정 최대 6개. 각 글은 짧게.\n\n<자료>\n${JSON.stringify(input)}\n</자료>`,
     maxTokens: 32000,
     effort: 'low',
     timeoutMs: 270_000,

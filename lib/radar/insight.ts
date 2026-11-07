@@ -12,6 +12,7 @@ import { googleNews, similarWorks } from './brief';
 import { getHotVideos, type HotWindow } from './queries';
 import { getEntries, getGolden, getPersons } from './tabs';
 import { getRadarData, type WorksPeriod } from './works';
+import { getPlaybook, PLAYBOOK_RULES } from './playbook';
 import { CATEGORIES, CATEGORY_LABEL, isHoneyPot, type WorkCategory } from './types';
 
 const H = 3_600_000;
@@ -151,7 +152,16 @@ async function risingInput(p: InsightParams) {
       unmeasured: w.unmeasured.slice(0, 5).map((u) => `${u.title}${u.year ? `(${u.year})` : ''}`),
       news: i < 5 ? news[i].map((n) => `${n.title} — ${n.source}`) : [],
       similar: i < 5 ? similar[i].slice(0, 6).map((s) => `${s.title}${s.year ? `(${s.year})` : ''}`) : [],
+      // 구성 차별화 근거: 이 작품 영상의 59초 이하 vs 미드폼(1~3분) 조회 중앙값
+      format: w.format,
+      // 인물 핀셋: 출연자 이름이 제목·태그에 나온 영상 수 · 조회 중앙값
+      pinset: w.pinset,
     })),
+    // 부활 후보: 최근 한 달 안에 크게 터졌는데 지금 10일 동안 거의 아무도 안 하는 작품
+    revival: (await getPlaybook().catch(() => null))?.revival
+      .filter((r) => !p.cats?.length || p.cats.includes(r.category as WorkCategory))
+      .slice(0, 10)
+      .map((r) => ({ title: r.title, year: r.year, category: r.categoryLabel, pastMax: r.pastMax, past300k: r.past300k, pastChannels: r.pastChannels, recentChannels: r.recentChannels, topClip: r.top?.title.slice(0, 80) ?? null })) ?? [],
     crowded: data.crowded.filter((w) => inCat(w.category)).slice(0, 8).map((w) => ({
       ref: w.key,
       title: w.title,
@@ -243,15 +253,21 @@ const BASE = `너는 한국 유튜브 쇼츠 채널 운영자를 돕는 분석�
 - 추모·사망, 정치, 범죄·논란, 미성년자는 caution 에 자극 표현을 피하라고 적는다. 남의 영상을 쓰는 소재는 저작권 주의를 적는다.
 - tone: go(지금 만들 것) · watch(지켜볼 것·조건부) · avoid(피할 것). verdict 는 6자 안팎 한국어 판정.
 - 모든 글은 한국어, 짧고 단정하게. 한 항목의 why·how 는 각각 2문장 이내.
+${PLAYBOOK_RULES}
+- 그래서 go 항목의 how 에는 늘 ① 무엇의 형식·구성을 가져오고(잘 나온 영상·채널) ② 무엇 하나를 바꿀지(차별화)를 쓴다. why 에는 진입 근거 수치와 경쟁 강도(채널·영상 수)를 쓴다.
 출력: JSON 객체 하나만 (코드 블록·설명 없이 { 로 시작해 } 로 끝낸다). 빠진 값은 빈 문자열·빈 배열.
 {"headline":"한 줄 요약","todo":["오늘 할 일 순서대로 3~5개"],"sections":[{"title":"섹션 이름","items":[{"ref":"자료의 ref 그대로 (없으면 빈 문자열)","name":"","verdict":"","tone":"go|watch|avoid","why":"","how":"","titles":["",""],"picks":[{"title":"","reason":""}],"caution":""}]}]}`;
 
 const TASK: Record<InsightKind, string> = {
   rising: `화면: 「막 뜨는 작품 · 연관 꿀통」. 자료: 기간 안에 감시 채널에서 조회가 튄 작품(works — 상위 쇼츠 제목, 출연진, 첫 방송·최근 회차·다음 회차 날짜(방영 중이면 다음 회차 전에 올릴 것을 how 에), 연관작 related(honeyPot=조회 30만+ · 채널 2곳 이하), 출연진의 아직 아무도 안 만든 작품 unmeasured, 최근 기사 news, TMDB 비슷한 작품 similar)과 여러 채널이 몰린 작품(crowded).
 섹션 3개를 이 순서·이름으로:
-1) "지금 탈 작품" — works 각각 (최대 8개). spike=true(쇼츠 1편·채널 1곳만 터짐)면 반짝일 수 있다고 watch. 채널이 많고 평균이 떨어지면 watch/avoid. how 는 상위 쇼츠 제목에서 먹힌 장면·소재를 짚는다. picks 에는 이 작품을 타고 이어서 만들 작품 2~4개 — related 중 honeyPot 우선, unmeasured(빈자리), similar(결 맞는 작품) 순으로 이유와 함께.
+1) "지금 탈 작품" — works 각각 (최대 8개). spike=true(쇼츠 1편·채널 1곳만 터짐)면 반짝일 수 있다고 watch. 채널이 많고 평균이 떨어지면 watch/avoid. how 는 상위 쇼츠 제목에서 먹힌 장면·소재를 짚고, 차별화 하나를 고른다:
+   - 채널이 많으면(경쟁 셈) pinset 에서 영상은 적은데 조회 중앙값이 좋은 출연자 한 명을 핀셋으로 (예: "OOO 한 명만 — 영상 3편뿐인데 중앙값 40만").
+   - format 에서 미드폼(mid) 중앙값이 59초 이하(short)보다 1.5배 넘게 높으면 미드폼(1~3분)을 권한다 (표본 수도 같이).
+   picks 에는 이 작품을 타고 이어서 만들 작품 2~4개 — related 중 honeyPot 우선, unmeasured(빈자리), similar(결 맞는 작품) 순으로 이유와 함께.
 2) "연관 꿀통 · 빈자리" — 모든 works 의 related(honeyPot)·unmeasured 중 지금 만들 가치가 큰 것 최대 6개. name=작품 이름, ref=빈 문자열, why 에 어느 뜨는 작품의 누구 출연이라 이어지는지와 수치.
-3) "피할 작품" — crowded 중 피할 것 (tone avoid, ref=crowded 의 ref). 채널 수·평균 조회·추세를 근거로.`,
+3) "피할 작품" — crowded 중 피할 것 (tone avoid, ref=crowded 의 ref). 채널 수·평균 조회·추세를 근거로.
+4) "부활 작품" — revival(최근 한 달 안에 30만+ 영상이 여러 채널에서 나왔는데 지금 10일 동안 거의 아무도 안 하는 작품) 중 지금 다시 들어갈 만한 것 최대 5개. ref=빈 문자열. why 에 그때 수치(pastMax · past300k · pastChannels)와 지금 경쟁(recentChannels). 작품명이 일반 단어라 잘못 묶인 것 같으면 빼거나 caution 에. how 에 어떤 장면·구성으로 (미드폼·하이브리드 내레이션 등).`,
   hot: `화면: 터진 영상 목록 (screen 이름의 묶음). 자료: 고른 시간 동안 조회가 가장 많이 늘어난 영상(gain=그 시간 증가, multipleOfChannelUsual=채널 평소의 몇 배, work=붙은 작품).
 섹션 3개를 이 순서·이름으로:
 1) "터진 이유 · 패턴" — 제목·소재·포맷에서 반복되는 패턴 3~5개. name=패턴 이름, why=그 패턴의 영상 예(제목 일부와 수치), how=따라 만드는 법, titles=그 패턴을 적용한 새 제목 예시. ref=빈 문자열.

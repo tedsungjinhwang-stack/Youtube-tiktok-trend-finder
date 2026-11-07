@@ -68,6 +68,10 @@ export type RisingWork = WorkRef & {
   related: RelatedWork[];
   /** 출연진의 다른 작품 중 감시 채널에 쇼츠가 하나도 없는 것 */
   unmeasured: { title: string; year: string; category: WorkCategory }[];
+  /** 기간 안 이 작품 영상의 길이별 성적 — 59초 이하 vs 미드폼(1~3분) (구성 차별화 근거) */
+  format?: { short: { n: number; median: number }; mid: { n: number; median: number } };
+  /** 인물 핀셋 — 출연자마다 이름이 제목·태그에 나온 영상 수와 조회 중앙값. 적게 다뤄졌는데 잘 나오는 사람이 핀셋 후보 */
+  pinset?: { name: string; videos: number; median: number }[];
 };
 
 export type CrowdedWork = WorkRef & {
