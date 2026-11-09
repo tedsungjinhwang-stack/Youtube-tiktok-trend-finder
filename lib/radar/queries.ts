@@ -562,7 +562,7 @@ export type PastResult = {
   hasMore: boolean;
   folders: { name: string; count: number }[];
   archivedChannels: number;
-  /** 아직 정리 안 한 끊긴 채널 (마지막 업로드 60일+) */
+  /** 아직 정리 안 한 끊긴 채널 (마지막 업로드 30일+, 하루 10만+ 조회 채널은 남김) */
   pendingChannels: number;
 };
 

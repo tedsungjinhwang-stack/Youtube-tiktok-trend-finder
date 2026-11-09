@@ -7,7 +7,7 @@ import type { PastHitRow, PastQuery, PastResult } from '@/lib/radar/queries';
 import { Empty, VideoThumb, short } from './parts';
 
 /**
- * 과거 트래픽 — 업로드가 60일 넘게 끊겨 정리한 채널의 100만+ 영상.
+ * 과거 트래픽 — 업로드가 30일 넘게 끊겨 정리한 채널의 100만+ 영상.
  * 터졌던 소재는 또 터지니까, 예전에 뭐가 먹혔는지 찾아보는 곳.
  */
 
@@ -69,7 +69,7 @@ export function PastView() {
         <div>
           <h1 className="text-[26px] font-extrabold tracking-[-0.04em]">과거 트래픽</h1>
           <p className="mt-1 text-[13px] font-semibold text-muted-foreground">
-            업로드가 60일 넘게 끊긴 채널의 100만+ 영상 — 터졌던 소재는 또 터진다
+            업로드가 30일 넘게 끊긴 채널의 100만+ 영상 — 터졌던 소재는 또 터진다
           </p>
         </div>
         {data && (
