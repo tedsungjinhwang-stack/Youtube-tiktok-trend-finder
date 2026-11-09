@@ -33,7 +33,24 @@ export type CollectStatus = {
   allHourly: boolean;
 };
 
+/** 수집 상태 — 화면마다 부르는데 채널 수 세기가 무거워 5분 저장해 두고 쓴다 (마지막 수집 시각만 매번 새로) */
 export async function getCollectStatus(): Promise<CollectStatus> {
+  const [cached, last] = await Promise.all([
+    prisma.trendCache.findUnique({ where: { key: 'radar:status' } }).catch(() => null),
+    prisma.trendCache.findUnique({ where: { key: 'radar:last-collect' } }).catch(() => null),
+  ]);
+  if (cached && Date.now() - cached.fetchedAt.getTime() < 5 * 60_000) {
+    const p = (last?.payload ?? null) as { quotaLeft?: number | null; stoppedBy?: string | null } | null;
+    return { ...(cached.payload as unknown as CollectStatus), lastRunAt: last?.fetchedAt.toISOString() ?? null, quotaLeft: p?.quotaLeft ?? null, stoppedBy: p?.stoppedBy ?? null };
+  }
+  const fresh = await computeCollectStatus();
+  await prisma.trendCache
+    .upsert({ where: { key: 'radar:status' }, create: { key: 'radar:status', payload: fresh as object }, update: { payload: fresh as object, fetchedAt: new Date() } })
+    .catch(() => {});
+  return fresh;
+}
+
+async function computeCollectStatus(): Promise<CollectStatus> {
   const [last, monitoredChannels, watchedChannels, trackedVideos, plan] = await Promise.all([
     prisma.trendCache.findUnique({ where: { key: 'radar:last-collect' } }).catch(() => null),
     prisma.channel.count({ where: { isActive: true, platform: 'YOUTUBE' } }).catch(() => 0),

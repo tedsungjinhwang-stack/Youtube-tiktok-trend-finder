@@ -84,17 +84,26 @@ export async function rookiesInPacksAction(): Promise<RookieRow[]> {
 export async function searchWorksAction(q: string): Promise<WorkPick[]> {
   return searchWorks(q);
 }
+/** 작품 인식을 손으로 고치면 저장해 둔 막 뜨는 작품 화면(10분)을 버려 바로 반영되게 */
+async function dropWorksCache() {
+  await prisma.trendCache.deleteMany({ where: { key: { startsWith: 'radar:works:' } } }).catch(() => {});
+}
 export async function assignVideoWorkAction(videoId: string, pick: WorkPick, remember?: string): Promise<void> {
   await assignVideoWork(videoId, pick, remember);
+  await dropWorksCache();
 }
 export async function unmatchVideoAction(videoId: string): Promise<void> {
   await unmatchVideo(videoId);
+  await dropWorksCache();
 }
 export async function confirmGuessAction(videoId: string): Promise<void> {
   await confirmGuess(videoId);
+  await dropWorksCache();
 }
 export async function blockAliasAction(text: string): Promise<number> {
-  return blockAlias(text);
+  const n = await blockAlias(text);
+  await dropWorksCache();
+  return n;
 }
 export async function unblockAliasAction(text: string): Promise<void> {
   await unblockAlias(text);

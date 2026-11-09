@@ -191,6 +191,7 @@ model RadarVideo {
   @@index([publishedAt])
   @@index([channelId, publishedAt])
   @@index([workId, publishedAt])
+  // 부분 인덱스 RadarVideo_unmatched_idx ("channelId") WHERE "matchedAt" IS NULL AND NOT "matchLocked" — 마이그레이션으로만 (Prisma 는 부분 인덱스를 못 적는다)
 }
 
 /// 꿀통레이더 — TMDB 작품 (영화·드라마·예능)

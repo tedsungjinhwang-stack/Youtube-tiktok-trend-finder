@@ -599,8 +599,10 @@ async function stepRefreshVideos(
   allHourly: boolean
 ) {
   // 관심 목록(키가 넉넉하면 전체): 72시간 안 매시간 · 7일 안 6시간 · 30일 안 하루 / 나머지: 72시간 안 3시간 · 7일 안 12시간
-  const due = await prisma.$queryRaw<{ id: string; publishedAt: Date; trackT: number[]; trackV: number[]; watched: boolean }[]>`
-    SELECT v.id, v."publishedAt", v."trackT", v."trackV", f.watched
+  // 고를 때는 id 만 — 측정 기록 배열은 실제로 잴 묶음만 따로 읽는다 (예전엔 1만 2천 개 배열을 매번 읽어 한 번에 12초씩 걸렸다).
+  // 한 번에 다 못 재니 4천 개면 충분 (보통 1~3천 개를 잰다)
+  const due = await prisma.$queryRaw<{ id: string; publishedAt: Date; watched: boolean }[]>`
+    SELECT v.id, v."publishedAt", f.watched
     FROM "RadarVideo" v
     JOIN "Channel" c ON c.id = v."channelId"
     JOIN "Folder" f ON f.id = c."folderId"
@@ -612,7 +614,7 @@ async function stepRefreshVideos(
          (v."publishedAt" > NOW() - INTERVAL '72 hours' AND (v."checkedAt" IS NULL OR v."checkedAt" < NOW() - INTERVAL '170 minutes'))
       OR (v."publishedAt" > NOW() - INTERVAL '7 days'   AND v."checkedAt" < NOW() - INTERVAL '12 hours')))
     ORDER BY f.watched DESC, v."checkedAt" ASC NULLS FIRST
-    LIMIT 12000`;
+    LIMIT 4000`;
 
   const watchedDue = due.filter((v) => v.watched);
   const otherDue = due.filter((v) => !v.watched);
@@ -623,12 +625,16 @@ async function stepRefreshVideos(
   await pool(batches, 12, async ({ b: slice, can }) => {
     if (!can(1)) return;
     // 설명란(snippet)도 같이 — videos.list 는 받는 부분이 늘어도 1 unit 이라 공짜. 아직 안 읽은 영상의 설명란 작품 단서를 채운다
-    const stats = await fetchVideos(
-      slice.map((v) => v.id),
-      true
-    );
+    const [stats, tracks] = await Promise.all([
+      fetchVideos(
+        slice.map((v) => v.id),
+        true
+      ),
+      prisma.radarVideo.findMany({ where: { id: { in: slice.map((v) => v.id) } }, select: { id: true, trackT: true, trackV: true } }),
+    ]);
     spend(1);
     const byId = new Map(stats.map((s) => [s.id, s]));
+    const trackOf = new Map(tracks.map((t) => [t.id, t]));
     const nowMin = toMin(new Date());
     const keepFrom = nowMin - 72 * 60;
 
@@ -648,8 +654,9 @@ async function stepRefreshVideos(
         continue;
       }
       // 72시간 넘은 기록은 버리되, 24시간 전 비교용으로 바로 앞 하나는 남긴다
-      let t = [...row.trackT, nowMin];
-      let v = [...row.trackV, s.views];
+      const tr = trackOf.get(row.id);
+      let t = [...(tr?.trackT ?? []), nowMin];
+      let v = [...(tr?.trackV ?? []), s.views];
       const firstKeep = t.findIndex((x) => x >= keepFrom);
       if (firstKeep > 1) {
         t = t.slice(firstKeep - 1);

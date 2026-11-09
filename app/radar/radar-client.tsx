@@ -24,7 +24,7 @@ import { BriefView } from './views/brief';
 import { WatchlistView } from './views/watchlist';
 import { radarDataAction } from './actions';
 import { AiInsight, ItemCard } from './views/insight';
-import { RevivalSection, usePlaybook } from './views/playbook';
+import { RevivalBlock } from './views/playbook';
 import type { Insight, InsightItem } from '@/lib/radar/insight';
 
 /**
@@ -601,8 +601,6 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
   const [period, setPeriod] = useState<'24h' | '3d' | '7d'>('3d');
   const [data, setData] = useState(initial);
   const [loading, setLoading] = useState(false);
-  // 부활 후보 작품 (AI 없이 계산 — 1시간 캐시)
-  const playbook = usePlaybook();
   // AI 분석의 작품별 판정 (작품 key → 판정) — 카드에 붙인다
   const [aiByRef, setAiByRef] = useState<Map<string, InsightItem>>(new Map());
   const onInsight = (ins: Insight | null) => {
@@ -777,7 +775,7 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
         )}
       </div>
 
-      <RevivalSection list={playbook?.revival ?? []} cats={navCats ?? (cat === 'all' ? null : [cat])} />
+      <RevivalBlock cats={navCats ?? (cat === 'all' ? null : [cat])} />
 
       <div className="grid gap-3 xl:grid-cols-2">
         <CrowdedList rows={crowded} ai={aiByRef} />
