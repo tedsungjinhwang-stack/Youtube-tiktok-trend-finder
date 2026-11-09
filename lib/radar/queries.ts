@@ -255,7 +255,7 @@ export async function getRanking(q: RankingQuery): Promise<RankingResult> {
 
 /* ───────────── 터진 영상 ───────────── */
 
-export type HotWindow = 1 | 3 | 6 | 12 | 24;
+export type HotWindow = 1 | 3 | 6 | 12 | 24 | 48;
 export type HotSort = 'rising' | 'views' | 'latest';
 
 export type HotQuery = {
@@ -265,6 +265,12 @@ export type HotQuery = {
   excludeWhale: boolean;
   /** 이 채널팩들만 (팬튜브·코미디 같은 묶음 화면). 없으면 관심 목록 전체 */
   folders?: string[];
+  /** 평소 대비 — 채널 평소(7~30일 영상 중앙값)의 몇 배 이상만 (0 = 전체) */
+  multiple?: 0 | 1 | 2 | 5;
+  /** 잠잠하다 급상승 — 최근 6시간 속도가 그 전 6시간의 1.5배+ (12시간 넘게 잰 영상만) */
+  calmSurge?: boolean;
+  /** 역주행 — 올린 지 7일 넘은 영상만 */
+  revival?: boolean;
 };
 
 export type HotVideo = {
@@ -312,7 +318,7 @@ export type HotResult = {
  * 롱폼은 그 1/5. 이보다 적게 늘어난 영상은 '터진' 게 아니라 그냥 올라온 것.
  */
 export function minGain(format: 'shorts' | 'long', window: HotWindow): number {
-  const perHour: Record<HotWindow, number> = { 1: 3000, 3: 2000, 6: 1500, 12: 1000, 24: 800 };
+  const perHour: Record<HotWindow, number> = { 1: 3000, 3: 2000, 6: 1500, 12: 1000, 24: 800, 48: 600 };
   return Math.round(perHour[window] * window * (format === 'shorts' ? 1 : 0.2));
 }
 
@@ -325,9 +331,17 @@ export async function getHotVideos(q: HotQuery): Promise<HotResult> {
     Prisma.sql`v."isShorts" = ${q.format === 'shorts'}`,
   ];
   if (q.excludeWhale) conds.push(Prisma.sql`COALESCE(c."subscriberCount", 0) < 1000000`);
+  if (q.multiple) conds.push(Prisma.sql`c."baselineMedian" > 0 AND v.views >= c."baselineMedian" * ${q.multiple}::int`);
+  if (q.calmSurge) {
+    // 그 전 6시간(= 12시간 증가 - 6시간 증가)보다 1.5배+ 빨라졌고, 12시간 넘게 잰 영상 (밤낮 차이 걸러 내기)
+    conds.push(Prisma.sql`v."gain6h" IS NOT NULL AND v."gain12h" IS NOT NULL AND v."gain12h" - v."gain6h" >= 1000
+      AND v."gain6h" >= 1.5 * (v."gain12h" - v."gain6h") AND v."publishedAt" < NOW() - INTERVAL '12 hours'
+      AND cardinality(v."trackT") >= 2 AND v."trackT"[cardinality(v."trackT")] - v."trackT"[1] >= 720`);
+  }
+  if (q.revival) conds.push(Prisma.sql`v."publishedAt" < NOW() - INTERVAL '7 days'`);
   if (q.sort === 'rising') {
-    // 오래된 조회수로 순위를 매기지 않게 — 최근 4시간 안에 잰 것만 (관심 목록 밖 채널은 3시간마다 잰다)
-    conds.push(Prisma.sql`v."checkedAt" > NOW() - INTERVAL '4 hours'`);
+    // 오래된 조회수로 순위를 매기지 않게 — 고른 시간에 맞춰 최근에 잰 것만 (7일 넘은 영상은 하루에 한 번 잰다)
+    conds.push(q.revival || q.window >= 24 ? Prisma.sql`v."checkedAt" > NOW() - INTERVAL '26 hours'` : Prisma.sql`v."checkedAt" > NOW() - INTERVAL '4 hours'`);
     conds.push(Prisma.sql`v."publishedAt" > NOW() - INTERVAL '30 days'`);
     // '터졌다'고 할 만큼 늘어난 것만 — 없으면 막 올라온 몇천 회짜리가 1등이 된다
     conds.push(Prisma.sql`v.${gainCol} >= ${minGain(q.format, q.window)}`);
@@ -337,9 +351,10 @@ export async function getHotVideos(q: HotQuery): Promise<HotResult> {
   } else {
     conds.push(Prisma.sql`v."publishedAt" > NOW() - INTERVAL '7 days'`);
   }
+  // 급상승순 = 고른 시간 동안의 시간당 조회수 (그 시간보다 어린 영상은 올라온 뒤 시간으로 나눈다)
   const order =
     q.sort === 'rising'
-      ? Prisma.sql`v.${gainCol} DESC NULLS LAST`
+      ? Prisma.sql`v.${gainCol}::float8 / GREATEST(LEAST(${q.window}::float8, EXTRACT(EPOCH FROM NOW() - v."publishedAt") / 3600), 0.5) DESC NULLS LAST`
       : q.sort === 'views'
         ? Prisma.sql`v.views DESC`
         : Prisma.sql`v."publishedAt" DESC`;

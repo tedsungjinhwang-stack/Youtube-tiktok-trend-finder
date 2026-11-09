@@ -10,12 +10,19 @@ import { AiInsight } from './insight';
 
 /**
  * 터진 영상 — 감시 채널의 최근 영상 중 지금 조회가 빠르게 느는 것.
- * 수집기가 72시간 안 영상은 매시간 조회수를 재서 N시간 동안 늘어난 만큼으로 줄 세운다.
+ * 수집기가 72시간 안 영상은 매시간(3~7일은 6시간, 7~30일은 하루) 조회수를 재서, 고른 시간 동안의 시간당 조회수로 줄 세운다.
+ * 1·3시간은 한 번 잰 차이라 들쭉날쭉해서 뺐다 — 6시간이 기본 (핀트도 최근 6시간 · 12시간 넘게 잰 기준을 쓴다).
  */
 
-const WINDOWS: HotWindow[] = [1, 3, 6, 12, 24];
+const WINDOWS: HotWindow[] = [6, 24, 48];
+const MULTIPLES: { key: 0 | 1 | 2 | 5; label: string }[] = [
+  { key: 0, label: '전체' },
+  { key: 1, label: '평소 이상' },
+  { key: 2, label: '2배+' },
+  { key: 5, label: '5배+' },
+];
 const SORTS: { key: HotSort; label: string }[] = [
-  { key: 'rising', label: '급상승' },
+  { key: 'rising', label: '급상승(시간당)' },
   { key: 'views', label: '조회수' },
   { key: 'latest', label: '최신' },
 ];
@@ -39,7 +46,10 @@ export const HOT_DEFAULT: HotPreset = {
 
 export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }: { preset?: HotPreset; presetKey?: string; onWatchlist: () => void }) {
   const [format, setFormat] = useState<'shorts' | 'long'>(preset.format ?? 'shorts');
-  const [win, setWin] = useState<HotWindow>(preset.window ?? 1);
+  const [win, setWin] = useState<HotWindow>(preset.window ?? 6);
+  const [multiple, setMultiple] = useState<0 | 1 | 2 | 5>(0);
+  const [calmSurge, setCalmSurge] = useState(false);
+  const [revival, setRevival] = useState(false);
   const [sort, setSort] = useState<HotSort>(preset.sort ?? 'rising');
   const [reload, setReload] = useState(0);
   const [excludeWhale, setExcludeWhale] = useState(false);
@@ -52,7 +62,10 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
   // 다른 묶음 화면으로 바뀌면 그 화면의 기본값으로
   useEffect(() => {
     setFormat(preset.format ?? 'shorts');
-    setWin(preset.window ?? 1);
+    setWin(preset.window ?? 6);
+    setMultiple(0);
+    setCalmSurge(false);
+    setRevival(false);
     setSort(preset.sort ?? 'rising');
     setFolder(null);
   }, [preset]);
@@ -61,7 +74,7 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
     let alive = true;
     start(async () => {
       try {
-        const r = await hotVideosAction({ format, window: win, sort, excludeWhale, folders: preset.folders });
+        const r = await hotVideosAction({ format, window: win, sort, excludeWhale, folders: preset.folders, multiple, calmSurge, revival });
         if (!alive) return;
         setData(r);
         setShown(40);
@@ -73,7 +86,7 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
     return () => {
       alive = false;
     };
-  }, [format, win, sort, excludeWhale, preset, reload]);
+  }, [format, win, sort, excludeWhale, preset, reload, multiple, calmSurge, revival]);
 
   const watchAll = async () => {
     if (!data?.unwatched.length) return;
@@ -98,7 +111,7 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
       {data && data.unwatched.length > 0 && !data.status.allHourly && (
         <div className="surface-warn mb-3 flex flex-wrap items-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] font-semibold">
           <span>
-            {data.unwatched.join(' · ')} 채널팩은 3시간마다 잽니다. 관심 목록에 넣으면 매시간 (1시간 급상승까지).
+            {data.unwatched.join(' · ')} 채널팩은 3시간마다 잽니다. 관심 목록에 넣으면 매시간 잽니다.
           </span>
           <button onClick={watchAll} className="h-8 rounded-[10px] bg-brand px-3 text-[12.5px] font-bold text-brand-foreground">
             관심 목록에 넣기 (매시간)
@@ -129,6 +142,27 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
           <span className="ml-auto">
             <Toggle on={excludeWhale} onClick={() => setExcludeWhale(!excludeWhale)}>
               대형채널 제외
+            </Toggle>
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[12px] font-bold text-[color:var(--text-faint)]" title="채널 평소(7~30일 된 영상 조회 중앙값)의 몇 배인지">
+            평소 대비
+          </span>
+          {MULTIPLES.map((m) => (
+            <Pill key={m.key} active={multiple === m.key} onClick={() => setMultiple(m.key)}>
+              {m.label}
+            </Pill>
+          ))}
+          <span className="mx-1 h-4 w-px" style={{ background: 'var(--chip)' }} />
+          <span title="최근 6시간 시간당 조회가 그 전 6시간의 1.5배 이상으로 뛴 영상 — 밤낮 차이를 걸러 내려고 12시간 넘게 잰 영상만">
+            <Toggle on={calmSurge} onClick={() => setCalmSurge(!calmSurge)}>
+              잠잠하다 급상승
+            </Toggle>
+          </span>
+          <span title="올린 지 7일 넘은 영상이 다시 뜨는 것만 (7일 넘은 영상은 하루에 한 번 재서 24·48시간 기준으로 보세요)">
+            <Toggle on={revival} onClick={() => setRevival(!revival)}>
+              역주행만
             </Toggle>
           </span>
         </div>

@@ -170,6 +170,7 @@ model RadarVideo {
   gain6h       Int?
   gain12h      Int?
   gain24h      Int?
+  gain48h      Int?
   checkedAt    DateTime?
   firstSeenAt  DateTime   @default(now())
   /// 작품 (TMDB) — 제목·해시태그·태그로 찾는다. 못 찾으면 null

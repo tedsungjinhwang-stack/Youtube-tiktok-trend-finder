@@ -58,7 +58,7 @@ export type Insight = {
 /* ───────────── 범위 (캐시 키) ───────────── */
 
 const PERIODS: WorksPeriod[] = ['24h', '3d', '7d'];
-const WINDOWS: HotWindow[] = [1, 3, 6, 12, 24];
+const WINDOWS: HotWindow[] = [1, 3, 6, 12, 24, 48];
 
 /** 화면이 보낸 값을 허용된 값만 남겨 정리 */
 export function cleanParams(kind: InsightKind, p: InsightParams): InsightParams {
