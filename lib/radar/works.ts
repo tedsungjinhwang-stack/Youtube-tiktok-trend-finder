@@ -31,7 +31,17 @@ function clip(v: VideoRow): ShortClip {
   return { videoId: v.id, title: v.title, channel: v.channel, views: v.views, publishedAt: v.publishedAt.toISOString(), thumb: shortThumb(v.id) };
 }
 
+/** 막 뜨는 작품 화면 데이터 — 계산이 무거워(쿼리 여러 개) 10분 저장해 두고 쓴다. 수집은 매시간이라 충분히 새롭다 */
 export async function getRadarData(period: WorksPeriod): Promise<RadarData> {
+  const key = `radar:works:${period}`;
+  const c = await prisma.trendCache.findUnique({ where: { key } }).catch(() => null);
+  if (c && Date.now() - c.fetchedAt.getTime() < 10 * 60_000) return c.payload as unknown as RadarData;
+  const data = await computeRadarData(period);
+  await prisma.trendCache.upsert({ where: { key }, create: { key, payload: data as object }, update: { payload: data as object, fetchedAt: new Date() } }).catch(() => {});
+  return data;
+}
+
+async function computeRadarData(period: WorksPeriod): Promise<RadarData> {
   const hours = PERIOD_H[period];
   const start = new Date(Date.now() - hours * H);
   const prevStart = new Date(Date.now() - 2 * hours * H);

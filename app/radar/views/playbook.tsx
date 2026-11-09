@@ -227,6 +227,12 @@ function TemplateSection({ pb }: { pb: Playbook }) {
   );
 }
 
+/** 막 뜨는 작품 화면용 — 그 화면이 열릴 때만 불러온다 */
+export function RevivalBlock({ cats }: { cats?: WorkCategory[] | null }) {
+  const pb = usePlaybook();
+  return pb ? <RevivalSection list={pb.revival} cats={cats} /> : null;
+}
+
 /** 부활 후보 작품 — 막 뜨는 작품 화면에서도 분류로 걸러 쓴다 */
 export function RevivalSection({ list, cats }: { list: RevivalWork[]; cats?: WorkCategory[] | null }) {
   const rows = list.filter((r) => !cats?.length || cats.includes(r.category as WorkCategory)).slice(0, 12);
