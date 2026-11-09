@@ -15,7 +15,8 @@
  *                 관심 목록: 72시간 안 매시간 · 7일 안 6시간 · 30일 안 하루 / 나머지: 72시간 안 3시간 · 7일 안 12시간
  *  4. 하루 정리  — 채널 평소 조회(중앙값)·쇼츠/롱폼 구분 계산, 35일 넘은 영상 삭제
  *  5. 작품 인식 — 제목·해시태그·태그로 TMDB 작품을 붙이고, 작품 상세·출연자 출연작을 받아 둔다 (lib/radar/match)
- *  6. 과거 트래픽 — 업로드가 60일 넘게 끊긴 채널의 100만+ 영상(인기 쇼츠·인기 영상 재생목록)을 남기고 채널을 지운다.
+ *  6. 과거 트래픽 — 업로드가 30일 넘게 끊긴 채널의 100만+ 영상(인기 쇼츠·인기 영상 재생목록)을 남기고 채널을 지운다.
+ *     옛 영상으로 아직 하루 10만+ 조회가 나오는 채널은 남긴다 (역주행 감시용). 정비 작업(5분)에서 돈다.
  *                 하루에 쓸 몫을 정해 두고(감시 몫을 빼고) 남는 할당량으로 조금씩.
  */
 
@@ -209,8 +210,7 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
     } catch (e) {
       report.matchError = (e as Error).message.slice(0, 200);
     }
-    // 과거 트래픽도 감시 몫(관심 목록)을 떼어 둔 뒤 남는 할당량으로
-    await stepArchive(report, tierB(phase(46_000).canSpend), spend, plan);
+    // 과거 트래픽(끊긴 채널 정리)은 정비 작업(5분)으로 옮겼다 — 수집기 끝에선 시간이 모자라 밀리기만 했다
     // 구글 급상승 공개 RSS — 지금 목록만 주므로 매시간 받아 쌓아 둔다 (트렌드 탭 · AI 분석이 24시간·7일 범위로 꺼내 씀)
     if (Date.now() < deadline - 2_000) {
       try {
@@ -246,6 +246,8 @@ export type MaintenanceReport = {
   resuggested: number;
   /** 하루 한 번 유튜브 검색 발굴 (할 때가 됐을 때만) */
   discover?: DiscoverReport;
+  /** 끊긴 채널 정리 — 지운 채널 · 과거 트래픽에 남긴 영상 */
+  archived?: { archivedChannels: number; pastHits: number };
   /** 쇼츠 화면 구성 분류 — 이번에 분류한 채널 · 비용 · 남은 대상 */
   layout?: { classified: number; costKrw: number; left: number };
   errors: string[];
@@ -296,6 +298,28 @@ export async function runRadarMaintenance(): Promise<MaintenanceReport> {
     });
     out.discover = rep;
     await markDiscovered(rep);
+  });
+  await step('archive', async () => {
+    // 업로드가 30일 넘게 끊긴 채널: 100만+ 영상을 과거 트래픽에 남기고 지운다 (관심 목록 감시 몫을 떼어 둔 할당량 안에서)
+    if (Date.now() > t0 + 150_000) return;
+    const plan = await monitorPlan();
+    let left = (await remainingQuota()) ?? 0;
+    const reserve = RESERVE_UNITS + (await watchedNeedForRestOfDay());
+    const until = t0 + 175_000;
+    const rep = { archivedChannels: 0, pastHits: 0 };
+    while (Date.now() < until) {
+      const before = rep.archivedChannels;
+      await stepArchive(
+        rep,
+        (u) => Date.now() < until && left - u >= reserve,
+        (u) => {
+          left -= u;
+        },
+        plan
+      );
+      if (rep.archivedChannels === before) break;
+    }
+    out.archived = rep;
   });
   await step('layout', async () => {
     // 남은 시간 동안 썸네일로 화면 구성 분류 (한 번에 최대 120곳, 다 하면 30일 뒤에 다시)
@@ -609,6 +633,7 @@ async function stepRefreshVideos(
       SELECT v.id, v."publishedAt", v."channelId", v."checkedAt" FROM "RadarVideo" v
       WHERE v."publishedAt" > NOW() - make_interval(hours => ${toH}::int) AND v."publishedAt" <= NOW() - make_interval(hours => ${fromH}::int)
         AND (v."checkedAt" IS NULL OR v."checkedAt" < NOW() - make_interval(mins => ${staleMin}::int))
+        AND EXISTS (SELECT 1 FROM "Channel" c WHERE c.id = v."channelId" AND c."isActive")
       ORDER BY v."checkedAt" ASC NULLS FIRST
       LIMIT ${limit}::int`;
   // 72시간 안: 관심(또는 전체 매시간)은 50분, 나머지는 170분 지난 것 — 넉넉히 고르고 아래에서 관심 여부로 거른다
@@ -768,7 +793,9 @@ async function watchedNeedForRestOfDay(): Promise<number> {
 /* ───────────── 6. 과거 트래픽 ───────────── */
 
 /** 마지막 업로드가 이만큼 지나면 끊긴 채널 */
-export const DEAD_DAYS = 60;
+export const DEAD_DAYS = 30;
+/** 업로드는 끊겼어도 하루 조회가 이만큼 나오면 남긴다 */
+export const KEEP_DAILY_VIEWS = 100_000;
 /** 과거 트래픽으로 남기는 영상 기준 */
 export const HIT_VIEWS = 1_000_000;
 /**
@@ -779,7 +806,12 @@ function archiveDailyCap(plan: MonitorPlan): number {
   return Math.max(1000, Math.floor(plan.limit * 0.9 - plan.need - RESERVE_UNITS));
 }
 
-async function stepArchive(report: CollectReport, canSpend: (u: number) => boolean, spend: (u: number) => void, plan: MonitorPlan) {
+async function stepArchive(
+  report: Pick<CollectReport, 'archivedChannels' | 'pastHits'>,
+  canSpend: (u: number) => boolean,
+  spend: (u: number) => void,
+  plan: MonitorPlan
+) {
   const day = kstToday().toISOString().slice(0, 10);
   const mark = await prisma.trendCache.findUnique({ where: { key: 'radar:archive-day' } }).catch(() => null);
   const prev = mark?.payload as { day?: string; units?: number } | null;
@@ -799,6 +831,7 @@ async function stepArchive(report: CollectReport, canSpend: (u: number) => boole
         kind: 'REFERENCE',
         externalId: { startsWith: 'UC' },
         lastUploadAt: { lt: new Date(Date.now() - DEAD_DAYS * 24 * H) },
+        OR: [{ dailyViews: null }, { dailyViews: { lt: KEEP_DAILY_VIEWS } }],
       },
       select: {
         id: true,
