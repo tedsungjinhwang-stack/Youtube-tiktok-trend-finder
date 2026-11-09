@@ -399,8 +399,11 @@ export async function matchVideos(deadline: number, limit = 1500): Promise<{ mat
       if (!w) continue;
       // 세 글자 이하 작품명은 드라마·영화·예능 채널의 제목·설명란 해시태그로만 (멤버 이름·흔한 말과 겹친다)
       if (w.main.length <= 3 && !(c.strong && dramaFolder)) continue;
-      // 다섯 글자 이하 영어 말(#reina·#love)도 흔한 단어·사람 이름과 겹친다 — 드라마 채널에서, 방영 중이거나 인기 많은 작품일 때만
       const an = normalizeAlias(c.text);
+      // 영어로만 된 말(#challenge · #mukbang · #puppies · #funnycats)은 드라마·영화·예능·애니 채널에서만 작품으로 —
+      // 다른 팩(짜집기 · 동물 · 고래 등)에선 일반 해시태그가 같은 이름의 해외 영화·다큐로 잘못 붙었다 (11/9)
+      if (/^[a-z0-9]+$/.test(an) && !dramaFolder) continue;
+      // 다섯 글자 이하 영어 말(#reina·#love)도 흔한 단어·사람 이름과 겹친다 — 드라마 채널에서, 방영 중이거나 인기 많은 작품일 때만
       if (an.length <= 5 && /^[a-z0-9]+$/.test(an) && !(c.strong && dramaFolder && (w.recent || w.popularity >= 50))) continue;
       if (c.strong) add(a.workId, 2, c.text);
       // 영상 태그는 채널마다 늘 붙이는 말이 많아서, 작품명이 제목에도 있거나 "작품명 몰아보기" 꼴일 때만
