@@ -628,22 +628,26 @@ async function stepRefreshVideos(
   // 나이 구간마다 따로 고른다 — publishedAt 인덱스로 그 구간만 읽게 (한 쿼리로 영상 전체를 훑으면 작은 DB 에서 10초+ 걸려
   // 고르는 사이에 이 단계 시간이 다 가서 하나도 못 쟀다). 고를 때는 id 만, 측정 기록 배열은 실제로 잴 묶음만 읽는다
   type Due = { id: string; publishedAt: Date; channelId: string; checkedAt: Date | null };
+  // 「가장 오래 안 잰 순」으로 정렬하면 구간의 영상을 다 읽어야 해서(0~3일만 2만 9천 개, 작은 DB 에서 8초+) —
+  // publishedAt 인덱스를 최신부터 거꾸로 읽다가 limit 만큼 차면 멈춘다. 잰 영상은 50분 동안 빠지니 다음 번엔 그다음 것들을 잰다
   const tier = (fromH: number, toH: number, staleMin: number, limit: number) =>
     prisma.$queryRaw<Due[]>`
       SELECT v.id, v."publishedAt", v."channelId", v."checkedAt" FROM "RadarVideo" v
       WHERE v."publishedAt" > NOW() - make_interval(hours => ${toH}::int) AND v."publishedAt" <= NOW() - make_interval(hours => ${fromH}::int)
         AND (v."checkedAt" IS NULL OR v."checkedAt" < NOW() - make_interval(mins => ${staleMin}::int))
-        AND EXISTS (SELECT 1 FROM "Channel" c WHERE c.id = v."channelId" AND c."isActive")
-      ORDER BY v."checkedAt" ASC NULLS FIRST
+      ORDER BY v."publishedAt" DESC
       LIMIT ${limit}::int`;
-  // 72시간 안: 관심(또는 전체 매시간)은 50분, 나머지는 170분 지난 것 — 넉넉히 고르고 아래에서 관심 여부로 거른다
-  const [t1, t2, t3] = await Promise.all([tier(0, 72, 50, 3000), tier(72, 168, 360, 800), tier(168, 720, 1440, 500)]);
+  // 하나씩 차례로 (동시에 돌리면 작은 DB 에서 서로 느려진다). 뒤 구간은 시간이 남을 때만
+  const phaseEnd = Date.now() + 6_000;
+  const t1 = [...(await tier(0, 24, 50, 2000)), ...(await tier(24, 72, 50, 1500))];
+  const t2 = Date.now() < phaseEnd ? await tier(72, 168, 360, 500) : [];
+  const t3 = Date.now() < phaseEnd ? await tier(168, 720, 1440, 300) : [];
   const chIds = [...new Set([...t1, ...t2, ...t3].map((v) => v.channelId))];
-  const watchedCh = new Set(
-    chIds.length
-      ? (await prisma.channel.findMany({ where: { id: { in: chIds }, folder: { watched: true } }, select: { id: true } })).map((c) => c.id)
-      : []
-  );
+  const chs = chIds.length
+    ? await prisma.channel.findMany({ where: { id: { in: chIds } }, select: { id: true, isActive: true, folder: { select: { watched: true } } } })
+    : [];
+  const activeCh = new Set(chs.filter((c) => c.isActive).map((c) => c.id));
+  const watchedCh = new Set(chs.filter((c) => c.folder.watched).map((c) => c.id));
   const isW = (v: Due) => allHourly || watchedCh.has(v.channelId);
   const now = Date.now();
   const staleBy = (v: Due, min: number) => !v.checkedAt || now - v.checkedAt.getTime() > min * 60_000;
@@ -654,7 +658,10 @@ async function stepRefreshVideos(
     ...t2.filter((v) => isW(v) || staleBy(v, 720)),
     // 7~30일 — 관심(또는 전체 매시간)만
     ...t3.filter(isW),
-  ].map((v) => ({ id: v.id, publishedAt: v.publishedAt, watched: isW(v) }));
+  ]
+    // 감시에서 뺀(비활성) 채널 영상은 재지 않는다
+    .filter((v) => activeCh.has(v.channelId))
+    .map((v) => ({ id: v.id, publishedAt: v.publishedAt, watched: isW(v) }));
 
   const watchedDue = due.filter((v) => v.watched);
   const otherDue = due.filter((v) => !v.watched);
