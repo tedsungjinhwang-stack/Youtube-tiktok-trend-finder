@@ -146,7 +146,7 @@ export async function awardsAction() {
 /** 홈 — 지금 터지는 쇼츠·뜨는 작품·오늘 편성·작년 이맘때 터진 영상 */
 export async function homeAction() {
   const [hot, works, schedule, past] = await Promise.all([
-    getHotVideos({ format: 'shorts', window: 3, sort: 'rising', excludeWhale: false }),
+    getHotVideos({ format: 'shorts', window: 6, sort: 'rising', excludeWhale: false }),
     getRadarData('3d'),
     // 편성표는 수집기가 미리 받아 두지만, 비어 있으면 홈이 오래 기다리지 않게 5초까지만
     Promise.race([getSchedule().catch(() => []), new Promise<Awaited<ReturnType<typeof getSchedule>>>((r) => setTimeout(() => r([]), 5000))]),

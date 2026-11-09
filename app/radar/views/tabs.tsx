@@ -515,7 +515,7 @@ export function HomeView({ onOpen }: { onOpen: (view: string) => void }) {
       <Loading data={data} err={err}>
         {(d) => (
           <div className="space-y-3">
-            <Section title="지금 터지는 쇼츠 (최근 3시간)" more="터진 영상" onMore={() => onOpen('hot')}>
+            <Section title="지금 터지는 쇼츠 (최근 6시간)" more="터진 영상" onMore={() => onOpen('hot')}>
               {d.hot.length === 0 ? (
                 <p className="text-[13px] font-semibold text-muted-foreground">아직 시간별 조회수가 쌓이는 중입니다</p>
               ) : (

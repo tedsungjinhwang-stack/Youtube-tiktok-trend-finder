@@ -168,11 +168,11 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
   };
 
   try {
-    // 조회수 재기가 '터진 영상'의 핵심이라 새 영상 찾기보다 먼저 (예전엔 새 영상 찾기가 시간을 다 써서 한 번도 못 돌았다)
-    const p1 = phase(9_000).canSpend;
-    await stepChannelStats(report, p1, tierB(p1), spend, plan.allHourly);
-    const p2 = phase(18_000).canSpend;
-    await stepRefreshVideos(report, p2, tierB(p2), spend, plan.allHourly);
+    // 조회수 재기가 '터진 영상'의 핵심이라 맨 먼저 (예전엔 채널 통계가 시간을 다 써서 영상을 하나도 못 다시 쟀다 — 11/9)
+    const p1 = phase(16_000).canSpend;
+    await stepRefreshVideos(report, p1, tierB(p1), spend, plan.allHourly);
+    const p2 = phase(24_000).canSpend;
+    await stepChannelStats(report, p2, tierB(p2), spend, plan.allHourly);
     const p3 = phase(27_000).canSpend;
     await stepUploadScan(report, p3, tierB(p3), spend);
     // 신규 발굴 — 하루 한 번 6초. 검색이 100 unit 씩이라 관심 목록 몫을 먼저 떼어 둔 뒤 남는 할당량으로.
@@ -322,8 +322,9 @@ async function stepChannelStats(
   const hourAgo = new Date(Date.now() - H);
   const sixAgo = new Date(Date.now() - 6 * H);
   const base = { platform: 'YOUTUBE' as const, isActive: true, externalId: { startsWith: 'UC' } };
-  // 관심 목록 채널은 매시간, 나머지는 키가 넉넉하면 매시간·모자라면 6시간마다 (그리고 하루 기록은 꼭)
-  const otherAgo = allHourly ? hourAgo : sixAgo;
+  // 관심 목록 채널은 매시간, 나머지는 키가 넉넉하면 3시간·모자라면 6시간마다 (그리고 하루 기록은 꼭).
+  // 전체를 매시간 다시 쓰면 작은 DB 가 버티지 못해 다른 단계가 못 돌았다
+  const otherAgo = allHourly ? new Date(Date.now() - 3 * H) : sixAgo;
   const watched = await prisma.channel.findMany({
     where: { ...base, folder: { watched: true }, OR: [{ statsCheckedAt: null }, { statsCheckedAt: { lt: hourAgo } }] },
     select: { id: true, externalId: true },
@@ -338,7 +339,7 @@ async function stepChannelStats(
     },
     select: { id: true, externalId: true, historyDate: true },
     orderBy: { statsCheckedAt: { sort: 'asc', nulls: 'first' } },
-    take: allHourly ? 6000 : 1500,
+    take: allHourly ? 2500 : 1500,
   });
   const run = async (list: { id: string; externalId: string }[], can: (u: number) => boolean) => {
     const byExt = new Map(list.map((c) => [c.externalId, c.id]));
@@ -588,6 +589,7 @@ function gainsFor(publishedAt: Date, t: number[], v: number[], nowMin: number) {
     gain6h: gainOver(6, publishedAt, t, v, nowMin),
     gain12h: gainOver(12, publishedAt, t, v, nowMin),
     gain24h: gainOver(24, publishedAt, t, v, nowMin),
+    gain48h: gainOver(48, publishedAt, t, v, nowMin),
   };
 }
 
@@ -599,22 +601,35 @@ async function stepRefreshVideos(
   allHourly: boolean
 ) {
   // 관심 목록(키가 넉넉하면 전체): 72시간 안 매시간 · 7일 안 6시간 · 30일 안 하루 / 나머지: 72시간 안 3시간 · 7일 안 12시간
-  // 고를 때는 id 만 — 측정 기록 배열은 실제로 잴 묶음만 따로 읽는다 (예전엔 1만 2천 개 배열을 매번 읽어 한 번에 12초씩 걸렸다).
-  // 한 번에 다 못 재니 4천 개면 충분 (보통 1~3천 개를 잰다)
-  const due = await prisma.$queryRaw<{ id: string; publishedAt: Date; watched: boolean }[]>`
-    SELECT v.id, v."publishedAt", f.watched
-    FROM "RadarVideo" v
-    JOIN "Channel" c ON c.id = v."channelId"
-    JOIN "Folder" f ON f.id = c."folderId"
-    WHERE ((f.watched OR ${allHourly}) AND (
-         (v."publishedAt" > NOW() - INTERVAL '72 hours' AND (v."checkedAt" IS NULL OR v."checkedAt" < NOW() - INTERVAL '50 minutes'))
-      OR (v."publishedAt" > NOW() - INTERVAL '7 days'   AND v."checkedAt" < NOW() - INTERVAL '6 hours')
-      OR (v."publishedAt" > NOW() - INTERVAL '30 days'  AND v."checkedAt" < NOW() - INTERVAL '24 hours')))
-    OR (NOT (f.watched OR ${allHourly}) AND (
-         (v."publishedAt" > NOW() - INTERVAL '72 hours' AND (v."checkedAt" IS NULL OR v."checkedAt" < NOW() - INTERVAL '170 minutes'))
-      OR (v."publishedAt" > NOW() - INTERVAL '7 days'   AND v."checkedAt" < NOW() - INTERVAL '12 hours')))
-    ORDER BY f.watched DESC, v."checkedAt" ASC NULLS FIRST
-    LIMIT 4000`;
+  // 나이 구간마다 따로 고른다 — publishedAt 인덱스로 그 구간만 읽게 (한 쿼리로 영상 전체를 훑으면 작은 DB 에서 10초+ 걸려
+  // 고르는 사이에 이 단계 시간이 다 가서 하나도 못 쟀다). 고를 때는 id 만, 측정 기록 배열은 실제로 잴 묶음만 읽는다
+  type Due = { id: string; publishedAt: Date; channelId: string; checkedAt: Date | null };
+  const tier = (fromH: number, toH: number, staleMin: number, limit: number) =>
+    prisma.$queryRaw<Due[]>`
+      SELECT v.id, v."publishedAt", v."channelId", v."checkedAt" FROM "RadarVideo" v
+      WHERE v."publishedAt" > NOW() - make_interval(hours => ${toH}::int) AND v."publishedAt" <= NOW() - make_interval(hours => ${fromH}::int)
+        AND (v."checkedAt" IS NULL OR v."checkedAt" < NOW() - make_interval(mins => ${staleMin}::int))
+      ORDER BY v."checkedAt" ASC NULLS FIRST
+      LIMIT ${limit}::int`;
+  // 72시간 안: 관심(또는 전체 매시간)은 50분, 나머지는 170분 지난 것 — 넉넉히 고르고 아래에서 관심 여부로 거른다
+  const [t1, t2, t3] = await Promise.all([tier(0, 72, 50, 3000), tier(72, 168, 360, 800), tier(168, 720, 1440, 500)]);
+  const chIds = [...new Set([...t1, ...t2, ...t3].map((v) => v.channelId))];
+  const watchedCh = new Set(
+    chIds.length
+      ? (await prisma.channel.findMany({ where: { id: { in: chIds }, folder: { watched: true } }, select: { id: true } })).map((c) => c.id)
+      : []
+  );
+  const isW = (v: Due) => allHourly || watchedCh.has(v.channelId);
+  const now = Date.now();
+  const staleBy = (v: Due, min: number) => !v.checkedAt || now - v.checkedAt.getTime() > min * 60_000;
+  const due = [
+    // 72시간 안 — 관심 아닌 채널은 170분 지난 것만 (쿼리는 50분 기준으로 골랐다)
+    ...t1.filter((v) => isW(v) || staleBy(v, 170)),
+    // 3~7일 — 관심 아닌 채널은 12시간
+    ...t2.filter((v) => isW(v) || staleBy(v, 720)),
+    // 7~30일 — 관심(또는 전체 매시간)만
+    ...t3.filter(isW),
+  ].map((v) => ({ id: v.id, publishedAt: v.publishedAt, watched: isW(v) }));
 
   const watchedDue = due.filter((v) => v.watched);
   const otherDue = due.filter((v) => !v.watched);
@@ -645,7 +660,7 @@ async function stepRefreshVideos(
     const tT: string[] = [];
     const tV: string[] = [];
     const descJson: string[] = [];
-    const g: (number | null)[][] = [[], [], [], [], []];
+    const g: (number | null)[][] = [[], [], [], [], [], []];
     const gone: string[] = [];
     for (const row of slice) {
       const s = byId.get(row.id);
@@ -675,13 +690,14 @@ async function stepRefreshVideos(
       g[2].push(gains.gain6h);
       g[3].push(gains.gain12h);
       g[4].push(gains.gain24h);
+      g[5].push(gains.gain48h);
     }
     if (ids.length) {
       await prisma.$executeRaw`
         UPDATE "RadarVideo" r SET
           views = u.views, likes = COALESCE(u.likes, r.likes), comments = COALESCE(u.comments, r.comments),
           "trackT" = u.tt::int[], "trackV" = u.tv::int[],
-          "gain1h" = u.g1, "gain3h" = u.g3, "gain6h" = u.g6, "gain12h" = u.g12, "gain24h" = u.g24,
+          "gain1h" = u.g1, "gain3h" = u.g3, "gain6h" = u.g6, "gain12h" = u.g12, "gain24h" = u.g24, "gain48h" = u.g48,
           "checkedAt" = NOW(),
           -- 설명란을 처음 읽은 영상: 단서를 저장하고 작품을 다시 찾게 (직접 고친 영상은 그대로)
           "descTags" = CASE WHEN r."descAt" IS NULL THEN ARRAY(SELECT jsonb_array_elements_text(u.dj::jsonb)) ELSE r."descTags" END,
@@ -689,8 +705,8 @@ async function stepRefreshVideos(
           "descAt" = COALESCE(r."descAt", NOW())
         FROM unnest(
           ${ids}::text[], ${views}::int[], ${likes}::int[], ${comments}::int[], ${tT}::text[], ${tV}::text[],
-          ${g[0]}::int[], ${g[1]}::int[], ${g[2]}::int[], ${g[3]}::int[], ${g[4]}::int[], ${descJson}::text[]
-        ) AS u(id, views, likes, comments, tt, tv, g1, g3, g6, g12, g24, dj)
+          ${g[0]}::int[], ${g[1]}::int[], ${g[2]}::int[], ${g[3]}::int[], ${g[4]}::int[], ${g[5]}::int[], ${descJson}::text[]
+        ) AS u(id, views, likes, comments, tt, tv, g1, g3, g6, g12, g24, g48, dj)
         WHERE r.id = u.id`;
       report.videosRefreshed += ids.length;
     }
