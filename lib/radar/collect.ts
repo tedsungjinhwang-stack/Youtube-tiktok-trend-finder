@@ -20,6 +20,7 @@
  *                 하루에 쓸 몫을 정해 두고(감시 몫을 빼고) 남는 할당량으로 조금씩.
  */
 
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import {
   QuotaGoneError,
@@ -38,6 +39,7 @@ import { fetchPersons, fetchWorkDetails, matchVideos, seedWorks } from './match'
 import { getSchedule, getSeason, goldenAgeMin, refreshGolden } from './tabs';
 import { refreshGoogleRssHistory } from '@/lib/trends/google';
 import { runLayoutClassify } from './layout';
+import { minGain, type HotWindow } from './queries';
 
 /** 다른 기능(키워드 검색 등)이 쓸 몫으로 남겨 두는 할당량 */
 const RESERVE_UNITS = 1500;
@@ -237,6 +239,13 @@ export async function runRadarCollect(opts: { budgetMs?: number } = {}): Promise
 }
 
 /* ───────────── 정비 (따로 — 5분 한도) ───────────── */
+
+/** 터진 영상 기준 — 시간 창 하나라도 minGain 을 넘었나 (UPDATE 안의 u.g1 … u.g48 · r."isShorts" 기준) */
+function hotCondSql(): Prisma.Sql {
+  const cols: [HotWindow, string][] = [[1, 'g1'], [3, 'g3'], [6, 'g6'], [12, 'g12'], [24, 'g24'], [48, 'g48']];
+  const any = (format: 'shorts' | 'long') => Prisma.join(cols.map(([w, c]) => Prisma.sql`u.${Prisma.raw(c)} >= ${minGain(format, w)}::int`), ' OR ');
+  return Prisma.sql`COALESCE(CASE WHEN r."isShorts" IS FALSE THEN (${any('long')}) ELSE (${any('shorts')}) END, FALSE)`;
+}
 
 export type MaintenanceReport = {
   ms: number;
@@ -740,6 +749,8 @@ async function stepRefreshVideos(
           "trackT" = u.tt::int[], "trackV" = u.tv::int[],
           "gain1h" = u.g1, "gain3h" = u.g3, "gain6h" = u.g6, "gain12h" = u.g12, "gain24h" = u.g24, "gain48h" = u.g48,
           "checkedAt" = NOW(),
+          -- 터진 영상 후보 표시: 어느 시간 창이든 「터졌다」 기준(minGain)을 넘으면 이번에 잰 시각. 화면은 이 인덱스로 후보만 읽는다
+          "hotAt" = CASE WHEN ${hotCondSql()} THEN NOW() ELSE r."hotAt" END,
           -- 설명란을 처음 읽은 영상: 단서를 저장하고 작품을 다시 찾게 (직접 고친 영상은 그대로)
           "descTags" = CASE WHEN r."descAt" IS NULL THEN ARRAY(SELECT jsonb_array_elements_text(u.dj::jsonb)) ELSE r."descTags" END,
           "matchedAt" = CASE WHEN r."descAt" IS NULL AND NOT r."matchLocked" THEN NULL ELSE r."matchedAt" END,

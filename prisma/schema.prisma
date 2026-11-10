@@ -171,6 +171,8 @@ model RadarVideo {
   gain12h      Int?
   gain24h      Int?
   gain48h      Int?
+  /// 터진 영상 후보 — 어느 시간 창이든 「터졌다」 기준(minGain)을 넘은 채로 잰 시각 (부분 인덱스 RadarVideo_hot_idx)
+  hotAt        DateTime?
   checkedAt    DateTime?
   firstSeenAt  DateTime   @default(now())
   /// 작품 (TMDB) — 제목·해시태그·태그로 찾는다. 못 찾으면 null
@@ -193,6 +195,7 @@ model RadarVideo {
   @@index([channelId, publishedAt])
   @@index([workId, publishedAt])
   // 부분 인덱스 RadarVideo_unmatched_idx ("channelId") WHERE "matchedAt" IS NULL AND NOT "matchLocked" — 마이그레이션으로만 (Prisma 는 부분 인덱스를 못 적는다)
+  // 부분 인덱스 RadarVideo_hot_idx ("hotAt") WHERE "hotAt" IS NOT NULL — 터진 영상 후보만 읽기 (마이그레이션으로만)
 }
 
 /// 꿀통레이더 — TMDB 작품 (영화·드라마·예능)
