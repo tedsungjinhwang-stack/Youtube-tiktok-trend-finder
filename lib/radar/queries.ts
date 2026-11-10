@@ -5,6 +5,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { monitorPlan, UNITS_PER_OTHER_CHANNEL, UNITS_PER_OTHER_CHANNEL_HOURLY, UNITS_PER_WATCHED_CHANNEL } from './budget';
+import { hotRowsFromList, type HotRow } from './hotList';
 
 const H = 3_600_000;
 const n = (v: bigint | number | null | undefined) => (v == null ? null : Number(v));
@@ -311,6 +312,8 @@ export type HotResult = {
   status: CollectStatus;
   /** 묶음 화면의 채널팩 중 관심 목록에 아직 없는 것 (영상을 안 모으는 중) */
   unwatched: string[];
+  /** 미리 계산한 목록을 썼으면 그 계산 시각 (매시간 수집 직후) — 직접 계산했으면 null */
+  computedAt?: string | null;
 };
 
 /**
@@ -363,28 +366,11 @@ export async function getHotVideos(q: HotQuery): Promise<HotResult> {
         ? Prisma.sql`v.views DESC`
         : Prisma.sql`v."publishedAt" DESC`;
 
-  const rows = await prisma.$queryRaw<
-    {
-      id: string;
-      title: string;
-      thumbnailUrl: string | null;
-      publishedAt: Date;
-      views: number;
-      gain: number | null;
-      gain1h: number | null;
-      baselineMedian: number | null;
-      channelId: string;
-      externalId: string;
-      displayName: string | null;
-      channelThumb: string | null;
-      folder: string;
-      folderId: string;
-      work: string | null;
-      workId: string | null;
-      guess: string | null;
-      matchedBy: string | null;
-    }[]
-  >`
+  // 미리 계산한 목록(매시간 수집 직후)이 있으면 그걸로 — 없거나 멈췄으면 아래처럼 직접
+  const pre = await hotRowsFromList(q).catch(() => null);
+  const rows = pre
+    ? pre.rows
+    : await prisma.$queryRaw<HotRow[]>`
     SELECT v.id, v.title, v."thumbnailUrl", v."publishedAt", v.views, v.${gainCol} AS gain, v."gain1h",
       c."baselineMedian", c.id AS "channelId", c."externalId", c."displayName", c."thumbnailUrl" AS "channelThumb",
       f.name AS folder, f.id AS "folderId", w.title AS work, v."workId", gw.title AS guess, v."matchedBy"
@@ -449,6 +435,7 @@ export async function getHotVideos(q: HotQuery): Promise<HotResult> {
     folders: [...counts.values()].sort((a, b) => b.count - a.count),
     status: await getCollectStatus(),
     unwatched,
+    computedAt: pre?.computedAt ?? null,
   };
 }
 

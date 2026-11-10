@@ -104,7 +104,16 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
           <h1 className="text-[26px] font-extrabold tracking-[-0.04em]">{preset.title}</h1>
           <p className="mt-1 text-[13px] font-semibold text-muted-foreground">{preset.subtitle}</p>
         </div>
-        {data && <StatusLine s={data.status} />}
+        {data && (
+          <div className="text-right">
+            <StatusLine s={data.status} />
+            {data.computedAt && (
+              <div className="mt-0.5 text-[11.5px] font-semibold text-[color:var(--text-faint)]" title="수집이 끝난 직후(매시 9분) 목록을 미리 계산해 둡니다 — 조회 숫자는 수집할 때만 바뀌어서 최신 정도는 같습니다">
+                목록 {ago(data.computedAt)} 계산 · 매시간 수집 직후
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {preset.note && <div className="card-surface mb-3 rounded-xl border px-4 py-2.5 text-[13px] font-semibold">{preset.note}</div>}

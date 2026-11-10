@@ -190,12 +190,12 @@ model RadarVideo {
   descTags     String[]   @default([])
   /// 설명란을 읽은 시각 (null 이면 아직)
   descAt       DateTime?
+  // 부분 인덱스 RadarVideo_unmatched_idx ("channelId") WHERE "matchedAt" IS NULL AND NOT "matchLocked" — 마이그레이션으로만 (Prisma 는 부분 인덱스를 못 적는다)
+  // 부분 인덱스 RadarVideo_hot_idx ("hotAt") WHERE "hotAt" IS NOT NULL — 터진 영상 후보만 읽기 (마이그레이션으로만)
 
   @@index([publishedAt])
   @@index([channelId, publishedAt])
   @@index([workId, publishedAt])
-  // 부분 인덱스 RadarVideo_unmatched_idx ("channelId") WHERE "matchedAt" IS NULL AND NOT "matchLocked" — 마이그레이션으로만 (Prisma 는 부분 인덱스를 못 적는다)
-  // 부분 인덱스 RadarVideo_hot_idx ("hotAt") WHERE "hotAt" IS NOT NULL — 터진 영상 후보만 읽기 (마이그레이션으로만)
 }
 
 /// 꿀통레이더 — TMDB 작품 (영화·드라마·예능)
@@ -500,4 +500,30 @@ model KeywordVolume {
   mobileCtr Float?
   adDepth   Int?
   fetchedAt DateTime @default(now())
+}
+
+/// 터진 영상 미리 계산 — 매시간 수집 직후 다시 채운다 (쇼츠·롱폼 × 6·24·48시간, 「터졌다」 기준을 넘은 후보 전부).
+/// 화면은 이 좁은 표에서 필터·정렬하고 상위 200개만 RadarVideo 와 잇는다 (RadarVideo 30일 영상을 열 때마다 읽으면 작은 DB 에서 15초~1분)
+model RadarHot {
+  format      String // shorts | long
+  win         Int // 6 | 24 | 48
+  videoId     String
+  /// 정렬용 — 고른 시간 동안 시간당 조회 (그 시간보다 어린 영상은 올라온 뒤 시간으로 나눔), 계산한 시각 기준
+  rate        Float
+  gain        Int
+  gain1h      Int?
+  gain6h      Int?
+  gain12h     Int?
+  views       Int
+  publishedAt DateTime
+  checkedAt   DateTime
+  /// 계산한 시각 기준 4시간 안에 잰 영상 (6시간 창은 이것만 — 역주행은 하루 한 번 재니 예외)
+  fresh4      Boolean
+  trackN      Int
+  /// 측정 기록 처음~마지막 (분) — 잠잠하다 급상승은 12시간 넘게 잰 영상만
+  trackSpan   Int
+  channelId   String
+
+  @@id([format, win, videoId])
+  @@index([format, win, rate])
 }
