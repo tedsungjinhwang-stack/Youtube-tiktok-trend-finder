@@ -12,6 +12,16 @@ import { categoryOutlook } from './outlook';
 import { getBriefInput } from './brief';
 import { refreshGolden } from './tabs';
 import { refreshHotList } from './hotList';
+import { refreshChannelLang } from './lang';
+
+/** 마지막으로 한 지 20시간 넘었을 때만 */
+async function onceADay(key: string, fn: () => Promise<unknown>): Promise<unknown> {
+  const last = await prisma.trendCache.findUnique({ where: { key }, select: { fetchedAt: true } }).catch(() => null);
+  if (last && Date.now() - last.fetchedAt.getTime() < 20 * 3_600_000) return null;
+  const r = await fn();
+  await prisma.trendCache.upsert({ where: { key }, create: { key, payload: { r: Number(r) || 0 } }, update: { payload: { r: Number(r) || 0 }, fetchedAt: new Date() } }).catch(() => {});
+  return r;
+}
 
 export type PrecomputeReport = { ms: number; done: { name: string; ms: number }[]; skipped: string[]; errors: string[] };
 
@@ -21,6 +31,8 @@ export async function runPrecompute(o: { deadline: number; only?: 'hot' }): Prom
   const out: PrecomputeReport = { ms: 0, done: [], skipped: [], errors: [] };
   // 순서: 종합 분석 자료가 기회판·플레이북을 쓰니 그 둘을 먼저 (그러면 자료 모으기는 저장본을 읽는다)
   const all: [string, () => Promise<unknown>][] = [
+    // 채널 한국어 판별은 하루 한 번 (기회판·터진 영상이 쓴다)
+    ['channel-lang', () => onceADay('radar:channel-lang', refreshChannelLang)],
     ['playbook', () => getPlaybook({ force: true })],
     ['outlook:kr', () => categoryOutlook({ force: true })],
     ['outlook:all', () => categoryOutlook({ foreign: true, force: true })],

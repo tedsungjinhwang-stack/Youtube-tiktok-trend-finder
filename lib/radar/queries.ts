@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { monitorPlan, UNITS_PER_OTHER_CHANNEL, UNITS_PER_OTHER_CHANNEL_HOURLY, UNITS_PER_WATCHED_CHANNEL } from './budget';
 import { hotRowsFromList, type HotRow } from './hotList';
+import { KO_TITLE_RATIO } from './lang';
 
 const H = 3_600_000;
 const n = (v: bigint | number | null | undefined) => (v == null ? null : Number(v));
@@ -272,6 +273,8 @@ export type HotQuery = {
   calmSurge?: boolean;
   /** 역주행 — 올린 지 7일 넘은 영상만 */
   revival?: boolean;
+  /** 해외 채널도 (기본은 한국어 채널만 — 이름에 한글이거나 제목 한글 비율 30%+) */
+  foreign?: boolean;
 };
 
 export type HotVideo = {
@@ -335,6 +338,7 @@ export async function getHotVideos(q: HotQuery): Promise<HotResult> {
   ];
   if (q.excludeWhale) conds.push(Prisma.sql`COALESCE(c."subscriberCount", 0) < 1000000`);
   if (q.multiple) conds.push(Prisma.sql`c."baselineMedian" > 0 AND v.views >= c."baselineMedian" * ${q.multiple}::int`);
+  if (!q.foreign) conds.push(Prisma.sql`(c."displayName" ~ '[가-힣]' OR c."koRatio" >= ${KO_TITLE_RATIO} OR (c."koRatio" IS NULL AND v.title ~ '[가-힣]'))`);
   if (q.calmSurge) {
     // 그 전 6시간(= 12시간 증가 - 6시간 증가)보다 1.5배+ 빨라졌고, 12시간 넘게 잰 영상 (밤낮 차이 걸러 내기)
     conds.push(Prisma.sql`v."gain6h" IS NOT NULL AND v."gain12h" IS NOT NULL AND v."gain12h" - v."gain6h" >= 1000

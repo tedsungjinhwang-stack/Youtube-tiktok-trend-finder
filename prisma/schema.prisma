@@ -52,6 +52,8 @@ model Channel {
   handle          String?
   displayName     String?
   thumbnailUrl    String?
+  /// 모아 둔 영상 제목 중 한글이 든 비율 (하루 한 번, lib/radar/lang.ts) — 이름에 한글이 있거나 0.3 이상이면 한국어 채널
+  koRatio         Float?
   subscriberCount Int?
   totalViewCount  BigInt?
   folderId        String
@@ -523,6 +525,8 @@ model RadarHot {
   /// 측정 기록 처음~마지막 (분) — 잠잠하다 급상승은 12시간 넘게 잰 영상만
   trackSpan   Int
   channelId   String
+  /// 제목에 한글이 있나 (채널 한국어 판별이 아직 없는 새 채널용)
+  koTitle     Boolean  @default(false)
 
   @@id([format, win, videoId])
   @@index([format, win, rate])

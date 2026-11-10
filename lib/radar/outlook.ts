@@ -19,6 +19,7 @@
  */
 
 import { prisma } from '@/lib/db';
+import { KO_TITLE_RATIO } from './lang';
 
 /** 주제가 아니라 규모·성격으로 묶은 팩 */
 const META_PACKS = new Set(['넘사', '고래', 'No양산형', '주제 자주 변경', '제외', '대기업', '방송사 채널팩', '뉴스공식', '저작권ㄱㅊ?']);
@@ -96,9 +97,6 @@ type Row = {
   kr: boolean;
 };
 
-/** 한국어 채널 판별 — 영상 제목 중 한글이 든 비율 */
-const KO_TITLE_RATIO = 0.3;
-
 const median = (xs: number[]) => {
   if (!xs.length) return null;
   const s = [...xs].sort((a, b) => a - b);
@@ -132,7 +130,7 @@ export async function categoryOutlook(o: { foreign?: boolean; force?: boolean } 
       WITH c AS (
         SELECT c.id, c."externalId", c."displayName" AS name, c."subscriberCount" AS subs, c."folderId", c."channelCreatedAt" AS created,
           c."contentFormat" AS fmt, c."dailyViews", c."totalViewCount", c."videoCount", c."lastUploadAt",
-          c."viewHistory" AS v, cardinality(c."viewHistory") AS n
+          c."viewHistory" AS v, cardinality(c."viewHistory") AS n, c."koRatio"
         FROM "Channel" c WHERE c."isActive" AND c.platform = 'YOUTUBE'
       ), g AS (
         SELECT *,
@@ -148,15 +146,13 @@ export async function categoryOutlook(o: { foreign?: boolean; force?: boolean } 
         FROM "RadarVideo" v
         WHERE v."publishedAt" BETWEEN NOW() - INTERVAL '7 days' AND NOW() - INTERVAL '24 hours'
         GROUP BY 1
-      ), lang AS (
-        SELECT v."channelId", AVG((v.title ~ '[가-힣]')::int)::float8 AS ko FROM "RadarVideo" v GROUP BY 1
       )
       SELECT g.id, g."externalId", g.name, g.subs, g."folderId", g.created, g.fmt, g.d, g.rd, g.bd, g.wide, rv.nv, rv.med,
         (g.created > NOW() - INTERVAL '365 days') IS TRUE AS young,
         (g.created > NOW() - INTERVAL '365 days' AND g."videoCount" BETWEEN 1 AND 400
           AND g."totalViewCount" / NULLIF(g."videoCount", 0) >= 1000000 AND g."lastUploadAt" > NOW() - INTERVAL '30 days') IS TRUE AS rookie,
-        (g.name ~ '[가-힣]' OR lang.ko >= ${KO_TITLE_RATIO}) IS TRUE AS kr
-      FROM g LEFT JOIN rv ON rv."channelId" = g.id LEFT JOIN lang ON lang."channelId" = g.id`,
+        (g.name ~ '[가-힣]' OR g."koRatio" >= ${KO_TITLE_RATIO}) IS TRUE AS kr
+      FROM g LEFT JOIN rv ON rv."channelId" = g.id`,
     prisma.folder.findMany({ select: { id: true, name: true } }),
   ]);
 
