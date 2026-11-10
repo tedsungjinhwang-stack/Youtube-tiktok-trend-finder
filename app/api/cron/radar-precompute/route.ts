@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 /**
- * 무거운 집계 미리 계산 (플레이북 · 기회판 · 종합 분석 자료 · 황금키워드) — Supabase pg_cron 이 2시간마다(홀수 시 10분) 부른다.
+ * 무거운 집계 미리 계산 (플레이북 · 기회판 · 종합 분석 자료 · 황금키워드) — Supabase pg_cron 이 6시간마다(1·7·13·19시 10분 UTC) 부른다.
  * ?only=hot 은 터진 영상 목록만 — 매시간 9분(수집 0·3·6분이 끝난 뒤).
  * 인증은 /api/cron/radar 와 같다 (`Authorization: Bearer <RADAR_CRON_SECRET 또는 CRON_SECRET>`).
  */
