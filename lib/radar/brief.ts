@@ -247,14 +247,14 @@ async function upcomingReleases(): Promise<BriefInput['upcoming']> {
 const INPUT_KEY = 'radar:brief-input';
 
 /**
- * 종합 분석 자료 — 미리 모아 둔 걸 4시간까지 쓴다. 모으기는 무거운 집계 15개쯤이라(인물·작품·키워드·팩 열기·기회판·플레이북)
+ * 종합 분석 자료 — 미리 모아 둔 걸 8시간까지 쓴다. 모으기는 무거운 집계 15개쯤이라(인물·작품·키워드·팩 열기·기회판·플레이북)
  * 「다시 분석」 때마다 한꺼번에 돌리면 작은 DB 에서 하나가 2분 한도에 걸려 분석 전체가 실패했다 (11/10).
- * radar-precompute(2시간마다)가 force 로 새로 모은다
+ * radar-precompute(6시간마다)가 force 로 새로 모은다
  */
 export async function getBriefInput(o: { force?: boolean } = {}): Promise<BriefInput> {
   if (!o.force) {
     const c = await prisma.trendCache.findUnique({ where: { key: INPUT_KEY } }).catch(() => null);
-    if (c && Date.now() - c.fetchedAt.getTime() < 4 * 3_600_000) return c.payload as unknown as BriefInput;
+    if (c && Date.now() - c.fetchedAt.getTime() < 8 * 3_600_000) return c.payload as unknown as BriefInput;
   }
   const input = await gatherBriefInput();
   await prisma.trendCache

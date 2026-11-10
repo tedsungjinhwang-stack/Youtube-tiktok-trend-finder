@@ -119,11 +119,14 @@ function highlight(r: Row): ChannelHighlight {
   };
 }
 
-/** 미리 계산해 둔 걸 4시간까지 쓴다 (전체 영상 언어 판별 집계가 작은 DB 에서 40초~1분+). radar-precompute 가 force 로 새로 계산 */
+/** 미리 계산해 둔 걸 8시간까지 쓴다 (채널·영상 집계가 작은 DB 에서 40초~1분, 디스크 100MB쯤). radar-precompute(6시간마다)가 force 로 한국어·전체를 한 번에 새로 계산 */
+const KEY_KR = 'radar:outlook:v4:kr';
+const KEY_ALL = 'radar:outlook:v4:all';
+
 export async function categoryOutlook(o: { foreign?: boolean; force?: boolean } = {}): Promise<PackOutlook[]> {
-  const key = o.foreign ? 'radar:outlook:v4:all' : 'radar:outlook:v4:kr';
+  const key = o.foreign ? KEY_ALL : KEY_KR;
   const c = o.force ? null : await prisma.trendCache.findUnique({ where: { key } }).catch(() => null);
-  if (c && Date.now() - c.fetchedAt.getTime() < 4 * 3_600_000) return c.payload as unknown as PackOutlook[];
+  if (c && Date.now() - c.fetchedAt.getTime() < 8 * 3_600_000) return c.payload as unknown as PackOutlook[];
 
   const [all, folders] = await Promise.all([
     prisma.$queryRaw<Row[]>`
@@ -156,6 +159,17 @@ export async function categoryOutlook(o: { foreign?: boolean; force?: boolean } 
     prisma.folder.findMany({ select: { id: true, name: true } }),
   ]);
 
+  // 한국어만 · 전체는 같은 채널 집계에서 거르기만 다르다 — 한 번 읽어 둘 다 저장 (디스크 읽기 절반)
+  const kr = buildOutlook(all, folders, false);
+  const every = buildOutlook(all, folders, true);
+  const now = new Date();
+  for (const [k, payload] of [[KEY_KR, kr], [KEY_ALL, every]] as const) {
+    await prisma.trendCache.upsert({ where: { key: k }, create: { key: k, payload: payload as object, fetchedAt: now }, update: { payload: payload as object, fetchedAt: now } }).catch(() => {});
+  }
+  return o.foreign ? every : kr;
+}
+
+function buildOutlook(all: Row[], folders: { id: string; name: string }[], foreign: boolean): PackOutlook[] {
   const nameOf = new Map(folders.map((f) => [f.id, f.name]));
   const byPack = new Map<string, Row[]>();
   const foreignBy = new Map<string, number>();
@@ -163,13 +177,13 @@ export async function categoryOutlook(o: { foreign?: boolean; force?: boolean } 
     const n = nameOf.get(r.folderId);
     if (!n || n.startsWith('__') || META_PACKS.has(n)) continue;
     if (!r.kr) foreignBy.set(n, (foreignBy.get(n) ?? 0) + 1);
-    if (!o.foreign && !r.kr) continue;
+    if (!foreign && !r.kr) continue;
     const list = byPack.get(n) ?? [];
     list.push(r);
     byPack.set(n, list);
   }
   // 시장 기준값(시장 오름세 · 신생 성공률 사전값)도 같은 범위의 채널로
-  const rows = o.foreign ? all : all.filter((r) => r.kr);
+  const rows = foreign ? all : all.filter((r) => r.kr);
 
   // 시장 전체(비교 가능한 모든 채널)의 증가율 중앙값 — 팩 오름세는 이것 대비로 본다.
   // 수집 기간·요일·유튜브 집계 지연처럼 모든 팩에 같이 걸리는 효과를 빼기 위해
@@ -278,6 +292,5 @@ export async function categoryOutlook(o: { foreign?: boolean; force?: boolean } 
       .map(highlight);
   }
   const out: PackOutlook[] = packs.map(({ sample: _s, _rows: _r, ...rest }) => rest);
-  await prisma.trendCache.upsert({ where: { key }, create: { key, payload: out as object }, update: { payload: out as object, fetchedAt: new Date() } }).catch(() => {});
   return out;
 }

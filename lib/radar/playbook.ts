@@ -96,11 +96,11 @@ export type Playbook = {
 
 const KEY = 'radar:playbook:v2';
 
-/** 미리 계산해 둔 걸 4시간까지 쓴다 — 계산(양산형·형식·부활·템플릿 집계)은 작은 DB 에서 1~2분이라 화면·AI 분석이 기다리면 2분 한도에 걸린다.
- *  미리 계산은 radar-precompute(2시간마다)가 force 로 한다 */
+/** 미리 계산해 둔 걸 8시간까지 쓴다 — 계산(양산형·형식·부활·템플릿 집계)은 작은 DB 에서 1~2분이라 화면·AI 분석이 기다리면 2분 한도에 걸린다.
+ *  미리 계산은 radar-precompute(6시간마다)가 force 로 한다 */
 export async function getPlaybook(o: { force?: boolean } = {}): Promise<Playbook> {
   const c = o.force ? null : await prisma.trendCache.findUnique({ where: { key: KEY } }).catch(() => null);
-  if (c && Date.now() - c.fetchedAt.getTime() < 4 * H) return c.payload as unknown as Playbook;
+  if (c && Date.now() - c.fetchedAt.getTime() < 8 * H) return c.payload as unknown as Playbook;
   const [massRaw, formats, revival, tpl] = await Promise.all([massRadar(), formatSignals(), revivalWorks(), templateSignals()]);
   const { mass, comparedTo } = await withRankChange(massRaw);
   const out: Playbook = { generatedAt: new Date().toISOString(), mass, massComparedTo: comparedTo, formats, revival, templates: tpl.signals, layoutClassified: tpl.classified };

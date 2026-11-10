@@ -1,9 +1,10 @@
 /**
- * 무거운 집계 미리 계산 — 화면·AI 분석이 기다리지 않게 2시간마다 차례로 한 번씩 (터진 영상은 매시간 수집 직후).
+ * 무거운 집계 미리 계산 — 화면·AI 분석이 기다리지 않게 6시간마다 차례로 한 번씩 (터진 영상은 매시간 수집 직후).
  *
  * 플레이북(양산형·형식·부활·템플릿) · 기회판(한국어/전체) · 종합 분석 자료 · 황금키워드는 각각 작은 DB 에서 수십 초~2분이라,
  * 화면을 열거나 「다시 분석」을 누를 때 계산하면 서로 겹쳐 2분 한도(statement timeout)에 걸렸다 (11/10 종합 분석 실패).
- * 읽는 쪽은 저장해 둔 걸 4시간까지 쓰고, 여기서 force 로 새로 계산한다. 수집기가 쉬는 시간(홀수 시 10분)에 pg_cron 이 부른다.
+ * 읽는 쪽은 저장해 둔 걸 8시간까지 쓰고, 여기서 force 로 새로 계산한다. 수집기가 쉬는 시간(1·7·13·19시 10분 UTC)에 pg_cron 이 부른다.
+ * (2시간마다 하던 것을 11/10 6시간으로 — 한 번에 디스크를 수백 MB 읽어 Supabase 디스크 IO 한도를 빨리 썼다)
  */
 
 import { prisma } from '@/lib/db';
@@ -25,7 +26,7 @@ async function onceADay(key: string, fn: () => Promise<unknown>): Promise<unknow
 
 export type PrecomputeReport = { ms: number; done: { name: string; ms: number }[]; skipped: string[]; errors: string[] };
 
-/** only='hot' — 매시간 수집 직후(9분)에는 터진 영상만. 그 밖(홀수 시 10분)에는 나머지 무거운 집계 */
+/** only='hot' — 매시간 수집 직후(9분)에는 터진 영상만. 그 밖(6시간마다)에는 나머지 무거운 집계 */
 export async function runPrecompute(o: { deadline: number; only?: 'hot' }): Promise<PrecomputeReport> {
   const t0 = Date.now();
   const out: PrecomputeReport = { ms: 0, done: [], skipped: [], errors: [] };
@@ -34,8 +35,8 @@ export async function runPrecompute(o: { deadline: number; only?: 'hot' }): Prom
     // 채널 한국어 판별은 하루 한 번 (기회판·터진 영상이 쓴다)
     ['channel-lang', () => onceADay('radar:channel-lang', refreshChannelLang)],
     ['playbook', () => getPlaybook({ force: true })],
-    ['outlook:kr', () => categoryOutlook({ force: true })],
-    ['outlook:all', () => categoryOutlook({ foreign: true, force: true })],
+    // 한국어·전체를 한 번에 (같은 집계)
+    ['outlook', () => categoryOutlook({ force: true })],
     ['brief-input', () => getBriefInput({ force: true })],
     ['golden', () => refreshGolden()],
   ];
