@@ -341,7 +341,11 @@ export async function getHotVideos(q: HotQuery): Promise<HotResult> {
   if (q.revival) conds.push(Prisma.sql`v."publishedAt" < NOW() - INTERVAL '7 days'`);
   if (q.sort === 'rising') {
     // 오래된 조회수로 순위를 매기지 않게 — 고른 시간에 맞춰 최근에 잰 것만 (7일 넘은 영상은 하루에 한 번 잰다)
-    conds.push(q.revival || q.window >= 24 ? Prisma.sql`v."checkedAt" > NOW() - INTERVAL '26 hours'` : Prisma.sql`v."checkedAt" > NOW() - INTERVAL '4 hours'`);
+    // hotAt = 「터졌다」 기준을 넘은 채로 잰 시각 (수집기가 찍는다, 부분 인덱스) — 30일 영상을 다 읽지 않고 후보만 읽는다.
+    // 아래 gain 조건을 지금 만족하는 영상은 hotAt = checkedAt 이라 이 조건으로 빠지는 영상은 없다
+    const fresh = q.revival || q.window >= 24 ? Prisma.sql`INTERVAL '26 hours'` : Prisma.sql`INTERVAL '4 hours'`;
+    conds.push(Prisma.sql`v."hotAt" > NOW() - ${fresh}`);
+    conds.push(Prisma.sql`v."checkedAt" > NOW() - ${fresh}`);
     conds.push(Prisma.sql`v."publishedAt" > NOW() - INTERVAL '30 days'`);
     // '터졌다'고 할 만큼 늘어난 것만 — 없으면 막 올라온 몇천 회짜리가 1등이 된다
     conds.push(Prisma.sql`v.${gainCol} >= ${minGain(q.format, q.window)}`);
