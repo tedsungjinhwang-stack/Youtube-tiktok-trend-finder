@@ -132,7 +132,7 @@ export async function getPersons(): Promise<PersonRow[]> {
       FROM "RadarVideo" v
       JOIN "RadarWork" w ON w.id = v."workId"
       CROSS JOIN LATERAL jsonb_array_elements(w.cast) c
-      WHERE (c->>'order')::int < 4 AND v."publishedAt" > NOW() - INTERVAL '14 days'
+      WHERE v."workId" IS NOT NULL AND (c->>'order')::int < 4 AND v."publishedAt" > NOW() - INTERVAL '14 days'
     ), pw AS (
       SELECT pid, wid, title, SUM(views) FILTER (WHERE "publishedAt" > NOW() - INTERVAL '7 days') AS v FROM cv GROUP BY pid, wid, title
     )
@@ -380,14 +380,53 @@ export type GoldenRow = {
   score: number | null;
 };
 
-export async function getGolden(): Promise<{ rows: GoldenRow[]; enabled: boolean }> {
-  const works = await prisma.$queryRaw<{ wid: string; title: string; shorts: number; channels: number; cast: unknown }[]>`
-    SELECT w.id AS wid, w.title, w.cast,
-      COUNT(v.id) FILTER (WHERE v."publishedAt" > NOW() - INTERVAL '7 days')::int AS shorts,
+export type GoldenData = { rows: GoldenRow[]; enabled: boolean; at?: string };
+const GOLDEN_KEY = 'radar:golden';
+
+/**
+ * 화면은 저장해 둔 결과를 바로 쓴다 — 정비 작업(2시간마다)이 새로 계산해 둔다.
+ * 계산은 30일 작품 쇼츠 집계 + 네이버 검색수라 작은 DB 에서 10초~1분이 걸려, 화면을 열 때마다 하면 「불러오는 중」에 멈춘다.
+ * 6시간 넘게 묵었을 때(정비가 밀렸을 때)만 직접 계산한다.
+ */
+export async function getGolden(): Promise<GoldenData> {
+  const row = await prisma.trendCache.findUnique({ where: { key: GOLDEN_KEY } }).catch(() => null);
+  if (row && Date.now() - row.fetchedAt.getTime() < 6 * H) return { ...(row.payload as unknown as GoldenData), at: row.fetchedAt.toISOString() };
+  return refreshGolden();
+}
+
+/** 정비 작업이 부른다 — 다시 계산해서 저장 */
+export async function refreshGolden(): Promise<GoldenData> {
+  const data = await computeGolden();
+  const now = new Date();
+  await prisma.trendCache
+    .upsert({ where: { key: GOLDEN_KEY }, create: { key: GOLDEN_KEY, payload: data as object, fetchedAt: now }, update: { payload: data as object, fetchedAt: now } })
+    .catch(() => {});
+  return { ...data, at: now.toISOString() };
+}
+
+/** 저장해 둔 황금키워드가 몇 분 됐나 (없으면 null) */
+export async function goldenAgeMin(): Promise<number | null> {
+  const row = await prisma.trendCache.findUnique({ where: { key: GOLDEN_KEY }, select: { fetchedAt: true } }).catch(() => null);
+  return row ? (Date.now() - row.fetchedAt.getTime()) / 60_000 : null;
+}
+
+async function computeGolden(): Promise<GoldenData> {
+  // 작품 인덱스(workId, publishedAt)로 30일 작품 쇼츠만 읽어 묶은 뒤 상위 60개 작품만 붙인다
+  // (예전: 작품 표와 영상 표를 먼저 이어 붙여 30일 영상을 다 읽음 → 운영 DB 60초+)
+  const agg = await prisma.$queryRaw<{ wid: string; shorts: number; channels: number }[]>`
+    SELECT v."workId" AS wid,
+      COUNT(*) FILTER (WHERE v."publishedAt" > NOW() - INTERVAL '7 days')::int AS shorts,
       COUNT(DISTINCT v."channelId") FILTER (WHERE v."publishedAt" > NOW() - INTERVAL '7 days')::int AS channels
-    FROM "RadarWork" w JOIN "RadarVideo" v ON v."workId" = w.id
-    WHERE v."publishedAt" > NOW() - INTERVAL '30 days'
-    GROUP BY w.id ORDER BY SUM(v.views) DESC LIMIT 60`;
+    FROM "RadarVideo" v
+    WHERE v."workId" IS NOT NULL AND v."publishedAt" > NOW() - INTERVAL '30 days'
+    GROUP BY v."workId" ORDER BY SUM(v.views) DESC LIMIT 60`;
+  const meta = new Map(
+    (await prisma.radarWork.findMany({ where: { id: { in: agg.map((a) => a.wid) } }, select: { id: true, title: true, cast: true } })).map((w) => [w.id, w])
+  );
+  const works = agg.flatMap((a) => {
+    const w = meta.get(a.wid);
+    return w ? [{ ...a, title: w.title, cast: w.cast }] : [];
+  });
   const people = new Map<string, { shorts: number; channels: number }>();
   for (const w of works) {
     for (const c of ((w.cast as { name: string; order: number }[]) ?? []).filter((c) => c.order < 3)) {

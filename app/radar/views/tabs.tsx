@@ -373,7 +373,11 @@ export function GoldenView() {
   const { data, err } = useLoad(goldenAction);
   return (
     <>
-      <Header title="황금키워드" sub="네이버 검색은 많은데 감시 채널 쇼츠는 적은 작품·배우 — 검색수 ÷ (최근 7일 쇼츠 수 + 1)" />
+      <Header
+        title="황금키워드"
+        sub="네이버 검색은 많은데 감시 채널 쇼츠는 적은 작품·배우 — 검색수 ÷ (최근 7일 쇼츠 수 + 1)"
+        aside={data?.at ? <span className="text-[12px] font-semibold text-[color:var(--text-faint)]">{ago(data.at)} 계산 · 2시간마다</span> : undefined}
+      />
       {data && data.rows.some((r) => r.volume != null) && (
         <AiInsight kind="golden" what="검색 수요가 진짜인 키워드와 일반 단어·동명이인으로 부풀은 착시 키워드를 가르고, 검색하는 사람이 궁금해할 쇼츠와 제목 예시를 Claude가 냅니다." />
       )}
