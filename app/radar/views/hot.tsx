@@ -50,6 +50,8 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
   const [multiple, setMultiple] = useState<0 | 1 | 2 | 5>(0);
   const [calmSurge, setCalmSurge] = useState(false);
   const [revival, setRevival] = useState(false);
+  // 기본은 한국어 채널만 — 해외 채널(MrBeast 같은)이 위를 다 차지해서
+  const [foreign, setForeign] = useState(false);
   const [sort, setSort] = useState<HotSort>(preset.sort ?? 'rising');
   const [reload, setReload] = useState(0);
   const [excludeWhale, setExcludeWhale] = useState(false);
@@ -74,7 +76,7 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
     let alive = true;
     start(async () => {
       try {
-        const r = await hotVideosAction({ format, window: win, sort, excludeWhale, folders: preset.folders, multiple, calmSurge, revival });
+        const r = await hotVideosAction({ format, window: win, sort, excludeWhale, folders: preset.folders, multiple, calmSurge, revival, foreign });
         if (!alive) return;
         setData(r);
         setShown(40);
@@ -86,7 +88,7 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
     return () => {
       alive = false;
     };
-  }, [format, win, sort, excludeWhale, preset, reload, multiple, calmSurge, revival]);
+  }, [format, win, sort, excludeWhale, preset, reload, multiple, calmSurge, revival, foreign]);
 
   const watchAll = async () => {
     if (!data?.unwatched.length) return;
@@ -172,6 +174,11 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
           <span title="올린 지 7일 넘은 영상이 다시 뜨는 것만 (7일 넘은 영상은 하루에 한 번 재서 24·48시간 기준으로 보세요)">
             <Toggle on={revival} onClick={() => setRevival(!revival)}>
               역주행만
+            </Toggle>
+          </span>
+          <span title="기본은 한국어 채널만 — 채널 이름에 한글이 있거나, 모아 둔 영상 제목의 30% 이상에 한글이 든 채널 (기회판과 같은 기준)">
+            <Toggle on={foreign} onClick={() => setForeign(!foreign)}>
+              해외 채널 포함
             </Toggle>
           </span>
         </div>

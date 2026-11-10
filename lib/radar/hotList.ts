@@ -8,6 +8,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { minGain, type HotQuery } from './queries';
+import { KO_TITLE_RATIO } from './lang';
 
 export const HOT_WINDOWS = [6, 24, 48] as const;
 const META_KEY = 'radar:hot-at';
@@ -25,13 +26,13 @@ export async function refreshHotList(): Promise<{ rows: number; ms: number }> {
       // 지우고 채우기를 한 트랜잭션으로 — 그동안 화면은 이전 목록을 본다
       await tx.$executeRaw`DELETE FROM "RadarHot"`;
       return tx.$executeRaw`
-        INSERT INTO "RadarHot" (format, win, "videoId", rate, gain, "gain1h", "gain6h", "gain12h", views, "publishedAt", "checkedAt", fresh4, "trackN", "trackSpan", "channelId")
+        INSERT INTO "RadarHot" (format, win, "videoId", rate, gain, "gain1h", "gain6h", "gain12h", views, "publishedAt", "checkedAt", fresh4, "trackN", "trackSpan", "channelId", "koTitle")
         SELECT CASE WHEN v."isShorts" THEN 'shorts' ELSE 'long' END, w.win, v.id,
           w.g::float8 / GREATEST(LEAST(w.win::float8, EXTRACT(EPOCH FROM NOW() - v."publishedAt") / 3600), 0.5),
           w.g, v."gain1h", v."gain6h", v."gain12h", v.views, v."publishedAt", v."checkedAt", v."checkedAt" > NOW() - INTERVAL '4 hours',
           COALESCE(cardinality(v."trackT"), 0),
           COALESCE(v."trackT"[cardinality(v."trackT")] - v."trackT"[1], 0),
-          v."channelId"
+          v."channelId", v.title ~ '[가-힣]'
         FROM "RadarVideo" v
         CROSS JOIN LATERAL (VALUES (6, v."gain6h"), (24, v."gain24h"), (48, v."gain48h")) w(win, g)
         WHERE v."hotAt" > NOW() - INTERVAL '26 hours' AND v."checkedAt" > NOW() - INTERVAL '26 hours'
@@ -80,6 +81,8 @@ export async function hotRowsFromList(q: HotQuery): Promise<{ rows: HotRow[]; co
 
   const conds: Prisma.Sql[] = [Prisma.sql`h.format = ${q.format}`, Prisma.sql`h.win = ${q.window}::int`, Prisma.sql`c."isActive"`];
   if (q.folders?.length) conds.push(Prisma.sql`f.name = ANY(${q.folders}::text[])`);
+  // 기본은 한국어 채널만 (이름에 한글 · 제목 한글 비율 30%+ · 판별 전 새 채널은 이 영상 제목에 한글)
+  if (!q.foreign) conds.push(Prisma.sql`(c."displayName" ~ '[가-힣]' OR c."koRatio" >= ${KO_TITLE_RATIO} OR (c."koRatio" IS NULL AND h."koTitle"))`);
   // 6시간 창은 최근 4시간 안에 잰 것만 (역주행은 하루 한 번 재니 26시간)
   if (!(q.revival || q.window >= 24)) conds.push(Prisma.sql`h.fresh4`);
   if (q.excludeWhale) conds.push(Prisma.sql`COALESCE(c."subscriberCount", 0) < 1000000`);
