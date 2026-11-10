@@ -121,10 +121,11 @@ function highlight(r: Row): ChannelHighlight {
   };
 }
 
-export async function categoryOutlook(o: { foreign?: boolean } = {}): Promise<PackOutlook[]> {
+/** 미리 계산해 둔 걸 4시간까지 쓴다 (전체 영상 언어 판별 집계가 작은 DB 에서 40초~1분+). radar-precompute 가 force 로 새로 계산 */
+export async function categoryOutlook(o: { foreign?: boolean; force?: boolean } = {}): Promise<PackOutlook[]> {
   const key = o.foreign ? 'radar:outlook:v4:all' : 'radar:outlook:v4:kr';
-  const c = await prisma.trendCache.findUnique({ where: { key } }).catch(() => null);
-  if (c && Date.now() - c.fetchedAt.getTime() < 3_600_000) return c.payload as unknown as PackOutlook[];
+  const c = o.force ? null : await prisma.trendCache.findUnique({ where: { key } }).catch(() => null);
+  if (c && Date.now() - c.fetchedAt.getTime() < 4 * 3_600_000) return c.payload as unknown as PackOutlook[];
 
   const [all, folders] = await Promise.all([
     prisma.$queryRaw<Row[]>`

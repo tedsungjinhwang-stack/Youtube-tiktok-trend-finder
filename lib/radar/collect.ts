@@ -36,7 +36,7 @@ import { monitorPlan, UNITS_PER_WATCHED_CHANNEL, type MonitorPlan } from './budg
 import { learnAliases } from './learn';
 import { discoveryDue, markDiscovered, refreshSuggestions, runDiscovery, type DiscoverReport } from './discover';
 import { fetchPersons, fetchWorkDetails, matchVideos, seedWorks } from './match';
-import { getSchedule, getSeason, goldenAgeMin, refreshGolden } from './tabs';
+import { getSchedule, getSeason } from './tabs';
 import { refreshGoogleRssHistory } from '@/lib/trends/google';
 import { runLayoutClassify } from './layout';
 import { minGain, type HotWindow } from './queries';
@@ -259,8 +259,6 @@ export type MaintenanceReport = {
   archived?: { archivedChannels: number; pastHits: number };
   /** 쇼츠 화면 구성 분류 — 이번에 분류한 채널 · 비용 · 남은 대상 */
   layout?: { classified: number; costKrw: number; left: number };
-  /** 황금키워드를 다시 계산했나 */
-  golden?: boolean;
   errors: string[];
 };
 
@@ -289,13 +287,6 @@ export async function runRadarMaintenance(): Promise<MaintenanceReport> {
     const lr = await learnAliases();
     out.aliases = { learned: lr.learned, blocked: lr.blocked, forgotten: lr.forgotten };
     await prisma.trendCache.upsert({ where: { key: 'radar:learn' }, create: { key: 'radar:learn', payload: lr }, update: { payload: lr, fetchedAt: new Date() } });
-  });
-  await step('golden', async () => {
-    // 황금키워드 미리 계산 (화면은 저장해 둔 걸 바로 보여 준다) — 90분 넘었을 때만
-    const age = await goldenAgeMin();
-    if (age != null && age < 90) return;
-    await refreshGolden();
-    out.golden = true;
   });
   await step('suggest', async () => {
     out.resuggested = (await refreshSuggestions(t0 + 180_000)).resuggested;

@@ -384,7 +384,7 @@ export type GoldenData = { rows: GoldenRow[]; enabled: boolean; at?: string };
 const GOLDEN_KEY = 'radar:golden';
 
 /**
- * 화면은 저장해 둔 결과를 바로 쓴다 — 정비 작업(2시간마다)이 새로 계산해 둔다.
+ * 화면은 저장해 둔 결과를 바로 쓴다 — radar-precompute(2시간마다)가 새로 계산해 둔다.
  * 계산은 30일 작품 쇼츠 집계 + 네이버 검색수라 작은 DB 에서 10초~1분이 걸려, 화면을 열 때마다 하면 「불러오는 중」에 멈춘다.
  * 6시간 넘게 묵었을 때(정비가 밀렸을 때)만 직접 계산한다.
  */
@@ -402,12 +402,6 @@ export async function refreshGolden(): Promise<GoldenData> {
     .upsert({ where: { key: GOLDEN_KEY }, create: { key: GOLDEN_KEY, payload: data as object, fetchedAt: now }, update: { payload: data as object, fetchedAt: now } })
     .catch(() => {});
   return { ...data, at: now.toISOString() };
-}
-
-/** 저장해 둔 황금키워드가 몇 분 됐나 (없으면 null) */
-export async function goldenAgeMin(): Promise<number | null> {
-  const row = await prisma.trendCache.findUnique({ where: { key: GOLDEN_KEY }, select: { fetchedAt: true } }).catch(() => null);
-  return row ? (Date.now() - row.fetchedAt.getTime()) / 60_000 : null;
 }
 
 async function computeGolden(): Promise<GoldenData> {
