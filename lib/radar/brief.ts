@@ -244,7 +244,26 @@ async function upcomingReleases(): Promise<BriefInput['upcoming']> {
   return out;
 }
 
-export async function gatherBriefInput(): Promise<BriefInput> {
+const INPUT_KEY = 'radar:brief-input';
+
+/**
+ * 종합 분석 자료 — 미리 모아 둔 걸 4시간까지 쓴다. 모으기는 무거운 집계 15개쯤이라(인물·작품·키워드·팩 열기·기회판·플레이북)
+ * 「다시 분석」 때마다 한꺼번에 돌리면 작은 DB 에서 하나가 2분 한도에 걸려 분석 전체가 실패했다 (11/10).
+ * radar-precompute(2시간마다)가 force 로 새로 모은다
+ */
+export async function getBriefInput(o: { force?: boolean } = {}): Promise<BriefInput> {
+  if (!o.force) {
+    const c = await prisma.trendCache.findUnique({ where: { key: INPUT_KEY } }).catch(() => null);
+    if (c && Date.now() - c.fetchedAt.getTime() < 4 * 3_600_000) return c.payload as unknown as BriefInput;
+  }
+  const input = await gatherBriefInput();
+  await prisma.trendCache
+    .upsert({ where: { key: INPUT_KEY }, create: { key: INPUT_KEY, payload: input as object }, update: { payload: input as object, fetchedAt: new Date() } })
+    .catch(() => {});
+  return input;
+}
+
+async function gatherBriefInput(): Promise<BriefInput> {
   // 1. 뜨는 인물 — 최근 3일 영상의 해시태그·태그가 가리키는 TMDB 인물, 세 채널 이상
   const persons = await prisma.$queryRaw<
     { id: number; name: string; videos: number; channels: number; g24: number; packs: string[]; credits: PersonCredit[] }[]
@@ -269,7 +288,7 @@ export async function gatherBriefInput(): Promise<BriefInput> {
     GROUP BY p.id, p.name, p.credits
     HAVING COUNT(DISTINCT h."channelId") >= 3
     ORDER BY SUM(h.g24) DESC
-    LIMIT 25`;
+    LIMIT 25`.catch(() => []); // 하나가 늦어도 분석 전체가 실패하지 않게
   const topPersons = persons.filter((p) => p.name.trim().length >= 2 && !NOT_PERSON.has(p.name.trim().toLowerCase())).slice(0, 10);
 
   // 2. 뜨는 작품 — 최근 3일, 세 채널 이상
@@ -283,20 +302,20 @@ export async function gatherBriefInput(): Promise<BriefInput> {
     GROUP BY w.id
     HAVING COUNT(DISTINCT v."channelId") >= 3
     ORDER BY SUM(COALESCE(v."gain24h", 0)) DESC
-    LIMIT 8`;
+    LIMIT 8`.catch(() => []);
 
   // 영상 제목 (인물·작품별 상위 3개)
   const topVideosByWork = await prisma.$queryRaw<{ workId: string; title: string; views: number }[]>`
     SELECT "workId", title, views FROM (
       SELECT v."workId", v.title, v.views, ROW_NUMBER() OVER (PARTITION BY v."workId" ORDER BY v.views DESC) AS rn
       FROM "RadarVideo" v WHERE v."publishedAt" > NOW() - INTERVAL '3 days' AND v."workId" = ANY(${works.map((w) => w.id)}::text[])
-    ) x WHERE rn <= 3`;
+    ) x WHERE rn <= 3`.catch(() => []);
   const personVideos = await Promise.all(
     topPersons.map((p) =>
       prisma.$queryRaw<{ title: string; views: number }[]>`
         SELECT title, views FROM "RadarVideo"
         WHERE "publishedAt" > NOW() - INTERVAL '3 days' AND (title ILIKE ${'%' + p.name + '%'} OR ${p.name} = ANY(tags))
-        ORDER BY views DESC LIMIT 3`
+        ORDER BY views DESC LIMIT 3`.catch(() => [])
     )
   );
 
@@ -310,8 +329,8 @@ export async function gatherBriefInput(): Promise<BriefInput> {
   const month = Number(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul', month: 'numeric' }));
   const [outlookAll, packs, keywords, pastSame, schedule, upcoming, pb] = await Promise.all([
     categoryOutlook().catch(() => [] as PackOutlook[]),
-    packHeat(),
-    hotKeywords(),
+    packHeat().catch(() => [] as BriefPackInput[]),
+    hotKeywords().catch(() => [] as BriefInput['keywords']),
     getSameSeasonPast(15).catch(() => []),
     getSchedule().catch(() => []),
     upcomingReleases().catch(() => []),
@@ -735,7 +754,7 @@ export type Brief = {
 
 export async function generateBrief(): Promise<Brief> {
   if (!(await hasClaudeKey())) throw new NoClaudeKeyError();
-  const input = await gatherBriefInput();
+  const input = await getBriefInput();
   if (!input.persons.length && !input.works.length && !input.packs.length) throw new Error('분석할 인물·작품이 아직 없습니다 (최근 3일 영상이 모이면 다시)');
 
   const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
