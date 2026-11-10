@@ -184,7 +184,7 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
         <AiInsight
           kind="hot"
           query={{ preset: presetKey, title: preset.title, format, window: win, folders: preset.folders }}
-          what={`지금 ${win}시간 동안 터진 ${format === 'long' ? '롱폼' : '쇼츠'}에서 제목·소재·포맷 패턴과 지금 올라탈 소재, 제목 예시를 Claude가 뽑습니다.`}
+          what={`지금 ${win}시간 동안 터진 ${format === 'long' ? '롱폼' : '쇼츠'} 상위 영상을 댓글(시청자가 반응한 지점)까지 읽고 하나씩 해부합니다 — 터진 이유(감정선·반전·키워드), 제목·포맷 패턴, 지금 올라탈 소재와 제목 예시.`}
         />
       )}
 

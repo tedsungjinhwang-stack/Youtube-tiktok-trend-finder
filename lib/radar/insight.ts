@@ -7,6 +7,8 @@
  */
 
 import { prisma } from '@/lib/db';
+import { fetchTopComments } from '@/lib/youtube/api';
+import { mapLimit } from '@/lib/trends/cache';
 import { askClaude, extractJson, hasClaudeKey, NoClaudeKeyError, type ClaudeUsage } from './claude';
 import { googleNews, similarWorks } from './brief';
 import { getHotVideos, type HotWindow } from './queries';
@@ -95,6 +97,16 @@ const cacheKey = (kind: InsightKind, scope: string) => `radar:insight:${kind}:${
 const kst = (d: Date | null | undefined) => (d ? new Date(d.getTime() + 9 * H).toISOString().slice(0, 10) : null);
 const ageH = (iso: string) => Math.round((Date.now() - new Date(iso).getTime()) / H);
 
+/** 소재 판단 2단계 — 원본 조회수 다음은 댓글: 시청자가 반응한 지점. 영상당 1 unit, 실패하면 빈 배열 */
+async function commentsOf(ids: string[]): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  await mapLimit(ids, 4, async (id) => {
+    const cs = await fetchTopComments(id, 8).catch(() => []);
+    if (cs.length) out.set(id, cs.map((c) => (c.likes >= 10 ? `(좋아요 ${c.likes.toLocaleString()}) ${c.text}` : c.text)));
+  });
+  return out;
+}
+
 async function risingInput(p: InsightParams) {
   const data = await getRadarData(p.period ?? '3d');
   const inCat = (c: WorkCategory) => !p.cats?.length || p.cats.includes(c);
@@ -103,9 +115,9 @@ async function risingInput(p: InsightParams) {
   const since = new Date(Date.now() - ({ '24h': 24, '3d': 72, '7d': 168 }[p.period ?? '3d'] ?? 72) * H);
   const ids = rising.map((w) => w.key);
   const [clips, meta] = await Promise.all([
-    prisma.$queryRaw<{ workId: string; title: string; views: number; channel: string; layout: string | null; dur: number | null }[]>`
-      SELECT "workId", title, views, channel, layout, dur FROM (
-        SELECT v."workId", v.title, v.views, COALESCE(c."displayName", c."externalId") AS channel, c.layout, v."durationSec" AS dur,
+    prisma.$queryRaw<{ id: string; workId: string; title: string; views: number; channel: string; layout: string | null; dur: number | null }[]>`
+      SELECT id, "workId", title, views, channel, layout, dur FROM (
+        SELECT v.id, v."workId", v.title, v.views, COALESCE(c."displayName", c."externalId") AS channel, c.layout, v."durationSec" AS dur,
           ROW_NUMBER() OVER (PARTITION BY v."workId" ORDER BY v.views DESC) AS rn
         FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId"
         WHERE v."workId" = ANY(${ids}::text[]) AND v."publishedAt" > ${since}
@@ -117,9 +129,12 @@ async function risingInput(p: InsightParams) {
   ]);
   const metaBy = new Map(meta.map((m) => [m.id, m]));
   const top5 = rising.slice(0, 5);
-  const [news, similar] = await Promise.all([
+  // 상위 6개 작품의 가장 잘 나온 쇼츠 댓글 — 어떤 장면에 반응했는지
+  const topClipOf = (key: string) => clips.find((c) => c.workId === key);
+  const [news, similar, comments] = await Promise.all([
     Promise.all(top5.map((w) => googleNews(w.title.split(':')[0], 4))),
     Promise.all(top5.map((w) => (metaBy.get(w.key) ? similarWorks(metaBy.get(w.key)!.mediaType, metaBy.get(w.key)!.tmdbId) : Promise.resolve([])))),
+    commentsOf(rising.slice(0, 6).flatMap((w) => topClipOf(w.key)?.id ?? [])),
   ]);
   return {
     period: p.period,
@@ -141,6 +156,8 @@ async function risingInput(p: InsightParams) {
       spike: w.spike,
       // layout = 그 채널의 화면 구성(썸네일 분류), sec = 영상 길이
       topClips: clips.filter((c) => c.workId === w.key).map((c) => ({ title: c.title.slice(0, 90), views: c.views, channel: c.channel, layout: c.layout, sec: c.dur })),
+      // 가장 잘 나온 쇼츠의 인기 댓글 (상위 6개 작품만)
+      topComments: comments.get(topClipOf(w.key)?.id ?? '') ?? [],
       related: w.related.slice(0, 8).map((r) => ({
         title: r.title,
         year: r.year,
@@ -177,11 +194,13 @@ async function risingInput(p: InsightParams) {
 async function hotInput(p: InsightParams) {
   const r = await getHotVideos({ format: p.format ?? 'shorts', window: p.window ?? 24, sort: 'rising', excludeWhale: false, folders: p.folders });
   if (!r.items.length) throw new Error('이 범위에 터진 영상이 아직 없습니다');
+  const comments = await commentsOf(r.items.slice(0, 8).map((v) => v.id));
   return {
     screen: p.title,
     format: p.format,
     windowHours: p.window,
     videos: r.items.slice(0, 40).map((v) => ({
+      ref: v.id,
       title: v.title.slice(0, 100),
       views: v.views,
       gain: v.gain,
@@ -191,6 +210,8 @@ async function hotInput(p: InsightParams) {
       pack: v.folder,
       work: v.work,
       hoursSinceUpload: ageH(v.publishedAt),
+      // 상위 8개만 — 인기 댓글 (시청자가 반응한 지점)
+      topComments: comments.get(v.id) ?? [],
     })),
   };
 }
@@ -265,15 +286,17 @@ const TASK: Record<InsightKind, string> = {
 1) "지금 탈 작품" — works 각각 (최대 8개). spike=true(쇼츠 1편·채널 1곳만 터짐)면 반짝일 수 있다고 watch. 채널이 많고 평균이 떨어지면 watch/avoid. how 는 상위 쇼츠 제목에서 먹힌 장면·소재와 topClips 의 layout(화면 구성: insta 인스타형(흰 배경 캡션) · titlebar 일반형(검은 제목바) · full 풀화면 · split 위아래 분할 등, 아직 분류 안 됐으면 null)·sec(길이)으로 먹힌 형식을 짚고, 차별화 하나를 고른다 (잘 나온 영상들이 다 같은 구성이면 다른 구성으로 바꾸는 것도 차별화):
    - 채널이 많으면(경쟁 셈) pinset 에서 영상은 적은데 조회 중앙값이 좋은 출연자 한 명을 핀셋으로 (예: "OOO 한 명만 — 영상 3편뿐인데 중앙값 40만").
    - format 에서 미드폼(mid) 중앙값이 59초 이하(short)보다 1.5배 넘게 높으면 미드폼(1~3분)을 권한다 (표본 수도 같이).
+   topComments(가장 잘 나온 쇼츠의 인기 댓글)가 있으면 시청자가 반응한 장면·대사·감정을 how 에 짚는다 (따옴표로 짧게 인용).
    picks 에는 이 작품을 타고 이어서 만들 작품 2~4개 — related 중 honeyPot 우선, unmeasured(빈자리), similar(결 맞는 작품) 순으로 이유와 함께.
 2) "연관 꿀통 · 빈자리" — 모든 works 의 related(honeyPot)·unmeasured 중 지금 만들 가치가 큰 것 최대 6개. name=작품 이름, ref=빈 문자열, why 에 어느 뜨는 작품의 누구 출연이라 이어지는지와 수치.
 3) "피할 작품" — crowded 중 피할 것 (tone avoid, ref=crowded 의 ref). 채널 수·평균 조회·추세를 근거로.
 4) "부활 작품" — revival(최근 한 달 안에 30만+ 영상이 여러 채널에서 나왔는데 지금 10일 동안 거의 아무도 안 하는 작품) 중 지금 다시 들어갈 만한 것 최대 5개. ref=빈 문자열. why 에 그때 수치(pastMax · past300k · pastChannels)와 지금 경쟁(recentChannels). 작품명이 일반 단어라 잘못 묶인 것 같으면 빼거나 caution 에. how 에 어떤 장면·구성으로 (미드폼·하이브리드 내레이션 등).`,
-  hot: `화면: 터진 영상 목록 (screen 이름의 묶음). 자료: 고른 시간 동안 조회가 가장 많이 늘어난 영상(gain=그 시간 증가, multipleOfChannelUsual=채널 평소의 몇 배, work=붙은 작품).
-섹션 3개를 이 순서·이름으로:
-1) "터진 이유 · 패턴" — 제목·소재·포맷에서 반복되는 패턴 3~5개. name=패턴 이름, why=그 패턴의 영상 예(제목 일부와 수치), how=따라 만드는 법, titles=그 패턴을 적용한 새 제목 예시. ref=빈 문자열.
-2) "지금 만들 소재" — 지금 올라타면 좋을 구체적 소재(작품·인물·사건·상품·장소) 3~6개. 이미 여러 채널이 같은 걸 올렸으면 watch. 쇼핑 화면이면 뜨는 상품, 여행 화면이면 뜨는 숙소·여행지를 소재로.
-3) "주의" — 따라 하면 안 되는 것 (저작권·자극·반짝 소재) 0~3개, tone avoid.`,
+  hot: `화면: 터진 영상 목록 (screen 이름의 묶음). 자료: 고른 시간 동안 조회가 가장 많이 늘어난 영상(gain=그 시간 증가, multipleOfChannelUsual=채널 평소의 몇 배, work=붙은 작품, topComments=상위 8개 영상의 인기 댓글).
+섹션 4개를 이 순서·이름으로:
+1) "터진 영상 해부" — topComments 가 있는 상위 영상 5~6개를 하나씩 (ref=자료의 ref). name=제목을 줄인 것, verdict=터진 축(감정선·반전·키워드·인물·정보 중 무엇인지 6자 안팎), why=수치(gain·평소 몇 배) + 왜 터졌나 — 댓글에서 시청자가 반응한 지점(반복되는 말·좋아요 많은 댓글)을 짧게 따옴표로 인용, 댓글이 없으면 제목·수치로만. how=내 채널에서 이 소재를 쓰는 법 (이 영상의 형식·구성은 가져오고 무엇 하나를 바꿀지).
+2) "터진 이유 · 패턴" — 제목·소재·포맷에서 반복되는 패턴 3~5개. name=패턴 이름, why=그 패턴의 영상 예(제목 일부와 수치), how=따라 만드는 법, titles=그 패턴을 적용한 새 제목 예시. ref=빈 문자열.
+3) "지금 만들 소재" — 지금 올라타면 좋을 구체적 소재(작품·인물·사건·상품·장소) 3~6개. 이미 여러 채널이 같은 걸 올렸으면 watch. 쇼핑 화면이면 뜨는 상품, 여행 화면이면 뜨는 숙소·여행지를 소재로.
+4) "주의" — 따라 하면 안 되는 것 (저작권·자극·반짝 소재) 0~3개, tone avoid.`,
   person: `화면: 「인물선점」. 자료: 출연작 쇼츠 조회가 최근 7일 늘어난 배우(views7d·viewsPrev7d·growthPct, 출연작별 조회 works, 감시 채널에 쇼츠가 아직 없는 출연작 openWorks, 최근 기사 news).
 섹션 2개를 이 순서·이름으로:
 1) "선점할 인물" — 지금 이 사람으로 쇼츠를 만들면 좋을 인물 최대 6명 (ref=자료의 ref). why=왜 뜨나(수치 + 기사), picks=만들 작품 (openWorks 의 빈자리 우선, 그다음 덜 다룬 출연작), how=어떤 장면·주제로, titles=제목 예시.

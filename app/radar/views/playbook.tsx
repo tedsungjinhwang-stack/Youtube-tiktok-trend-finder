@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { BriefResult } from '@/lib/radar/brief';
-import type { Playbook, RevivalWork } from '@/lib/radar/playbook';
+import type { MassChannel, Playbook, RevivalWork } from '@/lib/radar/playbook';
 import { CATEGORY_LABEL, type WorkCategory } from '@/lib/radar/types';
 import { Chip, ago, short } from './parts';
 
@@ -90,6 +90,7 @@ export function PlaybookBoard() {
                         {m.name}
                       </a>
                       <div className="mt-0.5 flex flex-wrap gap-1">
+                        <RankChange m={m} since={pb.massComparedTo ?? null} />
                         <Chip>{m.pack}</Chip>
                         <span className="text-[11px] text-[color:var(--text-faint)]">구독 {m.subscribers != null ? short(m.subscribers) : '비공개'}</span>
                       </div>
@@ -334,5 +335,24 @@ function List({ title, rows, tone }: { title: string; rows: { k: string; v: stri
         ))}
       </ul>
     </div>
+  );
+}
+
+/** 지난 기록(보통 어제) 대비 — 새로 들어온 채널 · 순위가 크게 바뀐 채널만 표시 */
+function RankChange({ m, since }: { m: MassChannel; since: string | null }) {
+  if (m.prevRank === undefined || !since) return null;
+  const tip = `${since.slice(5).replace('-', '/')} 기록 대비`;
+  if (m.prevRank === null)
+    return (
+      <Chip tone="brand" title={`${tip} 상위 40곳에 새로 들어온 채널 — 새로 뜬 카테고리·템플릿인지 보세요`}>
+        NEW
+      </Chip>
+    );
+  const d = m.prevRank - (m.rank ?? m.prevRank);
+  if (Math.abs(d) < 3) return null;
+  return (
+    <span title={`${tip} ${m.prevRank}위 → ${m.rank}위`} className="text-[11px] font-bold" style={{ color: d > 0 ? 'var(--green)' : 'var(--red)' }}>
+      {d > 0 ? `▲${d}` : `▼${-d}`}
+    </span>
   );
 }

@@ -82,7 +82,7 @@ export type BriefInput = {
   upcoming: { title: string; platform: string; date: string | null; kind: string }[];
   /** 플레이북 — 양산형 채널(구독 8만 이하) 하루 조회 상위 · 미드폼이 잘 나오는 팩 · 부활 후보 작품 */
   playbook?: {
-    mass: { channel: string; pack: string; subscribers: number | null; dailyViews: number; medianViews: number | null; floorTrendPct: number | null; midPct: number; layout: string | null; top: string | null }[];
+    mass: { channel: string; pack: string; subscribers: number | null; dailyViews: number; medianViews: number | null; floorTrendPct: number | null; midPct: number; layout: string | null; top: string | null; rankChange: 'new' | number | null }[];
     /** 팩 안 화면 구성별 채널 수 · 채널 성과 — 잘 나오는 템플릿 */
     templates: { pack: string; layouts: string; best: string | null }[];
     formats: { pack: string; shortMedian: number; midMedian: number; midVsShort: number; midChannels: number }[];
@@ -343,6 +343,8 @@ export async function gatherBriefInput(): Promise<BriefInput> {
             midPct: m.midPct,
             layout: m.layout ? [m.layout, ...m.layoutTags].join('+') : null,
             top: m.top?.title.slice(0, 70) ?? null,
+            // 지난 기록(보통 어제) 대비 — "new"=상위 40곳에 새로 들어옴, 숫자=순위 변화(+면 올라감)
+            rankChange: m.prevRank === undefined ? null : m.prevRank === null ? 'new' : m.prevRank - (m.rank ?? 0),
           })),
           templates: (pb.templates ?? [])
             .filter((t) => t.classified >= 5)
@@ -625,7 +627,7 @@ const SYSTEM = `너는 한국 유튜브 쇼츠 채널 운영자를 돕는 트렌
 - 계절: 오늘 날짜 기준 시기(날씨·명절·수능·연말·시상식 등)와 작년 이맘때 터진 영상을 엮어 계절 소재를 낸다.
 - 공개 예정: 곧 공개되거나 막 시작한 작품 중 뜰 것을 골라, 지금 미리 준비할 것을 낸다.
 - 구글 급상승 중 유튜브 데이터에 아직 약한 소재를 골라 선점 기회로 낸다.
-- 플레이북: playbook.mass(구독 8만 이하 양산형 채널 — 지금 알고리즘이 밀어주는 자리, layout=썸네일로 본 화면 구성: insta 인스타형(흰 배경 캡션) · titlebar 일반형(검은 제목바) · full 풀화면 · split 위아래 분할 · text 글·캡처 · talk 인물 토크 · ai · ranking)에서 형식·구성을 가져올 채널과 바꿀 한 가지(템플릿을 바꾼다면 playbook.templates 에서 그 팩에 잘 나오는 구성으로), playbook.formats 로 구성 차별화(미드폼), playbook.revival 로 부활 작품, 기회판 하위·꺾인 카테고리로 갈아탈 곳을 낸다.
+- 플레이북: playbook.mass(구독 8만 이하 양산형 채널 — 지금 알고리즘이 밀어주는 자리, layout=썸네일로 본 화면 구성: insta 인스타형(흰 배경 캡션) · titlebar 일반형(검은 제목바) · full 풀화면 · split 위아래 분할 · text 글·캡처 · talk 인물 토크 · ai · ranking, rankChange=지난 기록(보통 어제) 대비 순위 변화 — "new" 는 상위권에 새로 들어온 채널이라 새로 뜬 카테고리·템플릿 신호로 짚는다)에서 형식·구성을 가져올 채널과 바꿀 한 가지(템플릿을 바꾼다면 playbook.templates 에서 그 팩에 잘 나오는 구성으로), playbook.formats 로 구성 차별화(미드폼), playbook.revival 로 부활 작품, 기회판 하위·꺾인 카테고리로 갈아탈 곳을 낸다.
 
 ${PLAYBOOK_RULES}
 
