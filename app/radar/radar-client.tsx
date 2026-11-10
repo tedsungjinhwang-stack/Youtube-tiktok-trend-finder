@@ -782,7 +782,7 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
         <AiInsight
           kind="rising"
           query={{ period, cats: navCats ?? (cat === 'all' ? [] : [cat]) }}
-          what="뜨는 작품마다 지금 탈지·어떤 장면으로 만들지·제목 예시·이어서 탈 연관 꿀통과 빈자리, 피할 작품을 Claude가 판정합니다 (기사·결 맞는 작품 포함)."
+          what="뜨는 작품마다 지금 탈지·어떤 장면으로 만들지(잘 나온 쇼츠 댓글로 시청자가 반응한 장면까지)·제목 예시·이어서 탈 연관 꿀통과 빈자리, 피할 작품을 Claude가 판정합니다 (기사·결 맞는 작품 포함)."
           onResult={onInsight}
         />
       )}

@@ -43,7 +43,8 @@ export async function ytFetch<T = any>(path: string, params: Record<string, stri
       lastErr = new Error('key_invalid');
       continue;
     }
-    if (resp.status === 400 || resp.status === 404) {
+    if (resp.status === 400 || resp.status === 404 || (resp.status === 403 && /commentsDisabled/i.test(body))) {
+      // 다른 키로 다시 해도 같은 답 (댓글 막힌 영상 등) — 바로 끝낸다
       throw new Error(`youtube ${resp.status}: ${body.slice(0, 300)}`);
     }
     lastErr = new Error(`youtube ${resp.status}: ${body.slice(0, 200)}`);
@@ -167,6 +168,32 @@ export async function featuredChannels(channelId: string): Promise<string[]> {
   try {
     const json = await ytFetch<{ items?: any[] }>('/channelSections', { part: 'contentDetails', channelId });
     return [...new Set((json.items ?? []).flatMap((s) => (s.contentDetails?.channels as string[] | undefined) ?? []))].filter((c) => c.startsWith('UC'));
+  } catch (e) {
+    if (e instanceof QuotaGoneError) throw e;
+    return [];
+  }
+}
+
+/**
+ * 영상 인기 댓글 (관련성 순, 1 unit) — 「시청자가 반응한 지점」을 AI 분석에 넣는다. 댓글이 막혔거나 실패하면 빈 배열.
+ * 짧게 잘라서 좋아요 많은 순으로.
+ */
+export async function fetchTopComments(videoId: string, max = 8): Promise<{ text: string; likes: number }[]> {
+  try {
+    const json = await ytFetch<{ items?: any[] }>('/commentThreads', {
+      part: 'snippet',
+      videoId,
+      order: 'relevance',
+      maxResults: '20',
+      textFormat: 'plainText',
+    });
+    return (json.items ?? [])
+      .map((it) => it.snippet?.topLevelComment?.snippet)
+      .filter((c) => c && typeof c.textDisplay === 'string')
+      .map((c) => ({ text: clean(String(c.textDisplay)).replace(/\s+/g, ' ').trim().slice(0, 120), likes: Number(c.likeCount ?? 0) }))
+      .filter((c) => c.text.length >= 2)
+      .sort((a, b) => b.likes - a.likes)
+      .slice(0, max);
   } catch (e) {
     if (e instanceof QuotaGoneError) throw e;
     return [];

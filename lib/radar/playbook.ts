@@ -42,6 +42,9 @@ export type MassChannel = {
   /** 화면 구성 (썸네일 분류 — 아직 안 했으면 null) */
   layout: string | null;
   layoutTags: string[];
+  /** 오늘 순위 · 지난 기록(보통 어제)의 순위 — null 이면 상위 40곳에 새로 들어온 채널 (지난 기록이 없으면 undefined) */
+  rank?: number;
+  prevRank?: number | null;
 };
 
 /** 템플릿 신호 — 팩 안에서 화면 구성별 채널 수와 채널 성과(최근 영상 중앙값의 중앙값) */
@@ -82,6 +85,8 @@ export type RevivalWork = {
 export type Playbook = {
   generatedAt: string;
   mass: MassChannel[];
+  /** 순위를 비교한 지난 기록 날짜 (KST, 보통 어제) — 없으면 null */
+  massComparedTo?: string | null;
   formats: FormatSignal[];
   revival: RevivalWork[];
   templates: TemplateSignal[];
@@ -94,10 +99,36 @@ const KEY = 'radar:playbook:v2';
 export async function getPlaybook(): Promise<Playbook> {
   const c = await prisma.trendCache.findUnique({ where: { key: KEY } }).catch(() => null);
   if (c && Date.now() - c.fetchedAt.getTime() < H) return c.payload as unknown as Playbook;
-  const [mass, formats, revival, tpl] = await Promise.all([massRadar(), formatSignals(), revivalWorks(), templateSignals()]);
-  const out: Playbook = { generatedAt: new Date().toISOString(), mass, formats, revival, templates: tpl.signals, layoutClassified: tpl.classified };
+  const [massRaw, formats, revival, tpl] = await Promise.all([massRadar(), formatSignals(), revivalWorks(), templateSignals()]);
+  const { mass, comparedTo } = await withRankChange(massRaw);
+  const out: Playbook = { generatedAt: new Date().toISOString(), mass, massComparedTo: comparedTo, formats, revival, templates: tpl.signals, layoutClassified: tpl.classified };
   await prisma.trendCache.upsert({ where: { key: KEY }, create: { key: KEY, payload: out as object }, update: { payload: out as object, fetchedAt: new Date() } }).catch(() => {});
   return out;
+}
+
+/* ───────────── 어제 대비 순위 (매일 상단 채널을 훑고 새로 뜬 카테고리·템플릿을 본다) ───────────── */
+
+const RANK_PREFIX = 'radar:mass-rank:';
+const kstDay = (t = Date.now()) => new Date(t + 9 * H).toISOString().slice(0, 10);
+
+/** 그날 처음 계산한 순위를 하루 한 번 남기고, 그 전 기록(보통 어제)과 비교한다. 14일 지난 기록은 지운다 */
+async function withRankChange(mass: MassChannel[]): Promise<{ mass: MassChannel[]; comparedTo: string | null }> {
+  const today = kstDay();
+  const [prev, mine] = await Promise.all([
+    prisma.trendCache.findFirst({ where: { key: { startsWith: RANK_PREFIX, lt: RANK_PREFIX + today } }, orderBy: { key: 'desc' } }).catch(() => null),
+    prisma.trendCache.findUnique({ where: { key: RANK_PREFIX + today }, select: { key: true } }).catch(() => null),
+  ]);
+  if (!mine && mass.length) {
+    await prisma.trendCache.create({ data: { key: RANK_PREFIX + today, payload: { ids: mass.map((m) => m.externalId) } } }).catch(() => {});
+    await prisma.trendCache.deleteMany({ where: { key: { startsWith: RANK_PREFIX, lt: RANK_PREFIX + kstDay(Date.now() - 14 * 24 * H) } } }).catch(() => {});
+  }
+  const ids = (prev?.payload as { ids?: unknown } | null)?.ids;
+  if (!Array.isArray(ids)) return { mass: mass.map((m, i) => ({ ...m, rank: i + 1 })), comparedTo: null };
+  const prevRank = new Map(ids.map((id, i) => [String(id), i + 1]));
+  return {
+    mass: mass.map((m, i) => ({ ...m, rank: i + 1, prevRank: prevRank.get(m.externalId) ?? null })),
+    comparedTo: prev!.key.slice(RANK_PREFIX.length),
+  };
 }
 
 /* ───────────── 양산형 레이더 ───────────── */
@@ -327,4 +358,11 @@ export const PLAYBOOK_RULES = `운영 원칙 (판단 기준):
 - 1등이 아니어도 된다: 시장이 큰 카테고리는 2~3등도 충분히 번다.
 - 카테고리는 수명이 있다: 오름세가 꺾이고 채널들 조회가 떨어지는 곳은 지금 뜨는 곳으로 갈아타라고 말한다.
 - 채널력 신호: 48시간 조회가 오르고, 영상별 조회의 바닥(하위 25%)이 올라간다.
-- 편집·자막 꾸미기보다 소재가 전부다 — 기획은 소재와 구성 위주로.`;
+- 편집·자막 꾸미기보다 소재가 전부다 — 기획은 소재와 구성 위주로.
+- 소재 판단 순서: ① 원본 영상 조회수 ② 댓글 — 시청자가 반응한 지점(감정선·반전·키워드) ③ 레퍼런스 채널 인기순 영상. 터진 영상마다 이유를 짚는다.
+- 형식별 기본 비틀기: 1분날먹형 → 형식 그대로 카테고리(종목·대상)만 바꾼다 · 랭킹형 → 순위로 뽑는 소재를 바꾼다 · 예능 → 다른 인물을 핀셋 · 썰형 → 레딧 등 해외 커뮤니티 소재.
+- 경쟁이 몰린 키워드는 정면 돌파 대신 비슷한 급의 다른 대상(같은 급 그룹·배우·작품)으로 옮긴다 — 그 대상을 다루는 채널 수가 적은지 자료로 확인.
+- 결은 인물만이 아니다: '연예인이 노래하는 장면', 'NG·애드리브 모음'처럼 장면 유형도 결이 된다. 결 하나만 잡고 민다.
+- 원본 출처: 메이저 채널 원본은 이미 많이 쓰였다 — 덜 알려진 2~3군 원본 채널(예: 스케치코미디)의 롱폼을 쇼츠로 바꿔 쓴다.
+- 같은 원본이라도 오디오 구성을 바꾸면(핵심 대사만 원음·자막, 나머지는 TTS 내레이션) 중복도가 낮아진다.
+- 해외 영드짜 · 해외 커뮤니티 썰은 일본 시장에 같이 올리는 것(멀티유즈)도 검토할 만하다.`;
