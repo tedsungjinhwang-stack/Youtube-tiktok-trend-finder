@@ -9,6 +9,8 @@ import type { CrowdedWork, RadarData, RelatedWork, RisingWork, ShortClip, WorkCa
 import { isHoneyPot } from './types';
 
 const H = 3_600_000;
+/** 작품 클립 팩 (match.ts 의 DRAMA_FOLDER_RE 와 같은 뜻) */
+const WORK_FOLDER_RE = /(영드짜|드짜|드라마|영화|예능|애니)/;
 export type WorksPeriod = '24h' | '3d' | '7d';
 const PERIOD_H: Record<WorksPeriod, number> = { '24h': 24, '3d': 72, '7d': 168 };
 
@@ -33,7 +35,7 @@ function clip(v: VideoRow): ShortClip {
 
 /** 막 뜨는 작품 화면 데이터 — 계산이 무거워(쿼리 여러 개) 10분 저장해 두고 쓴다. 수집은 매시간이라 충분히 새롭다 */
 export async function getRadarData(period: WorksPeriod): Promise<RadarData> {
-  const key = `radar:works:${period}`;
+  const key = `radar:works:v2:${period}`;
   const c = await prisma.trendCache.findUnique({ where: { key } }).catch(() => null);
   if (c && Date.now() - c.fetchedAt.getTime() < 10 * 60_000) return c.payload as unknown as RadarData;
   const data = await computeRadarData(period);
@@ -238,31 +240,40 @@ async function computeRadarData(period: WorksPeriod): Promise<RadarData> {
     })
     .filter((x): x is CrowdedWork => !!x);
 
-  const [unmatchedRows, totals, watchedFolders, monitored, last] = await Promise.all([
+  const [unmatchedRows, byFolder, monitored, last] = await Promise.all([
     prisma.$queryRaw<VideoRow[]>`
       SELECT v.id, v.title, v.views, v."publishedAt", COALESCE(c."displayName", c."externalId") AS channel, v."workId"
       FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId"
       WHERE v."workId" IS NULL AND v."matchedAt" IS NOT NULL AND v."publishedAt" > ${start} AND COALESCE(v."isShorts", true)
       ORDER BY v.views DESC LIMIT 8`,
-    prisma.$queryRaw<{ total: number; matched: number; surging: number }[]>`
-      SELECT COUNT(*)::int AS total, COUNT("workId")::int AS matched, COUNT(*) FILTER (WHERE views >= 100000)::int AS surging
-      FROM "RadarVideo" WHERE "publishedAt" > ${start} AND "matchedAt" IS NOT NULL AND COALESCE("isShorts", true)`,
-    prisma.folder.findMany({ where: { watched: true }, select: { name: true }, orderBy: { sortOrder: 'asc' } }),
+    // 팩별 — 기간 안 쇼츠 · 작품 찾은 쇼츠 · 10만+ (막 뜨는 작품은 관심 목록과 상관없이 모든 팩 쇼츠에서 작품을 찾는다)
+    prisma.$queryRaw<{ name: string; total: number; matched: number; surging: number }[]>`
+      SELECT f.name, COUNT(*)::int AS total, COUNT(v."workId")::int AS matched, COUNT(*) FILTER (WHERE v.views >= 100000)::int AS surging
+      FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId" JOIN "Folder" f ON f.id = c."folderId"
+      WHERE v."publishedAt" > ${start} AND v."matchedAt" IS NOT NULL AND COALESCE(v."isShorts", true)
+      GROUP BY f.name`,
     prisma.channel.count({ where: { isActive: true, platform: 'YOUTUBE' } }),
     prisma.trendCache.findUnique({ where: { key: 'radar:last-collect' } }).catch(() => null),
   ]);
-  const t = totals[0] ?? { total: 0, matched: 0, surging: 0 };
+  // 작품 인식률은 작품 클립 팩(드라마·영화·예능·애니)에서만 — 정치·쇼핑·여행 같은 팩은 원래 작품이 없어 섞으면 5% 처럼 보인다
+  const clipPacks = byFolder.filter((f) => WORK_FOLDER_RE.test(f.name));
+  const clipTotal = clipPacks.reduce((a, f) => a + f.total, 0);
+  const clipMatched = clipPacks.reduce((a, f) => a + f.matched, 0);
+  const sources = byFolder
+    .filter((f) => f.matched > 0)
+    .sort((a, b) => b.matched - a.matched)
+    .map((f) => ({ name: f.name, shorts: f.matched }));
 
   return {
     collectedAt: (last?.fetchedAt ?? new Date()).toISOString(),
     monitoredChannels: monitored,
-    groups: watchedFolders.map((f) => f.name),
+    sources,
     summary: {
-      surgingShorts: t.surging,
+      surgingShorts: byFolder.reduce((a, f) => a + f.surging, 0),
       risingWorks: rising.length,
       honeyPots: rising.reduce((a, r) => a + r.related.filter(isHoneyPot).length, 0),
       crowded: crowded.length,
-      matchRate: t.total ? Math.round((t.matched / t.total) * 100) : 0,
+      matchRate: clipTotal ? Math.round((clipMatched / clipTotal) * 100) : 0,
     },
     rising,
     crowded,

@@ -87,13 +87,14 @@ export type RadarData = {
   sample?: boolean;
   collectedAt: string;
   monitoredChannels: number;
-  groups: string[];
+  /** 기간 안에 작품을 찾은 쇼츠가 나온 팩 — 많은 순 (관심 목록과 상관없이 모든 팩) */
+  sources: { name: string; shorts: number }[];
   summary: {
     surgingShorts: number;
     risingWorks: number;
     honeyPots: number;
     crowded: number;
-    /** 급상승 쇼츠 중 작품을 찾은 비율 % */
+    /** 작품 클립 팩(드라마·영화·예능·애니) 쇼츠 중 작품을 찾은 비율 % */
     matchRate: number;
   };
   rising: RisingWork[];

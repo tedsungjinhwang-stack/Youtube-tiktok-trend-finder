@@ -593,6 +593,39 @@ const REAL_VIEWS = new Set([
   ...Object.keys(HOT_PRESETS),
 ]);
 
+/** 막 뜨는 작품이 어느 팩 쇼츠에서 나왔나 — 관심 목록과 상관없이 모든 팩에서 작품을 찾는다 */
+function WorkSources({ sources, periodLabel }: { sources: { name: string; shorts: number }[]; periodLabel: string }) {
+  const [open, setOpen] = useState(false);
+  const SHOW = 8;
+  const shown = open ? sources : sources.slice(0, SHOW);
+  const rest = sources.length - SHOW;
+  return (
+    <div className="mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12.5px] font-semibold text-[color:var(--text-faint)]">
+      <span
+        className="font-bold"
+        title="막 뜨는 작품은 관심 목록과 상관없이 모든 채널팩 쇼츠의 제목·해시태그로 드라마·영화·예능 작품을 찾습니다. 정치·쇼핑·여행·게임처럼 작품이 없는 팩은 여기 안 나옵니다 — 그런 팩은 터진 영상·황금키워드 탭에서 보세요."
+      >
+        작품이 나온 팩 · 최근 {periodLabel}
+      </span>
+      {sources.length === 0 ? (
+        <span>아직 없음</span>
+      ) : (
+        shown.map((s, i) => (
+          <span key={s.name}>
+            {i > 0 && '· '}
+            {s.name} <span className="num">{s.shorts.toLocaleString('ko-KR')}</span>
+          </span>
+        ))
+      )}
+      {rest > 0 && (
+        <button onClick={() => setOpen((v) => !v)} className="font-bold text-muted-foreground hover:text-foreground">
+          {open ? '접기' : `외 ${rest}팩 ›`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function RadarClient({ data: initial, folders }: { data: RadarData; folders: { id: string; name: string }[] }) {
   const [cat, setCat] = useState<WorkCategory | 'all'>('all');
   const [view, setView] = useState<ViewKey>('home');
@@ -712,7 +745,7 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
       </div>
 
       <div className="mb-3 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-        <SummaryTile label={`최근 ${periodLabel} 급상승 쇼츠`} value={String(data.summary.surgingShorts)} detail={`작품 인식 ${data.summary.matchRate}%`} />
+        <SummaryTile label={`최근 ${periodLabel} 급상승 쇼츠`} value={String(data.summary.surgingShorts)} detail={`드라마·예능 팩 작품 인식 ${data.summary.matchRate}%`} />
         <SummaryTile label="뜨는 작품" value={String(data.summary.risingWorks)} />
         <SummaryTile label="꿀통 연관작" value={String(data.summary.honeyPots)} detail="조회 30만+ · 채널 2곳 이하" />
         <SummaryTile label="피해야 할 픽" value={String(data.summary.crowded)} detail="여러 채널 몰림" />
@@ -738,13 +771,7 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
             ))}
           </div>
         </div>
-        <div className="mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12.5px] font-semibold text-[color:var(--text-faint)]">
-          <span className="font-bold">감시 그룹</span>
-          <span>{data.groups.join(' · ') || '없음'}</span>
-          <button onClick={() => setView('watchlist')} className="font-bold text-muted-foreground hover:text-foreground">
-            관심 목록에서 바꾸기 ›
-          </button>
-        </div>
+        <WorkSources sources={data.sources ?? []} periodLabel={periodLabel} />
       </div>
 
       {!showRising && current?.plan ? (

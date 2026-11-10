@@ -10,7 +10,7 @@ export const maxDuration = 60;
 const EMPTY: RadarData = {
   collectedAt: new Date(0).toISOString(),
   monitoredChannels: 0,
-  groups: [],
+  sources: [],
   summary: { surgingShorts: 0, risingWorks: 0, honeyPots: 0, crowded: 0, matchRate: 0 },
   rising: [],
   crowded: [],
