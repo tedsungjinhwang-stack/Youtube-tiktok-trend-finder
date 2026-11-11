@@ -16,6 +16,7 @@ import {
   type WatchlistResult,
 } from '@/lib/radar/queries';
 import type { RadarData } from '@/lib/radar/types';
+import { getSources, type SourceKind } from '@/lib/radar/sources';
 import { getRadarData, type WorksPeriod } from '@/lib/radar/works';
 import {
   assignVideoWork,
@@ -133,6 +134,10 @@ export async function scheduleAction() {
 }
 export async function seasonAction() {
   return getSeason();
+}
+/** 원본 채널 레이더 — 미리 계산해 둔 것 (6시간마다) */
+export async function sourcesAction(kind: SourceKind) {
+  return getSources(kind);
 }
 export async function goldenAction() {
   return getGolden();

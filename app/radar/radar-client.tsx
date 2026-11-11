@@ -26,6 +26,7 @@ import { WatchlistView } from './views/watchlist';
 import { radarDataAction } from './actions';
 import { AiInsight, ItemCard } from './views/insight';
 import { RevivalBlock } from './views/playbook';
+import { SourceBoardView } from './views/sources';
 import type { Insight, InsightItem } from '@/lib/radar/insight';
 
 /**
@@ -760,7 +761,11 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
         ) : view === 'speed' ? (
           <SpeedView />
         ) : (
-          <HotView preset={HOT_PRESETS[view] ?? HOT_DEFAULT} presetKey={HOT_PRESETS[view] ? view : 'hot'} onWatchlist={() => setView('watchlist')} />
+          <>
+            {/* 스케치코미디 — 짜깁기 채널이 어느 원본 채널을 잘라 올리고, 어느 원본이 뜨는지 */}
+            {view === 'sketch' && <SourceBoardView kind="sketch" />}
+            <HotView preset={HOT_PRESETS[view] ?? HOT_DEFAULT} presetKey={HOT_PRESETS[view] ? view : 'hot'} onWatchlist={() => setView('watchlist')} />
+          </>
         )
       ) : (
       <>
@@ -836,6 +841,9 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
           rising.map((w) => <RisingCard key={w.key} w={w} periodLabel={periodLabel} ai={aiByRef.get(w.key)} />)
         )}
       </div>
+
+      {/* 예드짜 — TMDB 에 없는 유튜브 예능(웹예능)은 원본 채널 레이더로 */}
+      {current?.key === 'c-variety' && <SourceBoardView kind="yt_variety" />}
 
       {packPreset && current && (
         <div className="mb-6">

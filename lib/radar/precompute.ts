@@ -14,6 +14,7 @@ import { getBriefInput } from './brief';
 import { refreshGolden } from './tabs';
 import { refreshHotList } from './hotList';
 import { refreshChannelLang } from './lang';
+import { refreshSources } from './sources';
 
 /** 마지막으로 한 지 20시간 넘었을 때만 */
 async function onceADay(key: string, fn: () => Promise<unknown>): Promise<unknown> {
@@ -26,8 +27,8 @@ async function onceADay(key: string, fn: () => Promise<unknown>): Promise<unknow
 
 export type PrecomputeReport = { ms: number; done: { name: string; ms: number }[]; skipped: string[]; errors: string[] };
 
-/** only='hot' — 매시간 수집 직후(9분)에는 터진 영상만. 그 밖(6시간마다)에는 나머지 무거운 집계 */
-export async function runPrecompute(o: { deadline: number; only?: 'hot' }): Promise<PrecomputeReport> {
+/** only='hot' — 매시간 수집 직후(9분)에는 터진 영상만. only='sources' — 원본 채널 레이더만 (손으로 바로 채울 때). 그 밖(6시간마다)에는 나머지 무거운 집계 */
+export async function runPrecompute(o: { deadline: number; only?: 'hot' | 'sources' }): Promise<PrecomputeReport> {
   const t0 = Date.now();
   const out: PrecomputeReport = { ms: 0, done: [], skipped: [], errors: [] };
   // 순서: 종합 분석 자료가 기회판·플레이북을 쓰니 그 둘을 먼저 (그러면 자료 모으기는 저장본을 읽는다)
@@ -39,8 +40,11 @@ export async function runPrecompute(o: { deadline: number; only?: 'hot' }): Prom
     ['outlook', () => categoryOutlook({ force: true })],
     ['brief-input', () => getBriefInput({ force: true })],
     ['golden', () => refreshGolden()],
+    // 원본 채널 레이더 (스케치 원본 · 유튜브 예능 — 짜깁기 채널이 어느 원본을 잘라 올리나)
+    ['sources', () => refreshSources()],
   ];
-  const steps: [string, () => Promise<unknown>][] = o.only === 'hot' ? [['hot', () => refreshHotList()]] : all;
+  const steps: [string, () => Promise<unknown>][] =
+    o.only === 'hot' ? [['hot', () => refreshHotList()]] : o.only === 'sources' ? [['sources', () => refreshSources()]] : all;
   for (const [name, fn] of steps) {
     // 한 단계가 길면 1~2분 — 끝낼 시간이 100초 넘게 남았을 때만 시작 (못 한 건 다음 번에, 읽는 쪽은 그동안 이전 저장본)
     if (Date.now() > o.deadline - 100_000) {
@@ -56,7 +60,7 @@ export async function runPrecompute(o: { deadline: number; only?: 'hot' }): Prom
     }
   }
   out.ms = Date.now() - t0;
-  const lastKey = o.only === 'hot' ? 'radar:last-precompute:hot' : 'radar:last-precompute';
+  const lastKey = o.only ? `radar:last-precompute:${o.only}` : 'radar:last-precompute';
   await prisma.trendCache
     .upsert({ where: { key: lastKey }, create: { key: lastKey, payload: out as object }, update: { payload: out as object, fetchedAt: new Date() } })
     .catch(() => {});

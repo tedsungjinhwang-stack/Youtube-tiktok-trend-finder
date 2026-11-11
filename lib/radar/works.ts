@@ -7,6 +7,7 @@ import { prisma } from '@/lib/db';
 import type { PersonCredit } from './match';
 import type { CrowdedWork, RadarData, RelatedWork, RisingWork, ShortClip, WorkCategory } from './types';
 import { isHoneyPot, OVERALL_TOP } from './types';
+import { KO_TITLE_RATIO } from './lang';
 
 const H = 3_600_000;
 /** 작품 클립 팩 (match.ts 의 DRAMA_FOLDER_RE 와 같은 뜻) */
@@ -37,7 +38,7 @@ function clip(v: VideoRow): ShortClip {
 
 /** 막 뜨는 작품 화면 데이터 — 계산이 무거워(쿼리 여러 개, 분류마다 상위까지) 30분 저장해 두고 쓴다. 숫자는 매시간 수집 때만 바뀐다 */
 export async function getRadarData(period: WorksPeriod): Promise<RadarData> {
-  const key = `radar:works:v3:${period}`;
+  const key = `radar:works:v4:${period}`;
   const c = await prisma.trendCache.findUnique({ where: { key } }).catch(() => null);
   if (c && Date.now() - c.fetchedAt.getTime() < 30 * 60_000) return c.payload as unknown as RadarData;
   const data = await computeRadarData(period);
@@ -69,8 +70,10 @@ async function computeRadarData(period: WorksPeriod): Promise<RadarData> {
       COUNT(DISTINCT v."channelId") FILTER (WHERE v."publishedAt" > ${start})::int AS channels,
       AVG(v.views) FILTER (WHERE v."publishedAt" > ${start})::float AS "avgRecent",
       AVG(v.views) FILTER (WHERE v."publishedAt" <= ${start})::float AS "avgPrev"
-    FROM "RadarVideo" v
+    FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId"
     WHERE v."workId" IS NOT NULL AND v."publishedAt" > ${prevStart} AND COALESCE(v."isShorts", true)
+      -- 한국어 채널의 쇼츠로만 순위를 낸다 (해외 채널이 몰린 작품이 위를 차지하지 않게 — 화면·AI 분석 같이)
+      AND (c."displayName" ~ '[가-힣]' OR c."koRatio" >= ${KO_TITLE_RATIO})
     GROUP BY v."workId"`;
   const active = stats.filter((s) => s.recentShorts > 0);
 
@@ -102,6 +105,7 @@ async function computeRadarData(period: WorksPeriod): Promise<RadarData> {
         SELECT v.id, v.title, v.views, v."publishedAt", COALESCE(c."displayName", c."externalId") AS channel, v."workId", v.tags, v."durationSec"
         FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId"
         WHERE v."workId" = ANY(${workIds}::text[]) AND v."publishedAt" > ${start}
+          AND (c."displayName" ~ '[가-힣]' OR c."koRatio" >= ${KO_TITLE_RATIO})
         ORDER BY v.views DESC`
     : [];
   const topBy = new Map<string, VideoRow>();

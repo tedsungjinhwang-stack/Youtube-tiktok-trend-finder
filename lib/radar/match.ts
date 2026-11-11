@@ -489,7 +489,8 @@ type CastMember = { id: number; name: string; character: string | null; order: n
 export async function fetchWorkDetails(deadline: number, limit = 40): Promise<number> {
   const works = await prisma.$queryRaw<{ id: string; tmdbId: number; mediaType: string }[]>`
     SELECT w.id, w."tmdbId", w."mediaType" FROM "RadarWork" w
-    WHERE w."detailAt" IS NULL OR (w."onAir" AND w."detailAt" < NOW() - INTERVAL '1 day')
+    -- 유튜브 예능(mediaType 'youtube')은 TMDB 작품이 아니라 직접 등록한 것 — 상세를 묻지 않는다
+    WHERE w."mediaType" IN ('tv', 'movie') AND (w."detailAt" IS NULL OR (w."onAir" AND w."detailAt" < NOW() - INTERVAL '1 day'))
     ORDER BY (SELECT COUNT(*) FROM "RadarVideo" v WHERE v."workId" = w.id) DESC
     LIMIT ${limit}`;
   let done = 0;
