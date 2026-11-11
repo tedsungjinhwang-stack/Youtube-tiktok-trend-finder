@@ -19,7 +19,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
   }
   try {
-    const only = url.searchParams.get('only') === 'hot' ? 'hot' : undefined;
+    const o = url.searchParams.get('only');
+    const only = o === 'hot' || o === 'sources' ? o : undefined;
     return NextResponse.json({ success: true, data: await runPrecompute({ deadline: t0 + 290_000, only }) });
   } catch (e) {
     return NextResponse.json({ success: false, error: { code: 'PRECOMPUTE_FAILED', message: (e as Error).message.slice(0, 300) } }, { status: 500 });

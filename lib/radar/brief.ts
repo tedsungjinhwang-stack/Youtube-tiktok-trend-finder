@@ -10,6 +10,7 @@
  */
 
 import { prisma } from '@/lib/db';
+import { KO_TITLE_RATIO } from './lang';
 import { googleTrending } from '@/lib/trends/google';
 import { askClaude, hasClaudeKey, NoClaudeKeyError } from './claude';
 import { STOP_TOKENS } from './discover';
@@ -129,6 +130,8 @@ export async function googleNews(q: string, n = 5): Promise<NewsItem[]> {
 
 /** TMDB 추천(비슷한 작품) — 3일 캐시 */
 export async function similarWorks(mediaType: string, tmdbId: number): Promise<{ title: string; year: string | null }[]> {
+  // 유튜브 예능처럼 직접 등록한 작품은 TMDB 에 없다
+  if (mediaType !== 'tv' && mediaType !== 'movie') return [];
   const key = `tmdb:rec:${mediaType}:${tmdbId}`;
   const c = await prisma.trendCache.findUnique({ where: { key } }).catch(() => null);
   if (c && Date.now() - c.fetchedAt.getTime() < 3 * 86_400_000) return c.payload as { title: string; year: string | null }[];
@@ -154,7 +157,7 @@ async function packHeat(): Promise<BriefPackInput[]> {
     ), v AS (
       SELECT c."folderId", COUNT(*)::int AS n48, SUM(COALESCE(v."gain24h", 0))::float8 AS g24
       FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId"
-      WHERE v."publishedAt" > NOW() - INTERVAL '48 hours' GROUP BY 1
+      WHERE v."publishedAt" > NOW() - INTERVAL '48 hours' AND (c."displayName" ~ '[가-힣]' OR c."koRatio" >= ${KO_TITLE_RATIO}) GROUP BY 1
     )
     SELECT f.id AS "folderId", f.name, ch.ch, ch.d, ch.dp, v.n48, v.g24
     FROM "Folder" f JOIN ch ON ch."folderId" = f.id LEFT JOIN v ON v."folderId" = f.id
@@ -172,7 +175,7 @@ async function packHeat(): Promise<BriefPackInput[]> {
     SELECT "folderId", title, views FROM (
       SELECT c."folderId", v.title, v.views, ROW_NUMBER() OVER (PARTITION BY c."folderId" ORDER BY v."gain24h" DESC NULLS LAST) AS rn
       FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId"
-      WHERE v."publishedAt" > NOW() - INTERVAL '48 hours' AND c."folderId" = ANY(${pick.map((p) => p.folderId)}::text[])
+      WHERE v."publishedAt" > NOW() - INTERVAL '48 hours' AND c."folderId" = ANY(${pick.map((p) => p.folderId)}::text[]) AND (c."displayName" ~ '[가-힣]' OR c."koRatio" >= ${KO_TITLE_RATIO})
     ) x WHERE rn <= 2`;
   return pick.map((r) => ({
     pack: r.name,
@@ -192,10 +195,11 @@ export async function hotKeywords(): Promise<BriefInput["keywords"]> {
     WITH t AS (
       SELECT DISTINCT v.id, v."channelId", COALESCE(v."gain24h", 0) AS g, (v."publishedAt" > NOW() - INTERVAL '48 hours') AS cur,
         lower(regexp_replace(tok, '[[:space:][:punct:]]', '', 'g')) AS w
-      FROM "RadarVideo" v,
+      FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId",
         unnest(v.tags || COALESCE((SELECT array_agg(m[1]) FROM regexp_matches(v.title, '#([^\s#]+)', 'g') m), '{}')) tok
-      WHERE v."publishedAt" > NOW() - INTERVAL '48 hours'
-         OR v."publishedAt" BETWEEN NOW() - INTERVAL '9 days' AND NOW() - INTERVAL '7 days'
+      WHERE (v."publishedAt" > NOW() - INTERVAL '48 hours'
+         OR v."publishedAt" BETWEEN NOW() - INTERVAL '9 days' AND NOW() - INTERVAL '7 days')
+        AND (c."displayName" ~ '[가-힣]' OR c."koRatio" >= ${KO_TITLE_RATIO})
     )
     SELECT w, (SUM(g) FILTER (WHERE cur))::float8 AS g24, (COUNT(DISTINCT "channelId") FILTER (WHERE cur))::int AS ch,
       (COUNT(*) FILTER (WHERE cur))::int AS n, (COUNT(*) FILTER (WHERE NOT cur))::int AS prev
@@ -273,7 +277,7 @@ async function gatherBriefInput(): Promise<BriefInput> {
         ARRAY(SELECT DISTINCT lower(regexp_replace(t, '[[:space:][:punct:]]', '', 'g'))
               FROM unnest(v.tags || COALESCE((SELECT array_agg(m[1]) FROM regexp_matches(v.title, '#([^\\s#]+)', 'g') m), '{}')) t) AS toks
       FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId"
-      WHERE v."publishedAt" > NOW() - INTERVAL '3 days'
+      WHERE v."publishedAt" > NOW() - INTERVAL '3 days' AND (c."displayName" ~ '[가-힣]' OR c."koRatio" >= ${KO_TITLE_RATIO})
     ), hit AS (
       SELECT DISTINCT p.id, v.id AS vid, v."channelId", v."folderId", v.g24
       FROM v CROSS JOIN unnest(v.toks) tok
@@ -297,8 +301,8 @@ async function gatherBriefInput(): Promise<BriefInput> {
   >`
     SELECT w.id, w."tmdbId", w."mediaType", w.title, w.year, w.category, w.networks, w."onAir", w.cast,
       COUNT(*)::int AS videos, COUNT(DISTINCT v."channelId")::int AS channels, SUM(COALESCE(v."gain24h", 0))::float8 AS g24
-    FROM "RadarVideo" v JOIN "RadarWork" w ON w.id = v."workId"
-    WHERE v."publishedAt" > NOW() - INTERVAL '3 days'
+    FROM "RadarVideo" v JOIN "RadarWork" w ON w.id = v."workId" JOIN "Channel" c ON c.id = v."channelId"
+    WHERE v."publishedAt" > NOW() - INTERVAL '3 days' AND (c."displayName" ~ '[가-힣]' OR c."koRatio" >= ${KO_TITLE_RATIO})
     GROUP BY w.id
     HAVING COUNT(DISTINCT v."channelId") >= 3
     ORDER BY SUM(COALESCE(v."gain24h", 0)) DESC

@@ -16,6 +16,19 @@ import { getEntries, getGolden, getPersons } from './tabs';
 import { getRadarData, type WorksPeriod } from './works';
 import { getPlaybook, PLAYBOOK_RULES } from './playbook';
 import { CATEGORIES, CATEGORY_LABEL, isHoneyPot, type WorkCategory } from './types';
+import { getSources, SOURCE_PACKS, type SourceKind, type SourceRow } from './sources';
+import { KO_TITLE_RATIO } from './lang';
+
+/** 원본 채널 레이더 한 줄 — AI 에 넘길 모양 */
+const sourceForAi = (r: SourceRow) => ({
+  source: r.name,
+  clips3d: r.clips3d,
+  clipChannels3d: r.channels3d,
+  clipViews3d: r.views3d,
+  clipGain24h: r.gain24h,
+  clipsPrev4d: r.clipsPrev,
+  topClip: r.top ? `${r.top.title.slice(0, 60)} (${r.top.views.toLocaleString()}회 · ${r.top.channel})` : null,
+});
 
 const H = 3_600_000;
 
@@ -121,6 +134,7 @@ async function risingInput(p: InsightParams) {
           ROW_NUMBER() OVER (PARTITION BY v."workId" ORDER BY v.views DESC) AS rn
         FROM "RadarVideo" v JOIN "Channel" c ON c.id = v."channelId"
         WHERE v."workId" = ANY(${ids}::text[]) AND v."publishedAt" > ${since}
+          AND (c."displayName" ~ '[가-힣]' OR c."koRatio" >= ${KO_TITLE_RATIO})
       ) t WHERE rn <= 8`,
     prisma.radarWork.findMany({
       where: { id: { in: ids } },
@@ -136,8 +150,12 @@ async function risingInput(p: InsightParams) {
     Promise.all(top5.map((w) => (metaBy.get(w.key) ? similarWorks(metaBy.get(w.key)!.mediaType, metaBy.get(w.key)!.tmdbId) : Promise.resolve([])))),
     commentsOf(rising.slice(0, 6).flatMap((w) => topClipOf(w.key)?.id ?? [])),
   ]);
+  // 예능 분류면 TMDB 에 없는 유튜브 예능(웹예능)이 어떤지도 — 원본 채널 레이더
+  const ytVariety = !p.cats?.length || p.cats.includes('kr_variety') ? ((await getSources('yt_variety'))?.rows.slice(0, 12).map(sourceForAi) ?? []) : [];
   return {
     period: p.period,
+    channels: '한국어 채널만',
+    ytVariety,
     works: rising.map((w, i) => ({
       ref: w.key,
       title: w.title,
@@ -192,14 +210,22 @@ async function risingInput(p: InsightParams) {
 }
 
 async function hotInput(p: InsightParams) {
-  // 화면과 같은 목록 — 전체는 한국어 채널만, 채널팩 화면은 그 팩의 해외 채널까지
-  const r = await getHotVideos({ format: p.format ?? 'shorts', window: p.window ?? 24, sort: 'rising', excludeWhale: false, folders: p.folders, foreign: !!p.folders?.length });
-  if (!r.items.length) throw new Error('이 범위에 터진 영상이 아직 없습니다');
-  const comments = await commentsOf(r.items.slice(0, 8).map((v) => v.id));
+  // AI 는 한국어 채널만 보고 판단한다 (화면은 채널팩이면 해외 채널도 보여 주지만, 판단에 섞으면 해외 소재를 권한다)
+  const r = await getHotVideos({ format: p.format ?? 'shorts', window: p.window ?? 24, sort: 'rising', excludeWhale: false, folders: p.folders, foreign: false });
+  if (!r.items.length) throw new Error('이 범위에 한국어 채널의 터진 영상이 아직 없습니다');
+  // 스케치·예능 채널팩이면 어느 원본(스케치 채널 · 유튜브 예능)이 뜨는지도
+  const kind: SourceKind | null = p.folders?.some((f) => SOURCE_PACKS.sketch.includes(f))
+    ? 'sketch'
+    : p.folders?.some((f) => SOURCE_PACKS.yt_variety.includes(f))
+      ? 'yt_variety'
+      : null;
+  const [comments, sources] = await Promise.all([commentsOf(r.items.slice(0, 8).map((v) => v.id)), kind ? getSources(kind) : Promise.resolve(null)]);
   return {
     screen: p.title,
     format: p.format,
     windowHours: p.window,
+    channels: '한국어 채널만',
+    sources: sources?.rows.slice(0, 12).map(sourceForAi) ?? [],
     videos: r.items.slice(0, 40).map((v) => ({
       ref: v.id,
       title: v.title.slice(0, 100),
@@ -282,7 +308,7 @@ ${PLAYBOOK_RULES}
 {"headline":"한 줄 요약","todo":["오늘 할 일 순서대로 3~5개"],"sections":[{"title":"섹션 이름","items":[{"ref":"자료의 ref 그대로 (없으면 빈 문자열)","name":"","verdict":"","tone":"go|watch|avoid","why":"","how":"","titles":["",""],"picks":[{"title":"","reason":""}],"caution":""}]}]}`;
 
 const TASK: Record<InsightKind, string> = {
-  rising: `화면: 「막 뜨는 작품 · 연관 꿀통」. 자료: 기간 안에 감시 채널에서 조회가 튄 작품(works — 상위 쇼츠 제목, 출연진, 첫 방송·최근 회차·다음 회차 날짜(방영 중이면 다음 회차 전에 올릴 것을 how 에), 연관작 related(honeyPot=조회 30만+ · 채널 2곳 이하), 출연진의 아직 아무도 안 만든 작품 unmeasured, 최근 기사 news, TMDB 비슷한 작품 similar)과 여러 채널이 몰린 작품(crowded).
+  rising: `화면: 「막 뜨는 작품 · 연관 꿀통」. 쇼츠는 한국어 채널 것만이다 — 해외 채널 사례를 들지 마라. ytVariety 가 있으면 TMDB 에 없는 유튜브 예능(웹예능)의 짜깁기 현황(최근 3일 클립 수·조회·24시간 증가, 그 전 4일 클립 수)이다 — 예능 판단에 지상파 작품과 같이 넣어라 (뜨는데 짜깁기 채널이 적은 유튜브 예능은 꿀통). 자료: 기간 안에 감시 채널에서 조회가 튄 작품(works — 상위 쇼츠 제목, 출연진, 첫 방송·최근 회차·다음 회차 날짜(방영 중이면 다음 회차 전에 올릴 것을 how 에), 연관작 related(honeyPot=조회 30만+ · 채널 2곳 이하), 출연진의 아직 아무도 안 만든 작품 unmeasured, 최근 기사 news, TMDB 비슷한 작품 similar)과 여러 채널이 몰린 작품(crowded).
 섹션 3개를 이 순서·이름으로:
 1) "지금 탈 작품" — works 각각 (최대 8개). spike=true(쇼츠 1편·채널 1곳만 터짐)면 반짝일 수 있다고 watch. 채널이 많고 평균이 떨어지면 watch/avoid. how 는 상위 쇼츠 제목에서 먹힌 장면·소재와 topClips 의 layout(화면 구성: insta 인스타형(흰 배경 캡션) · titlebar 일반형(검은 제목바) · full 풀화면 · split 위아래 분할 등, 아직 분류 안 됐으면 null)·sec(길이)으로 먹힌 형식을 짚고, 차별화 하나를 고른다 (잘 나온 영상들이 다 같은 구성이면 다른 구성으로 바꾸는 것도 차별화):
    - 채널이 많으면(경쟁 셈) pinset 에서 영상은 적은데 조회 중앙값이 좋은 출연자 한 명을 핀셋으로 (예: "OOO 한 명만 — 영상 3편뿐인데 중앙값 40만").
@@ -292,7 +318,8 @@ const TASK: Record<InsightKind, string> = {
 2) "연관 꿀통 · 빈자리" — 모든 works 의 related(honeyPot)·unmeasured 중 지금 만들 가치가 큰 것 최대 6개. name=작품 이름, ref=빈 문자열, why 에 어느 뜨는 작품의 누구 출연이라 이어지는지와 수치.
 3) "피할 작품" — crowded 중 피할 것 (tone avoid, ref=crowded 의 ref). 채널 수·평균 조회·추세를 근거로.
 4) "부활 작품" — revival(최근 한 달 안에 30만+ 영상이 여러 채널에서 나왔는데 지금 10일 동안 거의 아무도 안 하는 작품) 중 지금 다시 들어갈 만한 것 최대 5개. ref=빈 문자열. why 에 그때 수치(pastMax · past300k · pastChannels)와 지금 경쟁(recentChannels). 작품명이 일반 단어라 잘못 묶인 것 같으면 빼거나 caution 에. how 에 어떤 장면·구성으로 (미드폼·하이브리드 내레이션 등).`,
-  hot: `화면: 터진 영상 목록 (screen 이름의 묶음). 자료: 고른 시간 동안 조회가 가장 많이 늘어난 영상(gain=그 시간 증가, multipleOfChannelUsual=채널 평소의 몇 배, work=붙은 작품, topComments=상위 8개 영상의 인기 댓글).
+  hot: `화면: 터진 영상 목록 (screen 이름의 묶음). 자료: 고른 시간 동안 조회가 가장 많이 늘어난 영상(gain=그 시간 증가, multipleOfChannelUsual=채널 평소의 몇 배, work=붙은 작품, topComments=상위 8개 영상의 인기 댓글). 영상은 한국어 채널 것만이다 — 해외 채널 사례를 들지 마라.
+sources 가 있으면 원본 채널 레이더다 (스케치 원본 채널 · 유튜브 예능 쇼를 짜깁기 채널이 최근 3일 몇 개 올렸고 조회·24시간 증가가 얼마인지, clipsPrev4d=그 전 4일 클립 수): 3) "지금 만들 소재"에 지금 뜨는 원본(clipGain24h 높고 clips3d 가 그 전보다 는 것)을 소재로 넣고, 조회는 높은데 짜깁기 채널(clipChannels3d)이 적은 원본은 꿀통이라고 짚어라.
 섹션 4개를 이 순서·이름으로:
 1) "터진 영상 해부" — topComments 가 있는 상위 영상 5~6개를 하나씩 (ref=자료의 ref). name=제목을 줄인 것, verdict=터진 축(감정선·반전·키워드·인물·정보 중 무엇인지 6자 안팎), why=수치(gain·평소 몇 배) + 왜 터졌나 — 댓글에서 시청자가 반응한 지점(반복되는 말·좋아요 많은 댓글)을 짧게 따옴표로 인용, 댓글이 없으면 제목·수치로만. how=내 채널에서 이 소재를 쓰는 법 (이 영상의 형식·구성은 가져오고 무엇 하나를 바꿀지).
 2) "터진 이유 · 패턴" — 제목·소재·포맷에서 반복되는 패턴 3~5개. name=패턴 이름, why=그 패턴의 영상 예(제목 일부와 수치), how=따라 만드는 법, titles=그 패턴을 적용한 새 제목 예시. ref=빈 문자열.

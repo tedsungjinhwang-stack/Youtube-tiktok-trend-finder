@@ -10,6 +10,7 @@
  */
 
 import { prisma } from '@/lib/db';
+import { KO_TITLE_RATIO } from './lang';
 import { CATEGORY_LABEL, type WorkCategory } from './types';
 import { LAYOUTS, type LayoutKey } from './layout';
 
@@ -150,9 +151,7 @@ async function massRadar(): Promise<MassChannel[]> {
       layoutTags: string[];
     }[]
   >`
-    WITH lang AS (
-      SELECT "channelId", AVG((title ~ '[가-힣]')::int)::float8 AS ko FROM "RadarVideo" GROUP BY 1
-    ), c AS (
+    WITH c AS (
       SELECT c.*, cardinality(c."viewHistory") AS n FROM "Channel" c
       WHERE c."isActive" AND c.platform = 'YOUTUBE' AND COALESCE(c."subscriberCount", 0) <= ${MASS_MAX_SUBS}::int
     )
@@ -162,9 +161,10 @@ async function massRadar(): Promise<MassChannel[]> {
         SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY GREATEST(d, 0))
         FROM unnest(ARRAY[c."viewHistory"[c.n] - c."viewHistory"[c.n-1], c."viewHistory"[c.n-1] - c."viewHistory"[c.n-2], c."viewHistory"[c.n-2] - c."viewHistory"[c.n-3]]) d
       )::bigint ELSE c."dailyViews" END AS daily
-    FROM c JOIN "Folder" f ON f.id = c."folderId" LEFT JOIN lang ON lang."channelId" = c.id
+    FROM c JOIN "Folder" f ON f.id = c."folderId"
     WHERE f.name <> ALL(${META_PACKS}::text[]) AND f.name NOT LIKE '\\_\\_%'
-      AND (c."displayName" ~ '[가-힣]' OR lang.ko >= 0.3)
+      -- 한국어 채널만 (Channel.koRatio — 하루 한 번 미리 계산, 예전엔 여기서 영상 전체 제목을 훑었다)
+      AND (c."displayName" ~ '[가-힣]' OR c."koRatio" >= ${KO_TITLE_RATIO})
     ORDER BY daily DESC NULLS LAST
     LIMIT 40`;
   if (!rows.length) return [];
