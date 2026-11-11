@@ -5,6 +5,7 @@ import {
   CATEGORIES,
   CATEGORY_LABEL,
   isHoneyPot,
+  OVERALL_TOP,
   type CrowdedWork,
   type RadarData,
   type RelatedWork,
@@ -413,6 +414,8 @@ type NavItem = {
   label: string;
   /** 분류 메뉴 — 누르면 '막 뜨는 작품' 화면을 이 분류로 거른다 */
   category?: WorkCategory[];
+  /** 분류 화면 아래 「이 채널팩에서 터진 쇼츠」 — TMDB 에 없는 것(유튜브 예능 등)까지 팩 기준으로 + AI 분석 */
+  packs?: { folders: string[]; note: string };
   /** 아직 안 만든 화면: 무엇을 보여줄지 · 데이터 출처 */
   plan?: { what: string; source: string };
 };
@@ -453,11 +456,30 @@ const NAV: { group: string; items: NavItem[] }[] = [
     group: '드라마·영화',
     items: [
       // 한드짜 = 한국 드라마·영화 짜깁기 (한국 영화 전용 메뉴가 따로 없어서 같이 둔다)
-      { key: 'c-kdrama', label: '한드짜', category: ['kr_drama', 'kr_movie'] },
-      // 예드짜 = 예능 짜깁기
-      { key: 'c-variety', label: '예드짜', category: ['kr_variety', 'intl_variety'] },
+      {
+        key: 'c-kdrama',
+        label: '한드짜',
+        category: ['kr_drama', 'kr_movie'],
+        packs: { folders: ['영드짜', '영드짜 | 커뮤형'], note: '영드짜 채널팩에서 지금 조회가 빠르게 느는 쇼츠 — 작품을 못 찾은 것까지' },
+      },
+      // 해외 영드짜 = 해외 드라마·영화 짜깁기 (해외 예능은 예드짜에)
+      {
+        key: 'c-intl',
+        label: '해외 영드짜',
+        category: ['intl_drama', 'intl_movie'],
+        packs: { folders: ['해외 영드짜', '해외 미국드라마'], note: '해외 영드짜 채널팩(해외 채널 포함)에서 지금 조회가 빠르게 느는 쇼츠' },
+      },
+      // 예드짜 = 예능 짜깁기 — 지상파·OTT 예능은 TMDB 작품으로, 유튜브 예능(웹예능)은 TMDB 에 없어서 채널팩 터진 쇼츠로
+      {
+        key: 'c-variety',
+        label: '예드짜',
+        category: ['kr_variety', 'intl_variety'],
+        packs: {
+          folders: ['한국 예능', '해외 예능'],
+          note: '예능 채널팩에서 지금 조회가 빠르게 느는 쇼츠 — 지상파 예능은 물론 TMDB 에 없는 유튜브 예능(웹예능) 클립까지',
+        },
+      },
       { key: 'awards', label: '시상식' },
-      { key: 'c-intl', label: '해외', category: ['intl_movie', 'intl_drama', 'intl_variety'] },
       { key: 'longform', label: '영화롱폼' },
     ],
   },
@@ -468,7 +490,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { key: 'fan', label: '팬튜브' },
       { key: 'speed', label: '속도전' },
       { key: 'comedy', label: '코미디' },
-      { key: 'sketch', label: '스케치' },
+      { key: 'sketch', label: '스케치코미디' },
     ],
   },
   {
@@ -516,7 +538,12 @@ const HOT_PRESETS: Record<string, HotPreset> = {
     folders: ['커뮤형', '썰 | 짤형', '인스타 틱톡 짜집기', '해짜 | 웃긴영상, 밈'],
     window: 6,
   },
-  sketch: { title: '스케치', subtitle: '스케치 코미디 채널에서 지금 뜨는 쇼츠', folders: ['스케치코미디', '스케치코미디(원본)'], window: 24 },
+  sketch: {
+    title: '스케치코미디',
+    subtitle: '스케치 코미디 채널팩(해외 채널 포함)에서 지금 뜨는 쇼츠 — 형식·소재를 가져와 한국 상황으로 바꿀 거리',
+    folders: ['스케치코미디', '스케치코미디(원본)'],
+    window: 24,
+  },
   'yt-shopping': {
     title: '쇼핑쇼츠(유튜브)',
     subtitle: '유튜브 쇼핑 쇼츠·셀럽 쇼핑 채널에서 지금 뜨는 쇼츠 — 뜨는 상품 (쇼핑릴스(인스타)는 따로)',
@@ -657,7 +684,9 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
   const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? '3일';
   // 사이드의 분류 메뉴(한드짜 등)가 고른 분류 → 위 칩 필터보다 먼저
   const inCats = (c: WorkCategory) => (navCats ? navCats.includes(c) : cat === 'all' || c === cat);
-  const rising = data.rising.filter((w) => inCats(w.category));
+  // 분류마다 상위 10개씩 더 받아 오니, 「전체」는 전체 상위 15개만
+  const risingAll = data.rising.filter((w) => inCats(w.category));
+  const rising = !navCats && cat === 'all' ? risingAll.slice(0, OVERALL_TOP) : risingAll;
   const crowded = data.crowded.filter((w) => inCats(w.category));
   const current = NAV_ITEMS.find((it) => it.key === view);
   const pick = (it: NavItem) => {
@@ -671,6 +700,12 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
     }
   };
   const showRising = view === 'rising' || !!current?.category;
+  // 분류 화면 아래 채널팩 터진 쇼츠 — 화면이 바뀔 때만 새 프리셋 (매번 새 객체면 HotView 필터가 계속 초기화된다)
+  const packPreset = useMemo<HotPreset | null>(
+    () => (current?.packs ? { title: `${current.label} 채널팩에서 터진 쇼츠`, subtitle: current.packs.note, folders: current.packs.folders, window: 24 } : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 메뉴 항목(상수)이 바뀔 때만
+    [current?.key]
+  );
 
   return (
     <div className="mx-auto grid max-w-[1440px] gap-3 px-5 pb-12 pt-5 lg:grid-cols-[180px_minmax(0,1fr)] xl:px-0 xl:pt-0">
@@ -801,6 +836,12 @@ export function RadarClient({ data: initial, folders }: { data: RadarData; folde
           rising.map((w) => <RisingCard key={w.key} w={w} periodLabel={periodLabel} ai={aiByRef.get(w.key)} />)
         )}
       </div>
+
+      {packPreset && current && (
+        <div className="mb-6">
+          <HotView compact preset={packPreset} presetKey={`pack-${current.key}`} onWatchlist={() => setView('watchlist')} />
+        </div>
+      )}
 
       <RevivalBlock cats={navCats ?? (cat === 'all' ? null : [cat])} />
 

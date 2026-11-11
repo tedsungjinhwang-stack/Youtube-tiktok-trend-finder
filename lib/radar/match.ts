@@ -34,6 +34,11 @@ const STOP = new Set(
     // 숏드라마·클립 채널이 영상마다 붙이는 영어 말 (같은 이름의 해외 작품으로 잘못 붙는다)
     'love', 'ceo', 'series', 'romance', 'revenge', 'family', 'koreandrama', 'koreanshortdrama', 'shortdrama', 'chinesedrama',
     'cdrama', 'jdrama', 'film', 'tv', 'show', 'story', 'life', 'happy', 'sad', 'cute', 'baby', 'wedding', 'marriage', 'boss',
+    // 해외 영드짜·스케치 채널이 붙이는 흔한 영어 해시태그 (11/11 ScreenPlay · Cinema · Fantasy · Hilarious · Football 로 잘못 붙었다)
+    'screenplay', 'cinema', 'cinematic', 'fantasy', 'hilarious', 'laughing', 'laugh', 'football', 'soccer', 'basketball', 'comedy',
+    'action', 'horror', 'thriller', 'scifi', 'anime', 'animation', 'cartoon', 'edit', 'edits', 'scene', 'scenes', 'clip', 'clips',
+    'moviescene', 'moviescenes', 'movieclips', 'recap', 'explained', 'trailer', 'hollywood', 'bollywood', 'sitcom', 'standup',
+    'prank', 'reaction', 'fun', 'lol', 'epic', 'amazing', 'satisfying', 'music', 'song', 'dance', 'sketch', 'skit', 'parody',
   ].map((w) => normalizeAlias(w))
 );
 

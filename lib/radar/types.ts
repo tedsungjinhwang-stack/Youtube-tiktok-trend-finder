@@ -18,6 +18,8 @@ export const CATEGORY_LABEL: Record<WorkCategory, string> = {
 };
 
 export const CATEGORIES = Object.keys(CATEGORY_LABEL) as WorkCategory[];
+/** 「전체」에 보여 주는 뜨는 작품 수 — 분류 탭은 분류마다 상위 10개씩 더 받는다 */
+export const OVERALL_TOP = 15;
 
 export type ShortClip = {
   videoId: string;

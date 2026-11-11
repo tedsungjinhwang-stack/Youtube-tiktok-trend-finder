@@ -6,11 +6,13 @@
 import { prisma } from '@/lib/db';
 import type { PersonCredit } from './match';
 import type { CrowdedWork, RadarData, RelatedWork, RisingWork, ShortClip, WorkCategory } from './types';
-import { isHoneyPot } from './types';
+import { isHoneyPot, OVERALL_TOP } from './types';
 
 const H = 3_600_000;
 /** 작품 클립 팩 (match.ts 의 DRAMA_FOLDER_RE 와 같은 뜻) */
 const WORK_FOLDER_RE = /(영드짜|드짜|드라마|영화|예능|애니)/;
+/** 분류마다 따로 더 고르는 뜨는 작품 수 (「전체」는 OVERALL_TOP) */
+const PER_CATEGORY_TOP = 10;
 export type WorksPeriod = '24h' | '3d' | '7d';
 const PERIOD_H: Record<WorksPeriod, number> = { '24h': 24, '3d': 72, '7d': 168 };
 
@@ -33,11 +35,11 @@ function clip(v: VideoRow): ShortClip {
   return { videoId: v.id, title: v.title, channel: v.channel, views: v.views, publishedAt: v.publishedAt.toISOString(), thumb: shortThumb(v.id) };
 }
 
-/** 막 뜨는 작품 화면 데이터 — 계산이 무거워(쿼리 여러 개) 10분 저장해 두고 쓴다. 수집은 매시간이라 충분히 새롭다 */
+/** 막 뜨는 작품 화면 데이터 — 계산이 무거워(쿼리 여러 개, 분류마다 상위까지) 30분 저장해 두고 쓴다. 숫자는 매시간 수집 때만 바뀐다 */
 export async function getRadarData(period: WorksPeriod): Promise<RadarData> {
-  const key = `radar:works:v2:${period}`;
+  const key = `radar:works:v3:${period}`;
   const c = await prisma.trendCache.findUnique({ where: { key } }).catch(() => null);
-  if (c && Date.now() - c.fetchedAt.getTime() < 10 * 60_000) return c.payload as unknown as RadarData;
+  if (c && Date.now() - c.fetchedAt.getTime() < 30 * 60_000) return c.payload as unknown as RadarData;
   const data = await computeRadarData(period);
   await prisma.trendCache.upsert({ where: { key }, create: { key, payload: data as object }, update: { payload: data as object, fetchedAt: new Date() } }).catch(() => {});
   return data;
@@ -72,7 +74,21 @@ async function computeRadarData(period: WorksPeriod): Promise<RadarData> {
     GROUP BY v."workId"`;
   const active = stats.filter((s) => s.recentShorts > 0);
 
-  const risingIds = [...active].sort((a, b) => Number(b.recentViews ?? 0) - Number(a.recentViews ?? 0)).slice(0, 15).map((s) => s.workId);
+  // 전체 상위 15개 + 분류마다 상위 10개 — 전체 15개만 고르면 분류 탭(한드짜·해외 영드짜·예드짜)에 2~4개밖에 안 남았다
+  const byViews = [...active].sort((a, b) => Number(b.recentViews ?? 0) - Number(a.recentViews ?? 0));
+  const catOf = new Map(
+    (await prisma.radarWork.findMany({ where: { id: { in: byViews.map((s) => s.workId) } }, select: { id: true, category: true } })).map((w) => [w.id, w.category])
+  );
+  const perCat = new Map<string, number>();
+  const topIds = new Set(byViews.slice(0, OVERALL_TOP).map((s) => s.workId));
+  const risingIds = byViews
+    .filter((s) => {
+      const c = catOf.get(s.workId) ?? '';
+      const n = perCat.get(c) ?? 0;
+      perCat.set(c, n + 1);
+      return topIds.has(s.workId) || n < PER_CATEGORY_TOP;
+    })
+    .map((s) => s.workId);
   const crowdedStats = active.filter((s) => s.channels >= 4).sort((a, b) => b.channels - a.channels).slice(0, 10);
 
   const workIds = [...new Set([...risingIds, ...crowdedStats.map((s) => s.workId)])];
@@ -270,7 +286,7 @@ async function computeRadarData(period: WorksPeriod): Promise<RadarData> {
     sources,
     summary: {
       surgingShorts: byFolder.reduce((a, f) => a + f.surging, 0),
-      risingWorks: rising.length,
+      risingWorks: Math.min(rising.length, OVERALL_TOP),
       honeyPots: rising.reduce((a, r) => a + r.related.filter(isHoneyPot).length, 0),
       crowded: crowded.length,
       matchRate: clipTotal ? Math.round((clipMatched / clipTotal) * 100) : 0,
