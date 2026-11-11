@@ -44,14 +44,27 @@ export const HOT_DEFAULT: HotPreset = {
   subtitle: '감시 채널 전체에서 지금 조회가 빠르게 느는 영상 — 남들보다 먼저 보고 선점',
 };
 
-export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }: { preset?: HotPreset; presetKey?: string; onWatchlist: () => void }) {
+export function HotView({
+  preset = HOT_DEFAULT,
+  presetKey = 'hot',
+  onWatchlist,
+  compact = false,
+}: {
+  preset?: HotPreset;
+  presetKey?: string;
+  onWatchlist: () => void;
+  /** 다른 화면 안에 넣을 때 (한드짜·예드짜 탭 아래) — 제목을 작게 */
+  compact?: boolean;
+}) {
   const [format, setFormat] = useState<'shorts' | 'long'>(preset.format ?? 'shorts');
   const [win, setWin] = useState<HotWindow>(preset.window ?? 6);
   const [multiple, setMultiple] = useState<0 | 1 | 2 | 5>(0);
   const [calmSurge, setCalmSurge] = useState(false);
   const [revival, setRevival] = useState(false);
-  // 기본은 한국어 채널만 — 해외 채널(MrBeast 같은)이 위를 다 차지해서
-  const [foreign, setForeign] = useState(false);
+  // 전체 화면은 기본 한국어 채널만 (MrBeast 같은 해외 채널이 위를 다 차지해서).
+  // 채널팩을 골라 연 화면(스케치·팬튜브·해외 영드짜 …)은 그 팩이 일부러 담은 해외 채널까지 — 스케치 팩은 60%가 해외 채널
+  const packScreen = !!preset.folders?.length;
+  const [foreign, setForeign] = useState(packScreen);
   const [sort, setSort] = useState<HotSort>(preset.sort ?? 'rising');
   const [reload, setReload] = useState(0);
   const [excludeWhale, setExcludeWhale] = useState(false);
@@ -68,6 +81,7 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
     setMultiple(0);
     setCalmSurge(false);
     setRevival(false);
+    setForeign(!!preset.folders?.length);
     setSort(preset.sort ?? 'rising');
     setFolder(null);
   }, [preset]);
@@ -103,7 +117,11 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
     <>
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[26px] font-extrabold tracking-[-0.04em]">{preset.title}</h1>
+          {compact ? (
+            <h2 className="text-[18px] font-extrabold tracking-[-0.03em]">{preset.title}</h2>
+          ) : (
+            <h1 className="text-[26px] font-extrabold tracking-[-0.04em]">{preset.title}</h1>
+          )}
           <p className="mt-1 text-[13px] font-semibold text-muted-foreground">{preset.subtitle}</p>
         </div>
         {data && (
@@ -176,7 +194,7 @@ export function HotView({ preset = HOT_DEFAULT, presetKey = 'hot', onWatchlist }
               역주행만
             </Toggle>
           </span>
-          <span title="기본은 한국어 채널만 — 채널 이름에 한글이 있거나, 모아 둔 영상 제목의 30% 이상에 한글이 든 채널 (기회판과 같은 기준)">
+          <span title="끄면 한국어 채널만 — 채널 이름에 한글이 있거나, 모아 둔 영상 제목의 30% 이상에 한글이 든 채널 (기회판과 같은 기준). 전체 화면은 끈 채로, 채널팩 화면은 켠 채로 열린다">
             <Toggle on={foreign} onClick={() => setForeign(!foreign)}>
               해외 채널 포함
             </Toggle>

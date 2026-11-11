@@ -192,7 +192,8 @@ async function risingInput(p: InsightParams) {
 }
 
 async function hotInput(p: InsightParams) {
-  const r = await getHotVideos({ format: p.format ?? 'shorts', window: p.window ?? 24, sort: 'rising', excludeWhale: false, folders: p.folders });
+  // 화면과 같은 목록 — 전체는 한국어 채널만, 채널팩 화면은 그 팩의 해외 채널까지
+  const r = await getHotVideos({ format: p.format ?? 'shorts', window: p.window ?? 24, sort: 'rising', excludeWhale: false, folders: p.folders, foreign: !!p.folders?.length });
   if (!r.items.length) throw new Error('이 범위에 터진 영상이 아직 없습니다');
   const comments = await commentsOf(r.items.slice(0, 8).map((v) => v.id));
   return {
