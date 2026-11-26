@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { TopBar, THEME_KEY } from '@/components/top-bar';
 import { AppShell } from '@/components/plan-sidebar';
+import { AgentChat } from '@/components/agent-chat';
 
 export const metadata: Metadata = {
   title: '새로이 대시보드',
@@ -48,6 +49,8 @@ export default function RootLayout({
         <TopBar />
         {/* 계획 사이드바는 전체 현황·유튜브·인스타·네이버클립에서만 (components/plan-sidebar) */}
         <AppShell>{children}</AppShell>
+        {/* 오른쪽 아래 AI 채팅 — 대시보드 데이터로 묻고 답한다 (로그인 화면에선 숨김) */}
+        <AgentChat />
         <script
           dangerouslySetInnerHTML={{
             __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));}`,
