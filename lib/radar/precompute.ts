@@ -35,13 +35,16 @@ export async function runPrecompute(o: { deadline: number; only?: 'hot' | 'sourc
   const all: [string, () => Promise<unknown>][] = [
     // 채널 한국어 판별은 하루 한 번 (기회판·터진 영상이 쓴다)
     ['channel-lang', () => onceADay('radar:channel-lang', refreshChannelLang)],
+    // 가벼운 것(각 10초 안팎)을 먼저 — 무거운 셋(플레이북 · 기회판 · 종합 분석 자료)이 길어지면 뒤에 둔 게
+    // 시간이 모자라 매번 건너뛰어졌다 (11/15 뒤로 원본 순위 · 황금키워드가 안 바뀜)
+    // 원본 채널 레이더 (스케치 원본 · 유튜브 예능 — 짜깁기 채널이 어느 원본을 잘라 올리나)
+    ['sources', () => refreshSources()],
+    ['golden', () => refreshGolden()],
     ['playbook', () => getPlaybook({ force: true })],
     // 한국어·전체를 한 번에 (같은 집계)
     ['outlook', () => categoryOutlook({ force: true })],
+    // 위 둘의 저장본을 읽으니 마지막에
     ['brief-input', () => getBriefInput({ force: true })],
-    ['golden', () => refreshGolden()],
-    // 원본 채널 레이더 (스케치 원본 · 유튜브 예능 — 짜깁기 채널이 어느 원본을 잘라 올리나)
-    ['sources', () => refreshSources()],
   ];
   const steps: [string, () => Promise<unknown>][] =
     o.only === 'hot' ? [['hot', () => refreshHotList()]] : o.only === 'sources' ? [['sources', () => refreshSources()]] : all;
